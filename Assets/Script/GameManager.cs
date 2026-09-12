@@ -14,11 +14,16 @@ public class GameManager : MonoBehaviour
     [Header("Tracing")]
     public TracingController tracingController;
     public TracingPath[] levelPatterns;
+    public GameObject tracingSurface; // the 3D panel + pen + path — only shown during actual tracing
 
     private int currentPatternIndex = 0;
     private float bestAccuracySoFar = 0f;
 
-    void Start() => ShowOnly(objectiveScreen);
+    void Start()
+    {
+        ShowOnly(objectiveScreen);
+        if (tracingSurface != null) tracingSurface.SetActive(false);
+    }
 
     public void OnStartPressed()
     {
@@ -29,6 +34,7 @@ public class GameManager : MonoBehaviour
 
     void BeginTracing()
     {
+        if (tracingSurface != null) tracingSurface.SetActive(true);
         ShowOnly(hudScreen);
         tracingController.OnPatternComplete = OnPatternFinished;
         tracingController.OnTimeUp = OnPatternFinished;
@@ -37,6 +43,8 @@ public class GameManager : MonoBehaviour
 
     void OnPatternFinished()
     {
+        if (tracingSurface != null) tracingSurface.SetActive(false);
+
         float completion = tracingController.GetCompletionPercent();
         float accuracy = tracingController.accuracyScore;
         if (accuracy > bestAccuracySoFar) bestAccuracySoFar = accuracy;
@@ -65,6 +73,7 @@ public class GameManager : MonoBehaviour
     {
         currentPatternIndex = 0;
         bestAccuracySoFar = 0f;
+        if (tracingSurface != null) tracingSurface.SetActive(false);
         ShowOnly(objectiveScreen);
     }
 
