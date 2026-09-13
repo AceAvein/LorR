@@ -1,12 +1,19 @@
 using UnityEngine;
 using TMPro;
+using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 
 public class TimeUpManager : MonoBehaviour
 {
+    [Header("Text")]
     public TextMeshProUGUI progressText;
     public TextMeshProUGUI currentBestText;
-    public TextMeshProUGUI xpText;
+
+    [Header("XP")]
+    public Slider xpSlider;
+
+    [Header("XP Settings")]
+    public float maxXP = 100f;
 
     void Start()
     {
@@ -14,9 +21,29 @@ public class TimeUpManager : MonoBehaviour
         int currentBest = PlayerPrefs.GetInt("CurrentBest", 0);
         int xp = PlayerPrefs.GetInt("XP", 0);
 
-        progressText.text = "PROGRESS: " + finalScore;
-        currentBestText.text = "CURRENT BEST: " + currentBest;
-        xpText.text = "XP: " + xp;
+        // Progress
+        if (progressText != null)
+        {
+            progressText.text = "PROGRESS: " + finalScore;
+        }
+
+        // Current Best
+        if (currentBestText != null)
+        {
+            currentBestText.text = "CURRENT BEST: " + currentBest;
+        }
+
+        // XP Bar
+        if (xpSlider != null)
+        {
+            xpSlider.minValue = 0f;
+            xpSlider.maxValue = maxXP;
+
+            xpSlider.value = Mathf.Clamp(xp, 0, (int)maxXP);
+
+            Debug.Log("XP: " + xp);
+            Debug.Log("XP BAR VALUE: " + xpSlider.value);
+        }
     }
 
     public void Next()

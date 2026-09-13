@@ -149,6 +149,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 59330510ff9d36e4aa3d9abd074799fa, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PathVisualizer
+  startMarkerPrefab: {fileID: 0}
 --- !u!120 &13009823
 LineRenderer:
   serializedVersion: 2
@@ -452,6 +453,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: f596bb6fe39bf1d41a6bf2f0981d5b3f, type: 2}
   - {fileID: 11400000, guid: c03e5ed7e8fceb049992d3bb3930f9c7, type: 2}
   - {fileID: 11400000, guid: 1326494d6e9a40946a976bef922bcd64, type: 2}
+  tracingSurface: {fileID: 315827188}
 --- !u!4 &294519315
 Transform:
   m_ObjectHideFlags: 0

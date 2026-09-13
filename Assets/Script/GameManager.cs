@@ -7,9 +7,9 @@ public class GameManager : MonoBehaviour
     public GameObject objectiveScreen, countdownScreen, hudScreen, timesUpScreen, progressionScreen;
 
     [Header("Screen Scripts")]
-    public CountdownUI countdownUI;
-    public TimesUpUI timesUpUI;
-    public ProgressionUI progressionUI;
+    public CountdownUItrace countdownUI;
+    public TimesUpUItrace timesUpUI;
+    public ProgressionUItrace progressionUI;
 
     [Header("Tracing")]
     public TracingController tracingController;

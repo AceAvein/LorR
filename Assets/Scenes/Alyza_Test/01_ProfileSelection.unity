@@ -3156,6 +3156,7 @@ MonoBehaviour:
   nameInput: {fileID: 1861207573}
   changeProfileImage: {fileID: 1035878254}
   profileSelectUI: {fileID: 442762666}
+  duplicateNameMessage: {fileID: 0}
 --- !u!1 &1048539640
 GameObject:
   m_ObjectHideFlags: 0
