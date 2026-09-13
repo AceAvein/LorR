@@ -25,7 +25,7 @@ public class MainMenuUI : MonoBehaviour
 
     public void OnTutorialClicked()
     {
-        SceneManager.LoadScene("05_Tutorial");
+        SceneManager.LoadScene("DONE - Tutorial Module - BENJ");
     }
 
     public void OnBackClicked()
