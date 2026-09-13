@@ -12,37 +12,48 @@ public class TimeUpManager : MonoBehaviour
     [Header("XP")]
     public Slider xpSlider;
 
-    [Header("XP Settings")]
-    public float maxXP = 100f;
-
     void Start()
     {
-        int finalScore = PlayerPrefs.GetInt("FinalScore", 0);
-        int currentBest = PlayerPrefs.GetInt("CurrentBest", 0);
-        int xp = PlayerPrefs.GetInt("XP", 0);
+        int finalScore =
+            PlayerPrefs.GetInt("FinalScore", 0);
 
-        // Progress
+        int currentBest =
+            PlayerPrefs.GetInt("CurrentBest", 0);
+
+        int progress =
+            PlayerPrefs.GetInt("Progress", 0);
+
+        // Progress text
         if (progressText != null)
         {
-            progressText.text = "PROGRESS: " + finalScore;
+            progressText.text =
+                "PROGRESS: " + finalScore + "%";
         }
 
-        // Current Best
+        // Current best
         if (currentBestText != null)
         {
-            currentBestText.text = "CURRENT BEST: " + currentBest;
+            currentBestText.text =
+                "CURRENT BEST: " + currentBest;
         }
 
-        // XP Bar
+        // XP BAR
         if (xpSlider != null)
         {
             xpSlider.minValue = 0f;
-            xpSlider.maxValue = maxXP;
+            xpSlider.maxValue = 100f;
 
-            xpSlider.value = Mathf.Clamp(xp, 0, (int)maxXP);
+            xpSlider.value = progress;
 
-            Debug.Log("XP: " + xp);
-            Debug.Log("XP BAR VALUE: " + xpSlider.value);
+            Debug.Log(
+                "TIME UP XP PROGRESS: " + progress
+            );
+        }
+        else
+        {
+            Debug.LogError(
+                "XP Slider is NOT assigned!"
+            );
         }
     }
 

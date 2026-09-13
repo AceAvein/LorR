@@ -7,6 +7,7 @@ public class GameReactionManager : MonoBehaviour
 {
     public static GameReactionManager Instance;
 
+    [Header("UI")]
     public TextMeshProUGUI scoreText;
     public TextMeshProUGUI timerText;
 
@@ -14,6 +15,7 @@ public class GameReactionManager : MonoBehaviour
     public TextMeshProUGUI missText;
     public TextMeshProUGUI tooSlowText;
 
+    [Header("Game Settings")]
     public float gameTime = 90f;
 
     private int score = 0;
@@ -32,9 +34,14 @@ public class GameReactionManager : MonoBehaviour
     {
         UpdateScore();
 
-        niceText.gameObject.SetActive(false);
-        missText.gameObject.SetActive(false);
-        tooSlowText.gameObject.SetActive(false);
+        if (niceText != null)
+            niceText.gameObject.SetActive(false);
+
+        if (missText != null)
+            missText.gameObject.SetActive(false);
+
+        if (tooSlowText != null)
+            tooSlowText.gameObject.SetActive(false);
     }
 
     void Update()
@@ -51,6 +58,7 @@ public class GameReactionManager : MonoBehaviour
 
             UpdateTimer();
             EndGame();
+
             return;
         }
 
@@ -62,7 +70,11 @@ public class GameReactionManager : MonoBehaviour
         int minutes = Mathf.FloorToInt(gameTime / 60);
         int seconds = Mathf.FloorToInt(gameTime % 60);
 
-        timerText.text = string.Format("{0}:{1:00}", minutes, seconds);
+        if (timerText != null)
+        {
+            timerText.text =
+                string.Format("{0}:{1:00}", minutes, seconds);
+        }
     }
 
     public void CorrectAnswer()
@@ -71,10 +83,14 @@ public class GameReactionManager : MonoBehaviour
             return;
 
         correctAnswers++;
+
+        // Correct answer = +5 score / XP
         score += 5;
 
         UpdateScore();
-        StartCoroutine(ShowMessage(niceText));
+
+        if (niceText != null)
+            StartCoroutine(ShowMessage(niceText));
     }
 
     public void WrongAnswer()
@@ -83,13 +99,16 @@ public class GameReactionManager : MonoBehaviour
             return;
 
         wrongAnswers++;
+
         score -= 5;
 
         if (score < 0)
             score = 0;
 
         UpdateScore();
-        StartCoroutine(ShowMessage(missText));
+
+        if (missText != null)
+            StartCoroutine(ShowMessage(missText));
     }
 
     public void TooSlow()
@@ -98,24 +117,35 @@ public class GameReactionManager : MonoBehaviour
             return;
 
         tooSlowAnswers++;
+
         score -= 5;
 
         if (score < 0)
             score = 0;
 
         UpdateScore();
-        StartCoroutine(ShowMessage(tooSlowText));
+
+        if (tooSlowText != null)
+            StartCoroutine(ShowMessage(tooSlowText));
     }
 
     void UpdateScore()
     {
-        scoreText.text = "SCORE: " + score;
+        if (scoreText != null)
+        {
+            scoreText.text = "SCORE: " + score;
+        }
     }
 
     void EndGame()
     {
-        int totalAttempts = correctAnswers + wrongAnswers + tooSlowAnswers;
+        // Calculate total attempts
+        int totalAttempts =
+            correctAnswers +
+            wrongAnswers +
+            tooSlowAnswers;
 
+        // Calculate accuracy
         int accuracy = 0;
 
         if (totalAttempts > 0)
@@ -125,37 +155,54 @@ public class GameReactionManager : MonoBehaviour
             );
         }
 
+        // XP is based on the final score
         int xp = score;
 
         if (xp < 0)
             xp = 0;
 
+        // XP progress is limited to 100
+        int progress = Mathf.Clamp(xp, 0, 100);
+
+        // Get previous best
+        int currentBest =
+            PlayerPrefs.GetInt("CurrentBest", 0);
+
+        // Update best score
+        if (score > currentBest)
+        {
+            currentBest = score;
+        }
+
+        // SAVE ALL GAME RESULTS
         PlayerPrefs.SetInt("FinalScore", score);
         PlayerPrefs.SetInt("Accuracy", accuracy);
+
+        // Raw XP
         PlayerPrefs.SetInt("XP", xp);
+
+        // XP BAR VALUE: 0-100
+        PlayerPrefs.SetInt("Progress", progress);
+
         PlayerPrefs.SetInt("Correct", correctAnswers);
         PlayerPrefs.SetInt("Wrong", wrongAnswers);
         PlayerPrefs.SetInt("TooSlow", tooSlowAnswers);
 
-        // Save best score
-        int currentBest = PlayerPrefs.GetInt("CurrentBest", 0);
+        PlayerPrefs.SetInt("CurrentBest", currentBest);
 
-        if (score > currentBest)
-        {
-            currentBest = score;
-            PlayerPrefs.SetInt("CurrentBest", currentBest);
-        }
-
-        // Progress toward 100 XP
-        int progress = xp;
-
-        if (progress > 100)
-            progress = 100;
-
-        PlayerPrefs.SetInt("Progress", progress);
-
+        // Actually save PlayerPrefs
         PlayerPrefs.Save();
 
+        // DEBUG
+        Debug.Log("========== GAME FINISHED ==========");
+        Debug.Log("Final Score: " + score);
+        Debug.Log("Accuracy: " + accuracy + "%");
+        Debug.Log("XP: " + xp);
+        Debug.Log("XP Progress: " + progress + "%");
+        Debug.Log("Current Best: " + currentBest);
+        Debug.Log("===================================");
+
+        // Go to Times Up scene
         SceneManager.LoadScene("09.3_ReactionLight");
     }
 

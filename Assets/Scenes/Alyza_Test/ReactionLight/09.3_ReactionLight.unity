@@ -1655,8 +1655,8 @@ MonoBehaviour:
   m_Type: 1
   m_PreserveAspect: 0
   m_FillCenter: 1
-  m_FillMethod: 4
-  m_FillAmount: 1
+  m_FillMethod: 0
+  m_FillAmount: 0
   m_FillClockwise: 1
   m_FillOrigin: 0
   m_UseSpriteMesh: 0
@@ -2062,8 +2062,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TimeUpManager
   progressText: {fileID: 47405592}
   currentBestText: {fileID: 770543566}
-  xpSlider: {fileID: 0}
-  maxXP: 100
+  xpSlider: {fileID: 10474573}
 --- !u!4 &2134191210
 Transform:
   m_ObjectHideFlags: 0
