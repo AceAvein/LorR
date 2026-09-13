@@ -2,7 +2,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
 using System.IO;
-using NativeGalleryNamespace;
 
 public class ChangeProfileImage : MonoBehaviour
 {
@@ -12,7 +11,6 @@ public class ChangeProfileImage : MonoBehaviour
     void Awake()
     {
         Debug.Log("[AWAKE] ChangeProfileImage on GameObject: " + gameObject.name + " | InstanceID: " + GetInstanceID());
-        Debug.Log("PersistentDataPath: " + Application.persistentDataPath);
     }
 
     public void OnChangeProfileClicked()
@@ -28,11 +26,11 @@ public class ChangeProfileImage : MonoBehaviour
 #if UNITY_ANDROID && !UNITY_EDITOR
     void PickImageAndroid()
     {
-        NativeGallery.GetImageFromGallery((path) =>
+        NativeGalleryNamespace.NativeGallery.GetImageFromGallery((path) =>
         {
             if (path == null)
                 return;
-            Texture2D texture = NativeGallery.LoadImageAtPath(path, 1024);
+            Texture2D texture = NativeGalleryNamespace.NativeGallery.LoadImageAtPath(path, 1024);
             if (texture == null)
                 return;
             SetImage(texture, path);
@@ -65,27 +63,9 @@ public class ChangeProfileImage : MonoBehaviour
             new Rect(0, 0, texture.width, texture.height),
             new Vector2(0.5f, 0.5f));
         iconPreview.sprite = sprite;
-
         string fileName = "profile_" + System.Guid.NewGuid() + Path.GetExtension(originalPath);
         string destination = Path.Combine(Application.persistentDataPath, fileName);
-
-        try
-        {
-            string dir = Path.GetDirectoryName(destination);
-            if (!Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-                Debug.Log("[CREATED DIR] " + dir);
-            }
-
-            File.Copy(originalPath, destination, true);
-            Debug.Log("[COPY SUCCESS] To: " + destination + " | Exists: " + File.Exists(destination));
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogError("[COPY FAILED] " + e.GetType().Name + ": " + e.Message);
-        }
-
+        File.Copy(originalPath, destination, true);
         SelectedImagePath = destination;
         Debug.Log("[SETIMAGE] Called on GameObject: " + gameObject.name + " | InstanceID: " + GetInstanceID() + " | Path: " + SelectedImagePath);
     }

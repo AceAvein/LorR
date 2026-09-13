@@ -51,7 +51,8 @@ public class ProfileManager : MonoBehaviour
         if (string.IsNullOrEmpty(json))
             return;
 
-        ProfileListWrapper wrapper = JsonUtility.FromJson<ProfileListWrapper>(json);
+        ProfileListWrapper wrapper =
+            JsonUtility.FromJson<ProfileListWrapper>(json);
 
         if (wrapper != null && wrapper.profiles != null)
         {
@@ -68,12 +69,42 @@ public class ProfileManager : MonoBehaviour
         string json = JsonUtility.ToJson(wrapper);
 
         PlayerPrefs.SetString(SAVE_KEY, json);
-
         PlayerPrefs.Save();
     }
 
-    public void AddProfile(string playerName, string imagePath)
+    public bool ProfileNameExists(string playerName)
     {
+        if (string.IsNullOrWhiteSpace(playerName))
+            return false;
+
+        foreach (UserProfile profile in Profiles)
+        {
+            if (profile != null &&
+                !string.IsNullOrEmpty(profile.name) &&
+                profile.name.Equals(
+                    playerName.Trim(),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public bool AddProfile(string playerName, string imagePath)
+    {
+        playerName = playerName.Trim();
+
+        // Prevent duplicate names
+        if (ProfileNameExists(playerName))
+        {
+            Debug.LogWarning(
+                "Profile name already exists: " + playerName);
+
+            return false;
+        }
+
         UserProfile profile = new UserProfile();
 
         profile.name = playerName;
@@ -82,6 +113,8 @@ public class ProfileManager : MonoBehaviour
         Profiles.Add(profile);
 
         SaveProfiles();
+
+        return true;
     }
 
     public void DeleteProfile(UserProfile profile)
