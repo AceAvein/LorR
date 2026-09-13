@@ -12,6 +12,6 @@ public class TimesUpUI : MonoBehaviour
     {
         progressText.text = $"PROGRESS: {completionPercent:0}%";
         currentBestText.text = $"CURRENT BEST: {bestAccuracySoFar:0}%";
-        xpSlider.value = xpProgress01;
+        xpSlider.value = xpProgress01; // 0 to 1
     }
 }
