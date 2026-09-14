@@ -9,7 +9,7 @@ EditorBuildSettings:
     path: Assets/Scenes/Ace_Test/SampleScene.unity
     guid: 59780a1a6425cad4b91243cc943a309c
   - enabled: 1
-    path: Assets/Scenes/Mode_Select.unity
+    path: Assets/Scenes/Menu.unity
     guid: c140f40514c9aae41a2c9835efa02fb7
   - enabled: 1
     path: Assets/Scenes/Alyza_Test/01_ProfileSelection.unity
