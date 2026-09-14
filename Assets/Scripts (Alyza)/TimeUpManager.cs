@@ -8,6 +8,7 @@ public class TimeUpManager : MonoBehaviour
     [Header("Text")]
     public TextMeshProUGUI progressText;
     public TextMeshProUGUI currentBestText;
+    public TextMeshProUGUI highestLevelText;
 
     [Header("XP")]
     public Slider xpSlider;
@@ -23,6 +24,9 @@ public class TimeUpManager : MonoBehaviour
         int progress =
             PlayerPrefs.GetInt("Progress", 0);
 
+        int currentLevel =
+            PlayerPrefs.GetInt("CurrentLevel", 1);
+
         // Progress text
         if (progressText != null)
         {
@@ -35,6 +39,13 @@ public class TimeUpManager : MonoBehaviour
         {
             currentBestText.text =
                 "CURRENT BEST: " + currentBest;
+        }
+
+        // Highest Level
+        if (highestLevelText != null)
+        {
+            highestLevelText.text =
+                "HIGHEST LEVEL: " + currentLevel;
         }
 
         // XP BAR

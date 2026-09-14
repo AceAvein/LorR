@@ -14,9 +14,12 @@ public class GameReactionManager : MonoBehaviour
     public TextMeshProUGUI niceText;
     public TextMeshProUGUI missText;
     public TextMeshProUGUI tooSlowText;
+    public TextMeshProUGUI levelText;
 
     [Header("Game Settings")]
     public float gameTime = 90f;
+
+    private int currentLevel = 1;
 
     private int score = 0;
     private int correctAnswers = 0;
@@ -33,6 +36,7 @@ public class GameReactionManager : MonoBehaviour
     void Start()
     {
         UpdateScore();
+        UpdateLevelText();
 
         if (niceText != null)
             niceText.gameObject.SetActive(false);
@@ -84,10 +88,11 @@ public class GameReactionManager : MonoBehaviour
 
         correctAnswers++;
 
-        // Correct answer = +5 score / XP
-        score += 5;
+        score += 1;
 
         UpdateScore();
+
+        CheckLevelUp();
 
         if (niceText != null)
             StartCoroutine(ShowMessage(niceText));
@@ -100,7 +105,7 @@ public class GameReactionManager : MonoBehaviour
 
         wrongAnswers++;
 
-        score -= 5;
+        score -= 1;
 
         if (score < 0)
             score = 0;
@@ -118,7 +123,7 @@ public class GameReactionManager : MonoBehaviour
 
         tooSlowAnswers++;
 
-        score -= 5;
+        score -= 1;
 
         if (score < 0)
             score = 0;
@@ -127,6 +132,42 @@ public class GameReactionManager : MonoBehaviour
 
         if (tooSlowText != null)
             StartCoroutine(ShowMessage(tooSlowText));
+    }
+
+    void CheckLevelUp()
+    {
+        int newLevel = Mathf.Clamp(
+            (correctAnswers / 20) + 1,
+            1,
+            5
+        );
+
+        if (newLevel != currentLevel)
+        {
+            currentLevel = newLevel;
+
+            UpdateLevelText();
+
+            if (LightManager.Instance != null)
+            {
+                LightManager.Instance.UpdateDifficulty();
+            }
+
+            Debug.Log("LEVEL UP! Current Level: " + currentLevel);
+        }
+    }
+
+    void UpdateLevelText()
+    {
+        if (levelText != null)
+        {
+            levelText.text = "LEVEL: " + currentLevel;
+        }
+    }
+
+    public int GetCurrentLevel()
+    {
+        return currentLevel;
     }
 
     void UpdateScore()
@@ -139,13 +180,11 @@ public class GameReactionManager : MonoBehaviour
 
     void EndGame()
     {
-        // Calculate total attempts
         int totalAttempts =
             correctAnswers +
             wrongAnswers +
             tooSlowAnswers;
 
-        // Calculate accuracy
         int accuracy = 0;
 
         if (totalAttempts > 0)
@@ -155,33 +194,24 @@ public class GameReactionManager : MonoBehaviour
             );
         }
 
-        // XP is based on the final score
         int xp = score;
 
         if (xp < 0)
             xp = 0;
 
-        // XP progress is limited to 100
         int progress = Mathf.Clamp(xp, 0, 100);
 
-        // Get previous best
         int currentBest =
             PlayerPrefs.GetInt("CurrentBest", 0);
 
-        // Update best score
         if (score > currentBest)
         {
             currentBest = score;
         }
 
-        // SAVE ALL GAME RESULTS
         PlayerPrefs.SetInt("FinalScore", score);
         PlayerPrefs.SetInt("Accuracy", accuracy);
-
-        // Raw XP
         PlayerPrefs.SetInt("XP", xp);
-
-        // XP BAR VALUE: 0-100
         PlayerPrefs.SetInt("Progress", progress);
 
         PlayerPrefs.SetInt("Correct", correctAnswers);
@@ -189,20 +219,19 @@ public class GameReactionManager : MonoBehaviour
         PlayerPrefs.SetInt("TooSlow", tooSlowAnswers);
 
         PlayerPrefs.SetInt("CurrentBest", currentBest);
+        PlayerPrefs.SetInt("CurrentLevel", currentLevel);
 
-        // Actually save PlayerPrefs
         PlayerPrefs.Save();
 
-        // DEBUG
         Debug.Log("========== GAME FINISHED ==========");
         Debug.Log("Final Score: " + score);
         Debug.Log("Accuracy: " + accuracy + "%");
         Debug.Log("XP: " + xp);
         Debug.Log("XP Progress: " + progress + "%");
         Debug.Log("Current Best: " + currentBest);
+        Debug.Log("Highest Level: " + currentLevel);
         Debug.Log("===================================");
 
-        // Go to Times Up scene
         SceneManager.LoadScene("09.3_ReactionLight");
     }
 
