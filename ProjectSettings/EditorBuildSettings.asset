@@ -30,8 +30,7 @@ EditorBuildSettings:
     path: Assets/Scenes/Alyza_Test/ReactionLight/09.4_ReactionLight.unity
     guid: e413f3e6a9db2c2479e97b1e04f9dca0
   - enabled: 1
-    path: Assets/Scenes/DONE - Tutorial Module - BENJ/Assets/DONE - Tutorial Module
-      - BENJ.unity
+    path: Assets/Scenes/Benj_Test/Assets/DONE - Tutorial Module - BENJ.unity
     guid: 3bf276ea7ad178f419610aaffc522115
   - enabled: 1
     path: Assets/Scenes/Kyle_Test/test.unity
