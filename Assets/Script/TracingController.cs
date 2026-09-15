@@ -62,15 +62,22 @@ public class TracingController : MonoBehaviour
 
         Vector3 targetWorldPoint = transform.TransformPoint(activePath.pathPoints[currentTargetIndex]);
         pathDeviation = Vector3.Distance(penTip.position, targetWorldPoint);
+        Debug.Log("PenTip distance from target: " + pathDeviation);
+        Debug.Log("PenTip: " + penTip.position);
+        Debug.Log("Target: " + targetWorldPoint);
 
         totalDeviationSum += pathDeviation;
         sampleCount++;
 
         bool onPath = pathDeviation <= activePath.toleranceRadius;
 
-        if (onPath)
+       if (onPath)
         {
             wasOffPath = false;
+
+            // Record the PenTip's actual movement
+            pathVisualizer.AddTracePoint(penTip.position);
+
             if (pathDeviation <= activePath.toleranceRadius * 0.6f)
             {
                 pathVisualizer.ClearPointVisual(currentTargetIndex);
