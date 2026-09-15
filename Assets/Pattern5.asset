@@ -116,5 +116,5 @@ MonoBehaviour:
   - {x: -0.012931296, y: -0.51279837, z: 0}
   - {x: -0.000000024041263, y: -0.55, z: 0}
   toleranceRadius: 0.08
-  timeLimit: 60
+  timeLimit: 25
   difficultyLevel: 1
