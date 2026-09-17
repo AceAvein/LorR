@@ -6,34 +6,34 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 0
-    path: Assets/Scenes/Ace_Test/SampleScene.unity
-    guid: 59780a1a6425cad4b91243cc943a309c
+    path: Assets/Test_Scenes/Ace_Test/SampleScene.unity
+    guid: 99c9720ab356a0642a771bea13969a05
   - enabled: 1
     path: Assets/Scenes/Menu.unity
     guid: c140f40514c9aae41a2c9835efa02fb7
   - enabled: 1
-    path: Assets/Scenes/Alyza_Test/01_ProfileSelection.unity
-    guid: 846c4af4eb5efe94e9b6bdf44e32c87f
+    path: Assets/Test_Scenes/Alyza_Test/01_ProfileSelection.unity
+    guid: a00adc67a7bc1664aa10299811dc000e
   - enabled: 1
-    path: Assets/Scenes/Alyza_Test/ReactionLight/09_ReactionLight.unity
+    path: Assets/Test_Scenes/Alyza_Test/ReactionLight/09_ReactionLight.unity
     guid: c5465b345ddda8f498edef7b9df94a6b
   - enabled: 1
-    path: Assets/Scenes/Alyza_Test/ReactionLight/09.1_ReactionLight.unity
+    path: Assets/Test_Scenes/Alyza_Test/ReactionLight/09.1_ReactionLight.unity
     guid: d9ab88f10e735d641a187a9063634f66
   - enabled: 1
-    path: Assets/Scenes/Alyza_Test/ReactionLight/09.2_ReactionLight.unity
+    path: Assets/Test_Scenes/Alyza_Test/ReactionLight/09.2_ReactionLight.unity
     guid: 8408864202234104d9be65ee8dfc8496
   - enabled: 1
-    path: Assets/Scenes/Alyza_Test/ReactionLight/09.3_ReactionLight.unity
+    path: Assets/Test_Scenes/Alyza_Test/ReactionLight/09.3_ReactionLight.unity
     guid: ec8b048ec6043364095f47bd515b8cc0
   - enabled: 1
-    path: Assets/Scenes/Alyza_Test/ReactionLight/09.4_ReactionLight.unity
+    path: Assets/Test_Scenes/Alyza_Test/ReactionLight/09.4_ReactionLight.unity
     guid: e413f3e6a9db2c2479e97b1e04f9dca0
-  - enabled: 1
-    path: Assets/Scenes/Benj_Test/Assets/DONE - Tutorial Module - BENJ.unity
+  - enabled: 0
+    path: Assets/Test_Scenes/Benj_Test/Assets/DONE - Tutorial Module - BENJ.unity
     guid: 3bf276ea7ad178f419610aaffc522115
   - enabled: 1
-    path: Assets/Scenes/Kyle_Test/test.unity
+    path: Assets/Test_Scenes/Kyle_Test/test.unity
     guid: 5a8978ba5cf5a89489042a63fef2bf74
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
