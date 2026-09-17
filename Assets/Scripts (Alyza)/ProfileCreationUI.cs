@@ -1,3 +1,4 @@
+
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -8,9 +9,35 @@ public class ProfileCreationUI : MonoBehaviour
     public ChangeProfileImage changeProfileImage;
     public ProfileSelectUI profileSelectUI;
 
-    [Header("Duplicate Name Message")]
-    public GameObject duplicateNameMessage;
+    // I-drag dito ang mismong Profile Select panel
+    public GameObject profileSelectPanel;
 
+    [Header("Duplicate Name Message")]
+    public Text duplicateNameMessage;
+
+
+    // OPEN CREATE ACCOUNT UI
+    public void OpenCreationUI()
+    {
+        // Itago lamang ang Profile Select panel
+        if (profileSelectPanel != null)
+        {
+            profileSelectPanel.SetActive(false);
+        }
+
+        // Ipakita ang Create Account UI
+        gameObject.SetActive(true);
+
+        // Itago ang duplicate message
+        if (duplicateNameMessage != null)
+        {
+            duplicateNameMessage.text = "";
+            duplicateNameMessage.gameObject.SetActive(false);
+        }
+    }
+
+
+    // CREATE PROFILE BUTTON
     public void OnCreateClicked()
     {
         string playerName = nameInput.text.Trim();
@@ -21,6 +48,8 @@ public class ProfileCreationUI : MonoBehaviour
             return;
         }
 
+
+        // CHECK DUPLICATE NAME
         if (ProfileManager.Instance.ProfileNameExists(playerName))
         {
             Debug.LogWarning(
@@ -28,18 +57,24 @@ public class ProfileCreationUI : MonoBehaviour
 
             if (duplicateNameMessage != null)
             {
-                duplicateNameMessage.SetActive(true);
+                duplicateNameMessage.text =
+                    "Profile name already exists!";
+
+                duplicateNameMessage.gameObject.SetActive(true);
             }
 
             return;
         }
 
+
+        // GET SELECTED PROFILE IMAGE
         string imagePath = "";
 
         if (changeProfileImage != null)
         {
             imagePath = changeProfileImage.SelectedImagePath;
         }
+
 
         Debug.Log(
             "changeProfileImage is null? " +
@@ -49,49 +84,86 @@ public class ProfileCreationUI : MonoBehaviour
             "imagePath about to be saved: '" +
             imagePath + "'");
 
+
+        // ADD PROFILE
         bool profileCreated =
             ProfileManager.Instance.AddProfile(
                 playerName,
                 imagePath);
 
-        // Safety check
+
+        // SAFETY CHECK
         if (!profileCreated)
         {
             if (duplicateNameMessage != null)
             {
-                duplicateNameMessage.SetActive(true);
+                duplicateNameMessage.text =
+                    "Profile creation failed!";
+
+                duplicateNameMessage.gameObject.SetActive(true);
             }
 
             return;
         }
 
+
+        // CLEAR INPUT FIELD
         nameInput.text = "";
 
+
+        // HIDE CREATE ACCOUNT UI
         gameObject.SetActive(false);
 
+
+        // SHOW PROFILE SELECT PANEL
+        if (profileSelectPanel != null)
+        {
+            profileSelectPanel.SetActive(true);
+        }
+
+
+        // REFRESH PROFILE LIST
         if (profileSelectUI != null)
         {
             profileSelectUI.RefreshProfileList();
         }
     }
 
+
+    // CANCEL BUTTON
     public void OnCancelClicked()
     {
-        nameInput.text = "";
+        if (nameInput != null)
+        {
+            nameInput.text = "";
+        }
 
         if (duplicateNameMessage != null)
         {
-            duplicateNameMessage.SetActive(false);
+            duplicateNameMessage.text = "";
+            duplicateNameMessage.gameObject.SetActive(false);
         }
 
+
+        // HIDE CREATE ACCOUNT UI
         gameObject.SetActive(false);
+
+
+        // SHOW PROFILE SELECT PANEL
+        if (profileSelectPanel != null)
+        {
+            profileSelectPanel.SetActive(true);
+        }
     }
 
+
+    // CLOSE DUPLICATE MESSAGE
     public void CloseDuplicateMessage()
     {
         if (duplicateNameMessage != null)
         {
-            duplicateNameMessage.SetActive(false);
+            duplicateNameMessage.text = "";
+            duplicateNameMessage.gameObject.SetActive(false);
         }
     }
 }
