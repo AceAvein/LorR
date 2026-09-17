@@ -11,10 +11,32 @@ public class ModeSelectUI : MonoBehaviour
     // Back button papunta sa Main Menu galing sa Mode Select
     public void OnBackClicked()
     {
-        SceneManager.LoadScene("02_MainMenu");
+        SceneManager.LoadScene("Menu");
     }
     public void OnTrainingRangeClicked()
     {
-        SceneManager.LoadScene("06_TrainingRange");
+        SceneManager.LoadScene("TrainingRange");
     }
+
+    // Training Modes na to
+    public void OnPenTraceClicked()
+    {
+        SceneManager.LoadScene("PenControlTracing");
+    }
+
+    public void OnReactionLightClicked()
+    {
+        SceneManager.LoadScene("ReactionLight");
+    }
+
+    public void OnBallDropClicked()
+    {
+        SceneManager.LoadScene("Balldrop");
+    }
+
+    public void OnColorSortClicked()
+    {
+        SceneManager.LoadScene("ColorSort");
+    }
+
 }

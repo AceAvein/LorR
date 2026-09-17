@@ -5,12 +5,18 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
-    path: Assets/Test_Scenes/Ace_Test/SampleScene.unity
-    guid: 99c9720ab356a0642a771bea13969a05
+  - enabled: 1
+    path: Assets/Scenes/Splash_Screen.unity
+    guid: bab35f9193ec09442bd160342fce1cda
+  - enabled: 1
+    path: Assets/Scenes/ProfileSelect.unity
+    guid: 106ca43df99585d41b1dcb8a3a275bbd
   - enabled: 1
     path: Assets/Scenes/Menu.unity
     guid: c140f40514c9aae41a2c9835efa02fb7
+  - enabled: 1
+    path: Assets/Scenes/PenControlTracing.unity
+    guid: 3c9c8de51ec055349b8ce03971094448
   - enabled: 1
     path: Assets/Test_Scenes/Alyza_Test/01_ProfileSelection.unity
     guid: a00adc67a7bc1664aa10299811dc000e
@@ -29,12 +35,6 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Test_Scenes/Alyza_Test/ReactionLight/09.4_ReactionLight.unity
     guid: e413f3e6a9db2c2479e97b1e04f9dca0
-  - enabled: 0
-    path: Assets/Test_Scenes/Benj_Test/Assets/DONE - Tutorial Module - BENJ.unity
-    guid: 3bf276ea7ad178f419610aaffc522115
-  - enabled: 1
-    path: Assets/Test_Scenes/Kyle_Test/test.unity
-    guid: 5a8978ba5cf5a89489042a63fef2bf74
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 21a432a7ad59a6d4ba80018f8c84d46f, type: 2}

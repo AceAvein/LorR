@@ -95,7 +95,7 @@ public class ProfileSelectUI : MonoBehaviour
     {
         ProfileManager.Instance.SelectProfile(profile);
         Debug.Log("Selected Profile: " + profile.name);
-        SceneManager.LoadScene("02_MainMenu");
+        SceneManager.LoadScene("Menu");
     }
     public void OnAddProfileClicked()
     {

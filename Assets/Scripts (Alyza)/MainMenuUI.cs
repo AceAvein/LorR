@@ -5,9 +5,10 @@ public class MainMenuUI : MonoBehaviour
 {
     public void OnExitClicked()
     {
-        SceneManager.LoadScene("01_ProfileSelection");
+        SceneManager.LoadScene("ProfileSelect");
     }
 
+/*
     public void OnStartClicked()
     {
         SceneManager.LoadScene("03_ModeSelection");
@@ -27,9 +28,11 @@ public class MainMenuUI : MonoBehaviour
     {
         SceneManager.LoadScene("DONE - Tutorial Module - BENJ");
     }
-
+    
     public void OnBackClicked()
     {
         SceneManager.LoadScene("02_MainMenu");
-    }
+    } 
+*/
+
 }

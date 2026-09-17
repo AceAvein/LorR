@@ -9,11 +9,13 @@ public class PathManager : MonoBehaviour
     public Transform traceEnd;
     public GameObject finishedScreen;
     public TMP_Text averageAccuracyText;
+    public PatternManager patternManager;
 
     public float traceDistance = 0.08f;
 
     private float totalTraceTime = 0f;
     private float correctTraceTime = 0f;
+    private bool patternCompleted = false;
 
     void Update()
     {
@@ -32,8 +34,9 @@ public class PathManager : MonoBehaviour
             Debug.Log("Accuracy: " + GetAccuracy().ToString("F1") + "%");
         }
 
-        if (Vector3.Distance(penTip.position, traceEnd.position) <= 0.08f)
+        if (!patternCompleted && Vector3.Distance(penTip.position, traceEnd.position) <= 0.08f)
         {
+            patternCompleted = true;
             StartCoroutine(PatternComplete());
         }
     }
@@ -97,13 +100,19 @@ public class PathManager : MonoBehaviour
     IEnumerator PatternComplete()
     {
         averageAccuracyText.text = "Average Tracing Accuracy: " + GetAccuracy().ToString("F1") + "%";
-        
+
         finishedScreen.SetActive(true);
 
         yield return new WaitForSeconds(1f);
 
         finishedScreen.SetActive(false);
 
+        patternManager.NextPattern();
         Debug.Log("Pattern Complete! Next pattern would start here.");
+    }
+
+    public void ResetPattern()
+    {
+        patternCompleted = false;
     }
 }

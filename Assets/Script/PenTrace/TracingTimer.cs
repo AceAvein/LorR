@@ -8,6 +8,7 @@ public class TracingTimer : MonoBehaviour
     public GameObject tracingBoard;
     public GameObject tracingArea;
     public PathManager pathManager;
+    public PatternManager patternManager;
 
     public float timeLimit = 10f;
 
@@ -38,6 +39,9 @@ public class TracingTimer : MonoBehaviour
         {
             timeRemaining = 0f;
             timerRunning = false;
+            gameObject.SetActive(false);
+
+            pathManager.finishedScreen.SetActive(false);
 
             pathManager.averageAccuracyText.text =
             "Average Tracing Accuracy: " + pathManager.GetAccuracy().ToString("F1") + "%";
@@ -63,9 +67,13 @@ public class TracingTimer : MonoBehaviour
     public void TryAgain()
     {
         timesUpScreen.SetActive(false);
-        tracingBoard.SetActive(true);
-        tracingArea.SetActive(true);
 
-        StartTimer();
+        patternManager.ResetPatterns();
+
+        tracingBoard.SetActive(true);
+        tracingArea.SetActive(false);
+
+        Countdown countdown = FindObjectOfType<Countdown>();
+        countdown.StartCountdown();
     }
 }
