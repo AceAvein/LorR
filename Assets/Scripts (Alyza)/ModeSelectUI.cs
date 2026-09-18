@@ -31,7 +31,7 @@ public class ModeSelectUI : MonoBehaviour
 
     public void OnBallDropClicked()
     {
-        SceneManager.LoadScene("Balldrop");
+        SceneManager.LoadScene("BallDrop_InitialTest");
     }
 
     public void OnColorSortClicked()

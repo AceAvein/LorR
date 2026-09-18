@@ -18,6 +18,9 @@ EditorBuildSettings:
     path: Assets/Scenes/PenControlTracing.unity
     guid: 3c9c8de51ec055349b8ce03971094448
   - enabled: 1
+    path: Assets/Test_Scenes/Ace_Test/BallDrop_InitialTest.unity
+    guid: 8cbb41780bfcb4646beba4cd90142acb
+  - enabled: 1
     path: Assets/Test_Scenes/Alyza_Test/01_ProfileSelection.unity
     guid: a00adc67a7bc1664aa10299811dc000e
   - enabled: 1
