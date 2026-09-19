@@ -76,6 +76,6 @@ public class ProgressionManager : MonoBehaviour
 
     public void Back()
     {
-        SceneManager.LoadScene("Mode_Select");
+        SceneManager.LoadScene("Menu");
     }
 }

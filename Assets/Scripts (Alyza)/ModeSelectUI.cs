@@ -26,7 +26,7 @@ public class ModeSelectUI : MonoBehaviour
 
     public void OnReactionLightClicked()
     {
-        SceneManager.LoadScene("ReactionLight");
+        SceneManager.LoadScene("ReactionLight_InitTest");
     }
 
     public void OnBallDropClicked()
