@@ -89,8 +89,15 @@ public class PlayerHands : MonoBehaviour
                 child.gameObject.SetActive(false);
         }
 
-        EnsureHand(FindNamedChild(origin, "Left Controller"), leftHandPrefab, true);
-        EnsureHand(FindNamedChild(origin, "Right Controller"), rightHandPrefab, false);
+        Transform leftController = FindNamedChild(origin, "Left Controller");
+        Transform rightController = FindNamedChild(origin, "Right Controller");
+
+        if (origin.gameObject.scene.name == "PenControlTracing")
+            HideHandModel(leftController);
+        else
+            EnsureHand(leftController, leftHandPrefab, true);
+
+        EnsureHand(rightController, rightHandPrefab, false);
     }
 
     static Transform FindNamedChild(Transform root, string exactName)
@@ -102,6 +109,19 @@ public class PlayerHands : MonoBehaviour
         }
 
         return null;
+    }
+
+    static void HideHandModel(Transform controller)
+    {
+        if (controller == null)
+            return;
+
+        for (int i = 0; i < controller.childCount; i++)
+        {
+            Transform child = controller.GetChild(i);
+            if (child.name.Contains("Hand Model"))
+                child.gameObject.SetActive(false);
+        }
     }
 
     static void EnsureHand(Transform controller, GameObject prefab, bool leftHand)
