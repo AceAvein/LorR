@@ -1,0 +1,11 @@
+Model Information:
+* title:	Reynolds 045 Ballpoint Pen
+* source:	https://sketchfab.com/3d-models/reynolds-045-ballpoint-pen-f6da3800e6784d42b4e864a7e017cde6
+* author:	Prakash.G (https://sketchfab.com/Prakash.G)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Reynolds 045 Ballpoint Pen" (https://sketchfab.com/3d-models/reynolds-045-ballpoint-pen-f6da3800e6784d42b4e864a7e017cde6) by Prakash.G (https://sketchfab.com/Prakash.G) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
