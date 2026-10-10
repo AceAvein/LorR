@@ -1,44 +1,85 @@
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 public class BallCollision : MonoBehaviour
 {
-    private void OnTriggerEnter(Collider other)
+    XRGrabInteractable grab;
+    bool counted;
+
+    void Awake()
     {
-        Transform hand = other.transform;
+        Collider ballCollider = GetComponent<Collider>();
+        if (ballCollider != null)
+            ballCollider.isTrigger = false;
 
-        bool isLeftHand =
-            hand.CompareTag("LeftHand") ||
-            (hand.parent != null && hand.parent.CompareTag("LeftHand"));
+        Rigidbody body = GetComponent<Rigidbody>();
+        if (body == null)
+            body = gameObject.AddComponent<Rigidbody>();
 
-        bool isRightHand =
-            hand.CompareTag("RightHand") ||
-            (hand.parent != null && hand.parent.CompareTag("RightHand"));
+        body.isKinematic = true;
+        body.useGravity = false;
 
+        grab = GetComponent<XRGrabInteractable>();
+        if (grab == null)
+            grab = gameObject.AddComponent<XRGrabInteractable>();
+
+        grab.movementType = XRBaseInteractable.MovementType.Instantaneous;
+        grab.useDynamicAttach = true;
+        grab.throwOnDetach = false;
+        grab.attachEaseInTime = 0f;
+
+        grab.selectEntered.AddListener(OnGrabbed);
+        grab.selectExited.AddListener(OnReleased);
+    }
+
+    void OnDestroy()
+    {
+        if (grab == null)
+            return;
+
+        grab.selectEntered.RemoveListener(OnGrabbed);
+        grab.selectExited.RemoveListener(OnReleased);
+    }
+
+    void OnGrabbed(SelectEnterEventArgs args)
+    {
+        BallFall fall = GetComponent<BallFall>();
+        if (fall != null)
+            fall.enabled = false;
+
+        if (counted || args.interactorObject == null)
+            return;
+
+        bool isLeftHand = args.interactorObject.handedness == InteractorHandedness.Left;
+        bool isRightHand = args.interactorObject.handedness == InteractorHandedness.Right;
         bool isRedBall = CompareTag("RedBall");
         bool isBlueBall = CompareTag("BlueBall");
 
-        BallDropGameManager gameManager =
-            FindFirstObjectByType<BallDropGameManager>();
+        if ((isRedBall && isLeftHand) || (isBlueBall && isRightHand))
+        {
+            counted = true;
 
-        if (isRedBall && isLeftHand)
-        {
-            Debug.Log("NICE! Red ball + Left Hand");
-            gameManager.AddIntercepted();
+            BallDropGameManager gameManager = FindFirstObjectByType<BallDropGameManager>();
+            if (gameManager != null)
+                gameManager.AddIntercepted();
         }
-        else if (isBlueBall && isRightHand)
-        {
-            Debug.Log("NICE! Blue ball + Right Hand");
-            gameManager.AddIntercepted();
-        }
-        else if (isRedBall && isRightHand)
-        {
-            Debug.Log("WRONG HAND! Red ball + Right Hand");
-        }
-        else if (isBlueBall && isLeftHand)
-        {
-            Debug.Log("WRONG HAND! Blue ball + Left Hand");
-        }
+    }
 
-        Destroy(gameObject);
+    void OnReleased(SelectExitEventArgs args)
+    {
+        BallFall fall = GetComponent<BallFall>();
+        if (fall != null)
+            fall.enabled = true;
+
+        Rigidbody body = GetComponent<Rigidbody>();
+        if (body != null)
+        {
+            body.isKinematic = true;
+            body.useGravity = false;
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+        }
     }
 }
