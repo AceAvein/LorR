@@ -31,7 +31,32 @@ public class Countdown : MonoBehaviour
         yield return new WaitForSeconds(1f);
 
         countdownScreen.SetActive(false);
+        PlaceTracingArea();
         tracingArea.SetActive(true);
         tracingTimer.StartTimer();
+    }
+
+    void PlaceTracingArea()
+    {
+        if (tracingArea == null)
+            return;
+
+        Camera headset = Camera.main;
+        if (headset == null)
+            return;
+
+        Vector3 forward = headset.transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.001f)
+            forward = Vector3.forward;
+        forward.Normalize();
+
+        Vector3 position = headset.transform.position + forward * 0.45f;
+        position.y = headset.transform.position.y - 0.3f;
+        tracingArea.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
+
+        Transform board = tracingArea.transform.Find("TracingBoard");
+        if (board != null && board.GetComponent<TracingBoardSurface>() == null)
+            board.gameObject.AddComponent<TracingBoardSurface>();
     }
 }
