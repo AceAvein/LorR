@@ -345,7 +345,7 @@ public class PatternManager : MonoBehaviour
             star.root.SetActive(true);
             star.root.transform.SetParent(area, false);
             star.root.transform.localScale = Vector3.one * 0.08f;
-            star.root.transform.SetPositionAndRotation(onLine + towardPlayer * 0.045f, rotation);
+            star.root.transform.SetPositionAndRotation(onLine + towardPlayer * 0.006f, rotation);
         }
     }
 
@@ -443,38 +443,38 @@ public class PatternManager : MonoBehaviour
         List<Recipe> moderate = new List<Recipe>();
         List<Recipe> hard = new List<Recipe>();
 
-        AddGuide(easy, 0, 1, 0.1f, 0.2f, 1, 2);
-        AddGuide(easy, 0, 2, 0.09f, 0.22f, 1, 2);
-        AddGuide(easy, 0, 3, 0.07f, 0.22f, 1, 2);
-        AddGuide(easy, 1, 2, 0.1f, 0.2f, 1, 2);
-        AddGuide(easy, 1, 3, 0.08f, 0.22f, 1, 2);
-        AddGuide(easy, 3, 1, 0.1f, 0.2f, 1, 2);
-        AddGuide(easy, 3, 2, 0.08f, 0.22f, 1, 2);
-        AddGuide(easy, 5, 0, 0.1f, 0.2f, 1, 2);
-        AddGuide(easy, 6, 0, 0.1f, 0.22f, 1, 2);
-        AddGuide(easy, 4, 1, 0.08f, 0.22f, 1, 2);
+        AddGuide(easy, 0, 1, 0.1f, 0.2f, 1, 3);
+        AddGuide(easy, 0, 2, 0.09f, 0.22f, 1, 3);
+        AddGuide(easy, 0, 3, 0.07f, 0.22f, 1, 3);
+        AddGuide(easy, 1, 2, 0.1f, 0.2f, 1, 3);
+        AddGuide(easy, 1, 3, 0.08f, 0.22f, 1, 3);
+        AddGuide(easy, 3, 1, 0.1f, 0.2f, 1, 3);
+        AddGuide(easy, 3, 2, 0.08f, 0.22f, 1, 3);
+        AddGuide(easy, 5, 0, 0.1f, 0.2f, 1, 3);
+        AddGuide(easy, 6, 0, 0.1f, 0.22f, 1, 3);
+        AddGuide(easy, 4, 1, 0.08f, 0.22f, 1, 3);
 
-        AddGuide(moderate, 0, 4, 0.16f, 0.4f, 1, 1);
-        AddGuide(moderate, 0, 5, 0.14f, 0.42f, 1, 1);
-        AddGuide(moderate, 7, 1, 0.16f, 0.42f, 1, 1);
-        AddGuide(moderate, 1, 4, 0.16f, 0.4f, 1, 1);
-        AddGuide(moderate, 1, 5, 0.14f, 0.42f, 1, 1);
-        AddGuide(moderate, 1, 6, 0.12f, 0.42f, 1, 1);
-        AddGuide(moderate, 3, 3, 0.14f, 0.4f, 1, 1);
-        AddGuide(moderate, 3, 4, 0.12f, 0.42f, 1, 1);
-        AddGuide(moderate, 4, 2, 0.16f, 0.42f, 1, 1);
-        AddGuide(moderate, 5, 1, 0.16f, 0.38f, 1, 1);
+        AddGuide(moderate, 0, 4, 0.16f, 0.4f, 1, 2);
+        AddGuide(moderate, 0, 5, 0.14f, 0.42f, 1, 2);
+        AddGuide(moderate, 7, 1, 0.16f, 0.42f, 1, 2);
+        AddGuide(moderate, 1, 4, 0.16f, 0.4f, 1, 2);
+        AddGuide(moderate, 1, 5, 0.14f, 0.42f, 1, 2);
+        AddGuide(moderate, 1, 6, 0.12f, 0.42f, 1, 2);
+        AddGuide(moderate, 3, 3, 0.14f, 0.4f, 1, 2);
+        AddGuide(moderate, 3, 4, 0.12f, 0.42f, 1, 2);
+        AddGuide(moderate, 4, 2, 0.16f, 0.42f, 1, 2);
+        AddGuide(moderate, 5, 1, 0.16f, 0.38f, 1, 2);
 
-        AddGuide(hard, 0, 1, 0.04f, 0.36f, 3, 0);
-        AddGuide(hard, 0, 2, 0.035f, 0.36f, 3, 0);
-        AddGuide(hard, 0, 3, 0.03f, 0.36f, 3, 0);
-        AddGuide(hard, 1, 2, 0.04f, 0.36f, 3, 0);
-        AddGuide(hard, 1, 3, 0.035f, 0.36f, 3, 0);
-        AddGuide(hard, 1, 4, 0.03f, 0.36f, 3, 0);
-        AddGuide(hard, 3, 2, 0.035f, 0.36f, 3, 0);
-        AddGuide(hard, 3, 3, 0.03f, 0.36f, 3, 0);
-        AddGuide(hard, 4, 2, 0.04f, 0.36f, 3, 0);
-        AddGuide(hard, 7, 2, 0.035f, 0.36f, 3, 0);
+        AddGuide(hard, 0, 1, 0.04f, 0.36f, 3, 1);
+        AddGuide(hard, 0, 2, 0.035f, 0.36f, 3, 1);
+        AddGuide(hard, 0, 3, 0.03f, 0.36f, 3, 1);
+        AddGuide(hard, 1, 2, 0.04f, 0.36f, 3, 1);
+        AddGuide(hard, 1, 3, 0.035f, 0.36f, 3, 1);
+        AddGuide(hard, 1, 4, 0.03f, 0.36f, 3, 1);
+        AddGuide(hard, 3, 2, 0.035f, 0.36f, 3, 1);
+        AddGuide(hard, 3, 3, 0.03f, 0.36f, 3, 1);
+        AddGuide(hard, 4, 2, 0.04f, 0.36f, 3, 1);
+        AddGuide(hard, 7, 2, 0.035f, 0.36f, 3, 1);
 
         Shuffle(easy);
         Shuffle(moderate);

@@ -43,11 +43,26 @@ public class PenTrail : MonoBehaviour
         BindDrawTrigger();
 
         drawSound = gameObject.AddComponent<AudioSource>();
-        drawSound.clip = PenSounds.DrawLoop;
+        drawSound.clip = PenSounds.Clip(PenSounds.Tool.Pencil);
         drawSound.loop = true;
         drawSound.playOnAwake = false;
         drawSound.spatialBlend = 0f;
-        drawSound.volume = 0.28f;
+        drawSound.volume = 0.8f;
+    }
+
+    public void SetDrawTool(PenSounds.Tool tool)
+    {
+        if (drawSound == null)
+            return;
+
+        AudioClip clip = PenSounds.Clip(tool);
+        if (clip == null || drawSound.clip == clip)
+            return;
+
+        bool playing = drawSound.isPlaying;
+        drawSound.clip = clip;
+        if (playing)
+            drawSound.Play();
     }
 
     public void UseRightHand(bool rightHand)

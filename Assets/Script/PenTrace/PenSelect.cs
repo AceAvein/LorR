@@ -89,18 +89,21 @@ public class PenSelect : MonoBehaviour
     {
         Choose(pencil, pencilTip);
         SetInkColor(new Color(0.62f, 0.62f, 0.62f));
+        SetDrawTool(PenSounds.Tool.Pencil);
     }
 
     public void ChooseBallpen()
     {
         Choose(ballpen, ballpenTip);
         SetInkColor(new Color(0.15f, 0.45f, 0.95f));
+        SetDrawTool(PenSounds.Tool.Ballpen);
     }
 
     public void ChooseHighlighter()
     {
         Choose(highlighter, highlighterTip);
         SetInkColor(new Color(0.62f, 0.28f, 0.86f));
+        SetDrawTool(PenSounds.Tool.Marker);
     }
 
     void SetInkColor(Color color)
@@ -111,6 +114,16 @@ public class PenSelect : MonoBehaviour
 
         if (trail != null)
             trail.SetInkColor(color);
+    }
+
+    void SetDrawTool(PenSounds.Tool tool)
+    {
+        PenTrail trail = PenTrail.Active;
+        if (trail == null)
+            trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
+
+        if (trail != null)
+            trail.SetDrawTool(tool);
     }
 
     void Choose(GameObject pen, Vector3 tip)

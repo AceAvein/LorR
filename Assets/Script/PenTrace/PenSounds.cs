@@ -2,18 +2,35 @@ using UnityEngine;
 
 public static class PenSounds
 {
-    static AudioClip drawLoop;
+    public enum Tool
+    {
+        Pencil,
+        Ballpen,
+        Marker
+    }
+
+    static AudioClip pencil;
+    static AudioClip ballpen;
+    static AudioClip marker;
     static AudioClip starChime;
     static AudioSource starSource;
 
-    public static AudioClip DrawLoop
+    public static AudioClip Clip(Tool tool)
     {
-        get
+        switch (tool)
         {
-            if (drawLoop == null)
-                drawLoop = BuildDrawLoop();
-
-            return drawLoop;
+            case Tool.Ballpen:
+                if (ballpen == null)
+                    ballpen = Resources.Load<AudioClip>("Pen/BallpenWrite");
+                return ballpen;
+            case Tool.Marker:
+                if (marker == null)
+                    marker = Resources.Load<AudioClip>("Pen/MarkerWrite");
+                return marker;
+            default:
+                if (pencil == null)
+                    pencil = Resources.Load<AudioClip>("Pen/PencilWrite");
+                return pencil;
         }
     }
 
@@ -32,27 +49,6 @@ public static class PenSounds
         }
 
         starSource.PlayOneShot(starChime, 0.85f);
-    }
-
-    static AudioClip BuildDrawLoop()
-    {
-        const int rate = 44100;
-        int length = rate / 2;
-        float[] samples = new float[length];
-        float noise = 0f;
-
-        for (int i = 0; i < length; i++)
-        {
-            float t = i / (float)rate;
-            noise = noise * 0.82f + (Random.value * 2f - 1f) * 0.18f;
-            float scratch = Mathf.Sin(2f * Mathf.PI * 180f * t) * 0.15f + noise * 0.35f;
-            float fade = Mathf.Min(i / 200f, (length - 1 - i) / 200f, 1f);
-            samples[i] = scratch * fade;
-        }
-
-        AudioClip clip = AudioClip.Create("PenDraw", length, 1, rate, false);
-        clip.SetData(samples, 0);
-        return clip;
     }
 
     static AudioClip BuildStarChime()
