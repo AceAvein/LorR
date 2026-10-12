@@ -15,15 +15,21 @@ public class PathManager : MonoBehaviour
     public float traceDistance = 0.08f;
     public float followDistance = 0.2f;
     public float lookAhead = 0.3f;
-    public float accuracyRange = 0.08f;
+    public float guideWorldWidth = 0.012f;
+
+    const float ScoreSpacing = 0.01f;
+    const float PerfectDistance = 0.007f;
+    const float MissDistance = 0.015f;
 
     float progress;
     float totalLength;
-    float accuracySum;
-    int accuracySamples;
+    float roundScoreSum;
+    int roundPatterns;
+    bool patternScored;
     bool patternCompleted;
     LineRenderer coloredPath;
     readonly List<Vector3> points = new List<Vector3>();
+    readonly List<Vector3> ink = new List<Vector3>();
 
     static readonly Color DoneColor = new Color(0.2f, 0.85f, 0.35f);
     static readonly Color CurrentColor = new Color(1f, 0.92f, 0.25f);
@@ -44,7 +50,7 @@ public class PathManager : MonoBehaviour
         if (trail == null || !trail.IsDrawing())
             return;
 
-        SampleAccuracy(DistanceToPath(penTip.position));
+        RecordInk(penTip.position);
         TryAdvance(penTip.position);
         if (patternManager != null)
             patternManager.CheckStars(penTip.position);
@@ -54,6 +60,7 @@ public class PathManager : MonoBehaviour
             progress = totalLength;
             PaintGuide();
             patternCompleted = true;
+            PenSounds.PlayPatternDone();
             StartCoroutine(PatternComplete());
         }
     }
@@ -117,13 +124,76 @@ public class PathManager : MonoBehaviour
             progress = bestAlong;
     }
 
-    float DistanceToPath(Vector3 point)
+    void RecordInk(Vector3 point)
     {
+        Vector3 onBoard = OnBoard(point);
+        if (ink.Count > 0 && Vector3.Distance(ink[ink.Count - 1], onBoard) < 0.004f)
+            return;
+
+        ink.Add(onBoard);
+    }
+
+    float ScoreCurrentPattern()
+    {
+        if (tracePath != null)
+            RebuildPath();
+
+        if (points.Count < 2 || ink.Count == 0 || totalLength <= 0.01f)
+            return 0f;
+
+        float scoreSum = 0f;
+        int samples = 0;
+
+        for (float distance = 0f; distance < totalLength; distance += ScoreSpacing)
+        {
+            scoreSum += Closeness(PointOnGuide(distance));
+            samples++;
+        }
+
+        scoreSum += Closeness(PointOnGuide(totalLength));
+        samples++;
+
+        return scoreSum / samples * 100f;
+    }
+
+    float Closeness(Vector3 guidePoint)
+    {
+        float error = DistanceToInk(OnBoard(guidePoint));
+        if (error <= PerfectDistance)
+            return 1f;
+
+        return 1f - Mathf.Clamp01((error - PerfectDistance) / (MissDistance - PerfectDistance));
+    }
+
+    Vector3 PointOnGuide(float distance)
+    {
+        float walked = 0f;
+
+        for (int i = 1; i < points.Count; i++)
+        {
+            float segment = Vector3.Distance(points[i - 1], points[i]);
+            if (walked + segment >= distance || i == points.Count - 1)
+            {
+                float t = segment <= 0.0001f ? 0f : (distance - walked) / segment;
+                return Vector3.Lerp(points[i - 1], points[i], Mathf.Clamp01(t));
+            }
+
+            walked += segment;
+        }
+
+        return points[points.Count - 1];
+    }
+
+    float DistanceToInk(Vector3 point)
+    {
+        if (ink.Count == 1)
+            return Vector3.Distance(point, ink[0]);
+
         float best = float.MaxValue;
 
-        for (int i = 0; i < points.Count - 1; i++)
+        for (int i = 0; i < ink.Count - 1; i++)
         {
-            Vector3 closest = ClosestPointOnLine(point, points[i], points[i + 1]);
+            Vector3 closest = ClosestPointOnLine(point, ink[i], ink[i + 1]);
             float distance = Vector3.Distance(point, closest);
             if (distance < best)
                 best = distance;
@@ -132,11 +202,15 @@ public class PathManager : MonoBehaviour
         return best;
     }
 
-    void SampleAccuracy(float distance)
+    static Vector3 OnBoard(Vector3 point)
     {
-        float closeness = 1f - Mathf.Clamp01(distance / accuracyRange);
-        accuracySum += closeness;
-        accuracySamples++;
+        TracingBoardSurface board = TracingBoardSurface.Current;
+        if (board == null)
+            return point;
+
+        Vector3 normal = board.transform.up;
+        float signed = Vector3.Dot(point - board.transform.position, normal);
+        return point - normal * signed;
     }
 
     void PaintGuide()
@@ -154,7 +228,9 @@ public class PathManager : MonoBehaviour
         }
 
         tracePath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
-        tracePath.widthMultiplier = 0.02f;
+        Vector3 lineScale = tracePath.transform.lossyScale;
+        float widthScale = Mathf.Max(lineScale.x, Mathf.Max(lineScale.y, lineScale.z));
+        tracePath.widthMultiplier = guideWorldWidth / Mathf.Max(widthScale, 0.0001f);
         tracePath.numCapVertices = 8;
         tracePath.numCornerVertices = 8;
 
@@ -213,15 +289,32 @@ public class PathManager : MonoBehaviour
 
     public float GetAccuracy()
     {
-        if (accuracySamples == 0)
+        float total = roundScoreSum;
+        int count = roundPatterns;
+
+        if (!patternScored && ink.Count > 0)
+        {
+            total += ScoreCurrentPattern();
+            count++;
+        }
+
+        if (count == 0)
             return 0f;
 
-        return (accuracySum / accuracySamples) * 100f;
+        return total / count;
     }
 
     IEnumerator PatternComplete()
     {
-        averageAccuracyText.text = "Average Tracing Accuracy: " + GetAccuracy().ToString("F1") + "%";
+        float patternScore = ScoreCurrentPattern();
+        if (!patternScored)
+        {
+            roundScoreSum += patternScore;
+            roundPatterns++;
+            patternScored = true;
+        }
+
+        averageAccuracyText.text = "Average Tracing Accuracy: " + patternScore.ToString("F1") + "%";
         finishedScreen.SetActive(true);
 
         yield return new WaitForSeconds(1f);
@@ -232,14 +325,18 @@ public class PathManager : MonoBehaviour
 
     public void ClearRound()
     {
-        accuracySum = 0f;
-        accuracySamples = 0;
+        roundScoreSum = 0f;
+        roundPatterns = 0;
+        patternScored = false;
+        ink.Clear();
     }
 
     public void ResetPattern()
     {
         progress = 0f;
         patternCompleted = false;
+        patternScored = false;
+        ink.Clear();
 
         if (PenTrail.Active != null)
             PenTrail.Active.ClearInk();

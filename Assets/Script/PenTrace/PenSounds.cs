@@ -13,7 +13,8 @@ public static class PenSounds
     static AudioClip ballpen;
     static AudioClip marker;
     static AudioClip starChime;
-    static AudioSource starSource;
+    static AudioClip patternDone;
+    static AudioSource effectSource;
 
     public static AudioClip Clip(Tool tool)
     {
@@ -39,16 +40,29 @@ public static class PenSounds
         if (starChime == null)
             starChime = BuildStarChime();
 
-        if (starSource == null)
+        Speaker().PlayOneShot(starChime, 0.85f);
+    }
+
+    public static void PlayPatternDone()
+    {
+        if (patternDone == null)
+            patternDone = BuildPatternDone();
+
+        Speaker().PlayOneShot(patternDone, 0.9f);
+    }
+
+    static AudioSource Speaker()
+    {
+        if (effectSource == null)
         {
-            GameObject speaker = new GameObject("StarSound");
+            GameObject speaker = new GameObject("PenEffectSound");
             Object.DontDestroyOnLoad(speaker);
-            starSource = speaker.AddComponent<AudioSource>();
-            starSource.playOnAwake = false;
-            starSource.spatialBlend = 0f;
+            effectSource = speaker.AddComponent<AudioSource>();
+            effectSource.playOnAwake = false;
+            effectSource.spatialBlend = 0f;
         }
 
-        starSource.PlayOneShot(starChime, 0.85f);
+        return effectSource;
     }
 
     static AudioClip BuildStarChime()
@@ -67,6 +81,35 @@ public static class PenSounds
         }
 
         AudioClip clip = AudioClip.Create("StarChime", length, 1, rate, false);
+        clip.SetData(samples, 0);
+        return clip;
+    }
+
+    static AudioClip BuildPatternDone()
+    {
+        const int rate = 44100;
+        const float duration = 0.72f;
+        int length = (int)(rate * duration);
+        float[] samples = new float[length];
+        float[] notes = { 523.25f, 659.25f, 783.99f };
+
+        for (int n = 0; n < notes.Length; n++)
+        {
+            float start = n * 0.13f;
+
+            for (int i = 0; i < length; i++)
+            {
+                float t = i / (float)rate;
+                float local = t - start;
+                if (local < 0f)
+                    continue;
+
+                float envelope = Mathf.Exp(-local * 5.5f);
+                samples[i] += Mathf.Sin(2f * Mathf.PI * notes[n] * t) * 0.3f * envelope;
+            }
+        }
+
+        AudioClip clip = AudioClip.Create("PatternDone", length, 1, rate, false);
         clip.SetData(samples, 0);
         return clip;
     }

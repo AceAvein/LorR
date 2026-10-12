@@ -28,6 +28,7 @@ public class PatternManager : MonoBehaviour
 
     const float StarReach = 0.045f;
     const int StarPool = 3;
+    const float LetterStroke = 6.3f / 59f;
 
     int currentPattern;
     LineRenderer generatedPath;
@@ -140,10 +141,11 @@ public class PatternManager : MonoBehaviour
         generatedPath.positionCount = generatedPoints.Count;
         generatedPath.SetPositions(generatedPoints.ToArray());
 
-        PlaceLabel(startLabel, generatedPoints[0], -1f);
-        PlaceLabel(endLabel, generatedPoints[generatedPoints.Count - 1], 1f);
+        PlaceLabel(startLabel, 0);
+        PlaceLabel(endLabel, generatedPoints.Count - 1);
         PlaceStars(recipe.stars);
 
+        pathManager.guideWorldWidth = LetterThickness(startLabel);
         pathManager.tracePath = generatedPath;
         pathManager.traceEnd = endLabel.transform;
         pathManager.ResetPattern();
@@ -165,7 +167,7 @@ public class PatternManager : MonoBehaviour
         generatedPath.useWorldSpace = false;
         generatedPath.alignment = LineAlignment.View;
         generatedPath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
-        generatedPath.widthMultiplier = 0.02f;
+        generatedPath.widthMultiplier = 0.012f;
         generatedPath.sortingOrder = 0;
         generatedPath.numCapVertices = 8;
         generatedPath.numCornerVertices = 4;
@@ -304,19 +306,37 @@ public class PatternManager : MonoBehaviour
         return points;
     }
 
-    void PlaceLabel(TextMeshPro label, Vector3 point, float side)
+    void PlaceLabel(TextMeshPro label, int pointIndex)
     {
         Transform guide = generatedPath.transform;
         Transform area = guide.parent.parent.parent;
-        Vector3 onLine = guide.TransformPoint(point);
+        Vector3 onLine = guide.TransformPoint(generatedPoints[pointIndex]);
         Vector3 towardPlayer = -area.forward;
-        Vector3 right = guide.TransformDirection(Vector3.right).normalized;
-        Vector3 up = guide.TransformDirection(Vector3.up).normalized;
+
+        int neighbor = pointIndex == 0 ? 1 : pointIndex - 1;
+        Vector3 outward = onLine - guide.TransformPoint(generatedPoints[neighbor]);
+        if (outward.sqrMagnitude < 0.000001f)
+            outward = guide.TransformDirection(Vector3.right);
+        outward.Normalize();
 
         label.transform.SetParent(area, false);
         label.transform.localScale = Vector3.one;
-        label.transform.position = onLine + towardPlayer * 0.02f + right * (side * 0.24f) + up * 0.1f;
+        label.ForceMeshUpdate();
         label.transform.rotation = Quaternion.LookRotation(-towardPlayer, Vector3.up);
+
+        Vector3 halfWidth = label.transform.TransformVector(new Vector3(label.textBounds.extents.x, 0f, 0f));
+        float reach = halfWidth.magnitude + LetterThickness(label) * 0.5f;
+        label.transform.position = onLine + towardPlayer.normalized * 0.004f + outward * reach;
+    }
+
+    float LetterThickness(TextMeshPro label)
+    {
+        label.ForceMeshUpdate();
+        float height = label.transform.TransformVector(new Vector3(0f, label.textBounds.size.y, 0f)).magnitude;
+        if (height < 0.0001f)
+            return pathManager.guideWorldWidth;
+
+        return height * LetterStroke;
     }
 
     void PlaceStars(int count)
