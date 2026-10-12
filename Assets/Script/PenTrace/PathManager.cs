@@ -13,11 +13,14 @@ public class PathManager : MonoBehaviour
     public PatternManager patternManager;
 
     public float traceDistance = 0.08f;
-    public float followDistance = 0.04f;
-    public float lookAhead = 0.08f;
+    public float followDistance = 0.2f;
+    public float lookAhead = 0.3f;
+    public float accuracyRange = 0.08f;
 
     float progress;
     float totalLength;
+    float accuracySum;
+    int accuracySamples;
     bool patternCompleted;
     LineRenderer coloredPath;
     readonly List<Vector3> points = new List<Vector3>();
@@ -107,8 +110,20 @@ public class PathManager : MonoBehaviour
             walked = segmentEnd;
         }
 
-        if (found && bestDistance <= followDistance && bestAlong > progress)
+        if (!found)
+            return;
+
+        SampleAccuracy(bestDistance);
+
+        if (bestDistance <= followDistance && bestAlong > progress)
             progress = bestAlong;
+    }
+
+    void SampleAccuracy(float distance)
+    {
+        float closeness = 1f - Mathf.Clamp01(distance / accuracyRange);
+        accuracySum += closeness;
+        accuracySamples++;
     }
 
     void PaintGuide()
@@ -128,23 +143,41 @@ public class PathManager : MonoBehaviour
         }
 
         float covered = Mathf.Clamp01(progress / totalLength);
-        float edge = Mathf.Clamp(covered, 0.001f, 0.998f);
-        float band = Mathf.Min(edge + 0.02f, 0.999f);
-
         Gradient gradient = new Gradient();
-        gradient.SetKeys(
-            new[]
-            {
-                new GradientColorKey(DoneColor, 0f),
-                new GradientColorKey(DoneColor, edge),
-                new GradientColorKey(CurrentColor, band),
-                new GradientColorKey(RemainingColor, 1f),
-            },
-            new[]
-            {
-                new GradientAlphaKey(1f, 0f),
-                new GradientAlphaKey(1f, 1f),
-            });
+
+        if (covered >= 0.999f)
+        {
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(DoneColor, 0f),
+                    new GradientColorKey(DoneColor, 1f),
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(1f, 1f),
+                });
+        }
+        else
+        {
+            float edge = Mathf.Clamp(covered, 0.001f, 0.98f);
+            float band = Mathf.Min(edge + 0.02f, 0.99f);
+
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(DoneColor, 0f),
+                    new GradientColorKey(DoneColor, edge),
+                    new GradientColorKey(CurrentColor, band),
+                    new GradientColorKey(RemainingColor, 1f),
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(1f, 1f),
+                });
+        }
 
         tracePath.colorGradient = gradient;
     }
@@ -164,10 +197,10 @@ public class PathManager : MonoBehaviour
 
     public float GetAccuracy()
     {
-        if (totalLength <= 0f)
+        if (accuracySamples == 0)
             return 0f;
 
-        return Mathf.Clamp01(progress / totalLength) * 100f;
+        return (accuracySum / accuracySamples) * 100f;
     }
 
     IEnumerator PatternComplete()
@@ -184,6 +217,8 @@ public class PathManager : MonoBehaviour
     public void ResetPattern()
     {
         progress = 0f;
+        accuracySum = 0f;
+        accuracySamples = 0;
         patternCompleted = false;
 
         if (PenTrail.Active != null)
