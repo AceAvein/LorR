@@ -4962,6 +4962,7 @@ MonoBehaviour:
   - {fileID: 922138181}
   - {fileID: 219391006}
   pathManager: {fileID: 1024634254}
+  generateRandomPatterns: 1
 --- !u!1 &1873373223
 GameObject:
   m_ObjectHideFlags: 0
