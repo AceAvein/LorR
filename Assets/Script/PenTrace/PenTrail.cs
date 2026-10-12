@@ -9,32 +9,42 @@ public class PenTrail : MonoBehaviour
     public InputActionReference indexButton;
     public InputActionReference rightIndexButton;
 
-    InputActionReference activeButton;
+    InputAction drawAction;
+    bool useRightHand;
     private bool wasPressed = false;
-
-    void Awake()
-    {
-        activeButton = indexButton;
-    }
 
     void Start()
     {
         trail.positionCount = 0;
+        BindDrawTrigger();
     }
 
     public void UseRightHand(bool rightHand)
     {
-        activeButton = rightHand && rightIndexButton != null ? rightIndexButton : indexButton;
-        if (activeButton != null && activeButton.action != null)
-            activeButton.action.Enable();
+        useRightHand = rightHand;
+        BindDrawTrigger();
+    }
+
+    void BindDrawTrigger()
+    {
+        drawAction?.Dispose();
+
+        string hand = useRightHand ? "{RightHand}" : "{LeftHand}";
+        drawAction = new InputAction(type: InputActionType.Button, binding: "<XRController>" + hand + "/{TriggerButton}");
+        drawAction.Enable();
+    }
+
+    void OnDestroy()
+    {
+        drawAction?.Dispose();
     }
 
     void Update()
     {
-        if (activeButton == null || activeButton.action == null)
+        if (drawAction == null)
             return;
 
-        bool isPressed = activeButton.action.IsPressed();
+        bool isPressed = drawAction.IsPressed();
 
         // Start a new stroke
         if (isPressed && !wasPressed)
