@@ -16,6 +16,7 @@ public class PenTrail : MonoBehaviour
     bool useRightHand;
     bool wasPressed;
     bool strokeOpen;
+    AudioSource drawSound;
     Color inkColor = Color.white;
     readonly List<GameObject> finishedStrokes = new List<GameObject>();
     const float PointSpacing = 0.004f;
@@ -29,6 +30,9 @@ public class PenTrail : MonoBehaviour
     {
         if (Active == this)
             Active = null;
+
+        if (drawSound != null && drawSound.isPlaying)
+            drawSound.Stop();
     }
 
     void Start()
@@ -37,6 +41,13 @@ public class PenTrail : MonoBehaviour
             trail.positionCount = 0;
 
         BindDrawTrigger();
+
+        drawSound = gameObject.AddComponent<AudioSource>();
+        drawSound.clip = PenSounds.DrawLoop;
+        drawSound.loop = true;
+        drawSound.playOnAwake = false;
+        drawSound.spatialBlend = 0f;
+        drawSound.volume = 0.28f;
     }
 
     public void UseRightHand(bool rightHand)
@@ -98,6 +109,13 @@ public class PenTrail : MonoBehaviour
                 BeginStroke();
 
             AddTrailPoint(penTip.position);
+
+            if (drawSound != null && !drawSound.isPlaying)
+                drawSound.Play();
+        }
+        else if (drawSound != null && drawSound.isPlaying)
+        {
+            drawSound.Stop();
         }
 
         wasPressed = isPressed;

@@ -123,6 +123,8 @@ public class PatternManager : MonoBehaviour
 
             if (timer != null)
                 timer.AddSeconds(2f);
+
+            PenSounds.PlayStar();
         }
     }
 
@@ -161,7 +163,10 @@ public class PatternManager : MonoBehaviour
 
         generatedPath = guide.AddComponent<LineRenderer>();
         generatedPath.useWorldSpace = false;
-        generatedPath.alignment = LineAlignment.TransformZ;
+        generatedPath.alignment = LineAlignment.View;
+        generatedPath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
+        generatedPath.widthMultiplier = 0.02f;
+        generatedPath.sortingOrder = 0;
         generatedPath.numCapVertices = 8;
         generatedPath.numCornerVertices = 4;
         generatedPath.textureMode = LineTextureMode.Stretch;
@@ -217,6 +222,7 @@ public class PatternManager : MonoBehaviour
         fill.sharedMaterial = starMaterial;
         fill.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         fill.receiveShadows = false;
+        fill.sortingOrder = 21;
         fill.enabled = false;
 
         LineRenderer outline = root.AddComponent<LineRenderer>();
@@ -229,6 +235,7 @@ public class PatternManager : MonoBehaviour
         outline.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         outline.receiveShadows = false;
         outline.material = starMaterial;
+        outline.sortingOrder = 20;
         outline.startColor = new Color(1f, 0.82f, 0.15f);
         outline.endColor = outline.startColor;
         Vector3[] outlinePoints = StarPoints(true);
@@ -338,7 +345,7 @@ public class PatternManager : MonoBehaviour
             star.root.SetActive(true);
             star.root.transform.SetParent(area, false);
             star.root.transform.localScale = Vector3.one * 0.08f;
-            star.root.transform.SetPositionAndRotation(onLine + towardPlayer * 0.02f, rotation);
+            star.root.transform.SetPositionAndRotation(onLine + towardPlayer * 0.045f, rotation);
         }
     }
 
@@ -436,23 +443,38 @@ public class PatternManager : MonoBehaviour
         List<Recipe> moderate = new List<Recipe>();
         List<Recipe> hard = new List<Recipe>();
 
-        AddPair(easy, 0, 1, 0.12f, 0.22f, 1, 3);
-        AddPair(easy, 0, 2, 0.12f, 0.22f, 1, 3);
-        AddPair(easy, 1, 2, 0.12f, 0.22f, 1, 3);
-        AddPair(easy, 5, 0, 0.12f, 0.22f, 1, 3);
-        AddPair(easy, 3, 2, 0.12f, 0.22f, 1, 3);
+        AddGuide(easy, 0, 1, 0.1f, 0.2f, 1, 2);
+        AddGuide(easy, 0, 2, 0.09f, 0.22f, 1, 2);
+        AddGuide(easy, 0, 3, 0.07f, 0.22f, 1, 2);
+        AddGuide(easy, 1, 2, 0.1f, 0.2f, 1, 2);
+        AddGuide(easy, 1, 3, 0.08f, 0.22f, 1, 2);
+        AddGuide(easy, 3, 1, 0.1f, 0.2f, 1, 2);
+        AddGuide(easy, 3, 2, 0.08f, 0.22f, 1, 2);
+        AddGuide(easy, 5, 0, 0.1f, 0.2f, 1, 2);
+        AddGuide(easy, 6, 0, 0.1f, 0.22f, 1, 2);
+        AddGuide(easy, 4, 1, 0.08f, 0.22f, 1, 2);
 
-        AddPair(moderate, 0, 3, 0.2f, 0.42f, 1, 2);
-        AddPair(moderate, 0, 4, 0.18f, 0.42f, 1, 2);
-        AddPair(moderate, 1, 4, 0.2f, 0.42f, 1, 2);
-        AddPair(moderate, 1, 5, 0.18f, 0.42f, 1, 2);
-        AddPair(moderate, 4, 2, 0.2f, 0.42f, 1, 2);
+        AddGuide(moderate, 0, 4, 0.16f, 0.4f, 1, 1);
+        AddGuide(moderate, 0, 5, 0.14f, 0.42f, 1, 1);
+        AddGuide(moderate, 7, 1, 0.16f, 0.42f, 1, 1);
+        AddGuide(moderate, 1, 4, 0.16f, 0.4f, 1, 1);
+        AddGuide(moderate, 1, 5, 0.14f, 0.42f, 1, 1);
+        AddGuide(moderate, 1, 6, 0.12f, 0.42f, 1, 1);
+        AddGuide(moderate, 3, 3, 0.14f, 0.4f, 1, 1);
+        AddGuide(moderate, 3, 4, 0.12f, 0.42f, 1, 1);
+        AddGuide(moderate, 4, 2, 0.16f, 0.42f, 1, 1);
+        AddGuide(moderate, 5, 1, 0.16f, 0.38f, 1, 1);
 
-        AddPair(hard, 0, 2, 0.08f, 0.4f, 3, 1);
-        AddPair(hard, 0, 3, 0.08f, 0.4f, 3, 1);
-        AddPair(hard, 1, 3, 0.08f, 0.4f, 3, 1);
-        AddPair(hard, 1, 4, 0.08f, 0.4f, 3, 1);
-        AddPair(hard, 4, 2, 0.08f, 0.4f, 3, 1);
+        AddGuide(hard, 0, 1, 0.04f, 0.36f, 3, 0);
+        AddGuide(hard, 0, 2, 0.035f, 0.36f, 3, 0);
+        AddGuide(hard, 0, 3, 0.03f, 0.36f, 3, 0);
+        AddGuide(hard, 1, 2, 0.04f, 0.36f, 3, 0);
+        AddGuide(hard, 1, 3, 0.035f, 0.36f, 3, 0);
+        AddGuide(hard, 1, 4, 0.03f, 0.36f, 3, 0);
+        AddGuide(hard, 3, 2, 0.035f, 0.36f, 3, 0);
+        AddGuide(hard, 3, 3, 0.03f, 0.36f, 3, 0);
+        AddGuide(hard, 4, 2, 0.04f, 0.36f, 3, 0);
+        AddGuide(hard, 7, 2, 0.035f, 0.36f, 3, 0);
 
         Shuffle(easy);
         Shuffle(moderate);
@@ -464,10 +486,9 @@ public class PatternManager : MonoBehaviour
         deck.AddRange(hard);
     }
 
-    static void AddPair(List<Recipe> group, int kind, int count, float amp, float span, int passes, int starCount)
+    static void AddGuide(List<Recipe> group, int kind, int count, float amp, float span, int passes, int starCount)
     {
         group.Add(new Recipe { kind = kind, count = count, amp = amp, span = span, passes = passes, stars = starCount });
-        group.Add(new Recipe { kind = kind, count = count, amp = -amp, span = span, passes = passes, stars = starCount });
     }
 
     static void Shuffle(List<Recipe> group)
@@ -484,7 +505,7 @@ public class PatternManager : MonoBehaviour
     void FillRecipe(Recipe recipe)
     {
         generatedPoints.Clear();
-        float gap = 0.16f;
+        float gap = Mathf.Abs(recipe.amp) * 2f + 0.1f;
 
         for (int pass = 0; pass < recipe.passes; pass++)
         {
@@ -510,7 +531,13 @@ public class PatternManager : MonoBehaviour
                 AddHills(xStart, xEnd, yBase, recipe.amp);
                 break;
             case 5:
-                AddCorner(xStart, xEnd, yBase, recipe.amp);
+                AddCorner(xStart, xEnd, yBase, recipe.amp, recipe.count);
+                break;
+            case 6:
+                AddSlope(xStart, xEnd, yBase, recipe.amp);
+                break;
+            case 7:
+                AddScurve(xStart, xEnd, yBase, recipe.amp);
                 break;
             default:
                 AddWave(xStart, xEnd, yBase, recipe.amp, recipe.count);
@@ -526,7 +553,7 @@ public class PatternManager : MonoBehaviour
             float t = i / (float)count;
             float x = Mathf.Lerp(xStart, xEnd, t);
             float y = yBase + Mathf.Sin(t * humps * Mathf.PI) * amp;
-            generatedPoints.Add(new Vector3(x, y, 0f));
+            AddPoint(new Vector3(x, y, 0f));
         }
     }
 
@@ -539,7 +566,7 @@ public class PatternManager : MonoBehaviour
             float x = Mathf.Lerp(xStart, xEnd, t);
             float wave = Mathf.Sin(t * Mathf.PI * 2f);
             float y = yBase + (wave * wave) * amp - amp * 0.5f;
-            generatedPoints.Add(new Vector3(x, y, 0f));
+            AddPoint(new Vector3(x, y, 0f));
         }
     }
 
@@ -550,7 +577,7 @@ public class PatternManager : MonoBehaviour
             float t = i / (float)corners;
             float x = Mathf.Lerp(xStart, xEnd, t);
             float y = yBase + (i % 2 == 0 ? amp : -amp);
-            generatedPoints.Add(new Vector3(x, y, 0f));
+            AddPoint(new Vector3(x, y, 0f));
         }
     }
 
@@ -558,24 +585,50 @@ public class PatternManager : MonoBehaviour
     {
         float yStart = yBase - amp;
         float yEnd = yBase + amp;
-        generatedPoints.Add(new Vector3(xStart, yStart, 0f));
+        AddPoint(new Vector3(xStart, yStart, 0f));
 
         for (int i = 0; i < rises; i++)
         {
             float x = Mathf.Lerp(xStart, xEnd, (i + 1f) / rises);
             float y = Mathf.Lerp(yStart, yEnd, i / (float)rises);
             float yNext = Mathf.Lerp(yStart, yEnd, (i + 1f) / rises);
-            generatedPoints.Add(new Vector3(x, y, 0f));
-            generatedPoints.Add(new Vector3(x, yNext, 0f));
+            AddPoint(new Vector3(x, y, 0f));
+            AddPoint(new Vector3(x, yNext, 0f));
         }
     }
 
-    void AddCorner(float xStart, float xEnd, float yBase, float amp)
+    void AddCorner(float xStart, float xEnd, float yBase, float amp, int count)
     {
-        float mid = (xStart + xEnd) * 0.5f;
-        generatedPoints.Add(new Vector3(xStart, yBase - amp, 0f));
-        generatedPoints.Add(new Vector3(mid, yBase - amp, 0f));
-        generatedPoints.Add(new Vector3(mid, yBase + amp, 0f));
-        generatedPoints.Add(new Vector3(xEnd, yBase + amp, 0f));
+        float bend = Mathf.Lerp(xStart, xEnd, count == 0 ? 0.35f : 0.65f);
+        AddPoint(new Vector3(xStart, yBase - amp, 0f));
+        AddPoint(new Vector3(bend, yBase - amp, 0f));
+        AddPoint(new Vector3(bend, yBase + amp, 0f));
+        AddPoint(new Vector3(xEnd, yBase + amp, 0f));
+    }
+
+    void AddSlope(float xStart, float xEnd, float yBase, float amp)
+    {
+        AddPoint(new Vector3(xStart, yBase - amp, 0f));
+        AddPoint(new Vector3(xEnd, yBase + amp, 0f));
+    }
+
+    void AddScurve(float xStart, float xEnd, float yBase, float amp)
+    {
+        const int count = 40;
+        for (int i = 0; i <= count; i++)
+        {
+            float t = i / (float)count;
+            float x = Mathf.Lerp(xStart, xEnd, t);
+            float y = yBase + Mathf.Sin(t * Mathf.PI * 2f) * amp;
+            AddPoint(new Vector3(x, y, 0f));
+        }
+    }
+
+    void AddPoint(Vector3 point)
+    {
+        if (generatedPoints.Count > 0 && Vector3.Distance(generatedPoints[generatedPoints.Count - 1], point) < 0.004f)
+            return;
+
+        generatedPoints.Add(point);
     }
 }

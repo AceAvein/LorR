@@ -150,10 +150,13 @@ public class PathManager : MonoBehaviour
             if (shader != null)
                 tracePath.material = new Material(shader);
 
-            tracePath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
-            tracePath.widthMultiplier = 0.02f;
             coloredPath = tracePath;
         }
+
+        tracePath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
+        tracePath.widthMultiplier = 0.02f;
+        tracePath.numCapVertices = 8;
+        tracePath.numCornerVertices = 8;
 
         float covered = Mathf.Clamp01(progress / totalLength);
         Gradient gradient = new Gradient();
