@@ -44,6 +44,7 @@ public class PathManager : MonoBehaviour
         if (trail == null || !trail.IsDrawing())
             return;
 
+        SampleAccuracy(DistanceToPath(penTip.position));
         TryAdvance(penTip.position);
 
         if (progress >= totalLength - 0.01f)
@@ -110,13 +111,23 @@ public class PathManager : MonoBehaviour
             walked = segmentEnd;
         }
 
-        if (!found)
-            return;
-
-        SampleAccuracy(bestDistance);
-
-        if (bestDistance <= followDistance && bestAlong > progress)
+        if (found && bestDistance <= followDistance && bestAlong > progress)
             progress = bestAlong;
+    }
+
+    float DistanceToPath(Vector3 point)
+    {
+        float best = float.MaxValue;
+
+        for (int i = 0; i < points.Count - 1; i++)
+        {
+            Vector3 closest = ClosestPointOnLine(point, points[i], points[i + 1]);
+            float distance = Vector3.Distance(point, closest);
+            if (distance < best)
+                best = distance;
+        }
+
+        return best;
     }
 
     void SampleAccuracy(float distance)
@@ -214,11 +225,15 @@ public class PathManager : MonoBehaviour
         patternManager.NextPattern();
     }
 
+    public void ClearRound()
+    {
+        accuracySum = 0f;
+        accuracySamples = 0;
+    }
+
     public void ResetPattern()
     {
         progress = 0f;
-        accuracySum = 0f;
-        accuracySamples = 0;
         patternCompleted = false;
 
         if (PenTrail.Active != null)

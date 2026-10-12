@@ -13,6 +13,11 @@ public class Countdown : MonoBehaviour
     public void StartCountdown()
     {
         objectiveScreen.SetActive(false);
+
+        PathManager paths = FindFirstObjectByType<PathManager>();
+        if (paths != null)
+            paths.ClearRound();
+
         StartCoroutine(CountdownRoutine());
     }
 
