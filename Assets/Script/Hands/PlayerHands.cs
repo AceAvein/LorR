@@ -92,12 +92,53 @@ public class PlayerHands : MonoBehaviour
         Transform leftController = FindNamedChild(origin, "Left Controller");
         Transform rightController = FindNamedChild(origin, "Right Controller");
 
-        if (origin.gameObject.scene.name == "PenControlTracing")
-            HideHandModel(leftController);
-        else
-            EnsureHand(leftController, leftHandPrefab, true);
-
+        EnsureHand(leftController, leftHandPrefab, true);
         EnsureHand(rightController, rightHandPrefab, false);
+    }
+
+    public static void SetWritingHand(bool rightHand)
+    {
+        if (instance == null)
+            return;
+
+        Scene scene = SceneManager.GetActiveScene();
+        XROrigin[] origins = FindObjectsByType<XROrigin>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        foreach (XROrigin origin in origins)
+        {
+            if (origin.gameObject.scene != scene)
+                continue;
+
+            Transform leftController = FindNamedChild(origin.transform, "Left Controller");
+            Transform rightController = FindNamedChild(origin.transform, "Right Controller");
+
+            if (rightHand)
+            {
+                HideHandModel(rightController);
+                EnsureHand(leftController, instance.leftHandPrefab, true);
+            }
+            else
+            {
+                HideHandModel(leftController);
+                EnsureHand(rightController, instance.rightHandPrefab, false);
+            }
+        }
+    }
+
+    public static Transform WritingController(bool rightHand)
+    {
+        Scene scene = SceneManager.GetActiveScene();
+        XROrigin[] origins = FindObjectsByType<XROrigin>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        foreach (XROrigin origin in origins)
+        {
+            if (origin.gameObject.scene != scene)
+                continue;
+
+            Transform controller = FindNamedChild(origin.transform, rightHand ? "Right Controller" : "Left Controller");
+            if (controller != null)
+                return controller;
+        }
+
+        return null;
     }
 
     static Transform FindNamedChild(Transform root, string exactName)

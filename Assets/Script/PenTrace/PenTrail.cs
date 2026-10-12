@@ -7,17 +7,34 @@ public class PenTrail : MonoBehaviour
     public LineRenderer trail;
 
     public InputActionReference indexButton;
+    public InputActionReference rightIndexButton;
 
+    InputActionReference activeButton;
     private bool wasPressed = false;
+
+    void Awake()
+    {
+        activeButton = indexButton;
+    }
 
     void Start()
     {
         trail.positionCount = 0;
     }
 
+    public void UseRightHand(bool rightHand)
+    {
+        activeButton = rightHand && rightIndexButton != null ? rightIndexButton : indexButton;
+        if (activeButton != null && activeButton.action != null)
+            activeButton.action.Enable();
+    }
+
     void Update()
     {
-        bool isPressed = indexButton.action.IsPressed();
+        if (activeButton == null || activeButton.action == null)
+            return;
+
+        bool isPressed = activeButton.action.IsPressed();
 
         // Start a new stroke
         if (isPressed && !wasPressed)
