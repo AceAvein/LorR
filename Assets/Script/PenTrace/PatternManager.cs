@@ -13,15 +13,34 @@ public class PatternManager : MonoBehaviour
         public int kind;
         public int count;
         public float amp;
+        public float span;
+        public int passes;
+        public int stars;
     }
+
+    class GuideStar
+    {
+        public GameObject root;
+        public MeshRenderer fill;
+        public bool collected;
+        public Vector3 worldPoint;
+    }
+
+    const float StarReach = 0.045f;
+    const int StarPool = 3;
 
     int currentPattern;
     LineRenderer generatedPath;
     TextMeshPro startLabel;
     TextMeshPro endLabel;
     readonly List<Vector3> generatedPoints = new List<Vector3>();
+    readonly List<Vector3> worldPoints = new List<Vector3>();
     readonly List<Recipe> deck = new List<Recipe>();
+    readonly List<GuideStar> stars = new List<GuideStar>();
+    readonly List<float> starDistances = new List<float>();
     int nextRecipe = -1;
+    static Mesh starMesh;
+    static Material starMaterial;
 
     void Start()
     {
@@ -51,6 +70,14 @@ public class PatternManager : MonoBehaviour
     {
         if (generateRandomPatterns)
         {
+            if (deck.Count > 0 && nextRecipe >= deck.Count)
+            {
+                TracingTimer timer = FindFirstObjectByType<TracingTimer>();
+                if (timer != null)
+                    timer.CompleteGame();
+                return;
+            }
+
             ShowGenerated(false);
             return;
         }
@@ -75,19 +102,45 @@ public class PatternManager : MonoBehaviour
         ShowPattern(currentPattern);
     }
 
+    public void CheckStars(Vector3 penPosition)
+    {
+        TracingTimer timer = null;
+
+        for (int i = 0; i < stars.Count; i++)
+        {
+            GuideStar star = stars[i];
+            if (!star.root.activeSelf || star.collected)
+                continue;
+
+            if (Vector3.Distance(penPosition, star.worldPoint) > StarReach)
+                continue;
+
+            star.collected = true;
+            star.fill.enabled = true;
+
+            if (timer == null)
+                timer = FindFirstObjectByType<TracingTimer>();
+
+            if (timer != null)
+                timer.AddSeconds(2f);
+        }
+    }
+
     void ShowGenerated(bool newPlay)
     {
         for (int i = 0; i < patterns.Length; i++)
             patterns[i].SetActive(false);
 
         EnsureGeneratedGuide();
-        FillRecipe(DrawRecipe(newPlay));
+        Recipe recipe = DrawRecipe(newPlay);
+        FillRecipe(recipe);
 
         generatedPath.positionCount = generatedPoints.Count;
         generatedPath.SetPositions(generatedPoints.ToArray());
 
         PlaceLabel(startLabel, generatedPoints[0], -1f);
         PlaceLabel(endLabel, generatedPoints[generatedPoints.Count - 1], 1f);
+        PlaceStars(recipe.stars);
 
         pathManager.tracePath = generatedPath;
         pathManager.traceEnd = endLabel.transform;
@@ -117,6 +170,9 @@ public class PatternManager : MonoBehaviour
 
         startLabel = CreateLabel("Start");
         endLabel = CreateLabel("End");
+
+        for (int i = 0; i < StarPool; i++)
+            stars.Add(CreateStar());
     }
 
     static TextMeshPro CreateLabel(string word)
@@ -146,6 +202,101 @@ public class PatternManager : MonoBehaviour
         return label;
     }
 
+    GuideStar CreateStar()
+    {
+        EnsureStarAssets();
+
+        GameObject root = new GameObject("GuideStar");
+        root.transform.localScale = Vector3.one * 0.08f;
+
+        GameObject fillObject = new GameObject("Fill");
+        fillObject.transform.SetParent(root.transform, false);
+        MeshFilter filter = fillObject.AddComponent<MeshFilter>();
+        filter.sharedMesh = starMesh;
+        MeshRenderer fill = fillObject.AddComponent<MeshRenderer>();
+        fill.sharedMaterial = starMaterial;
+        fill.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        fill.receiveShadows = false;
+        fill.enabled = false;
+
+        LineRenderer outline = root.AddComponent<LineRenderer>();
+        outline.useWorldSpace = false;
+        outline.loop = false;
+        outline.alignment = LineAlignment.TransformZ;
+        outline.widthMultiplier = 0.008f;
+        outline.numCornerVertices = 2;
+        outline.numCapVertices = 2;
+        outline.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        outline.receiveShadows = false;
+        outline.material = starMaterial;
+        outline.startColor = new Color(1f, 0.82f, 0.15f);
+        outline.endColor = outline.startColor;
+        Vector3[] outlinePoints = StarPoints(true);
+        outline.positionCount = outlinePoints.Length;
+        outline.SetPositions(outlinePoints);
+
+        root.SetActive(false);
+
+        return new GuideStar
+        {
+            root = root,
+            fill = fill,
+            collected = false,
+            worldPoint = Vector3.zero
+        };
+    }
+
+    static void EnsureStarAssets()
+    {
+        if (starMesh == null)
+        {
+            Vector3[] points = StarPoints(false);
+            Vector3[] vertices = new Vector3[points.Length + 1];
+            vertices[0] = Vector3.zero;
+            for (int i = 0; i < points.Length; i++)
+                vertices[i + 1] = points[i];
+
+            int[] triangles = new int[points.Length * 3];
+            for (int i = 0; i < points.Length; i++)
+            {
+                triangles[i * 3] = 0;
+                triangles[i * 3 + 1] = i + 1;
+                triangles[i * 3 + 2] = (i + 1) % points.Length + 1;
+            }
+
+            starMesh = new Mesh();
+            starMesh.name = "GuideStar";
+            starMesh.vertices = vertices;
+            starMesh.triangles = triangles;
+            starMesh.RecalculateNormals();
+            starMesh.RecalculateBounds();
+        }
+
+        if (starMaterial == null)
+        {
+            Shader shader = Shader.Find("Sprites/Default");
+            starMaterial = new Material(shader);
+            starMaterial.color = new Color(1f, 0.82f, 0.15f);
+        }
+    }
+
+    static Vector3[] StarPoints(bool closeLoop)
+    {
+        const int tips = 5;
+        int count = tips * 2;
+        Vector3[] points = new Vector3[closeLoop ? count + 1 : count];
+
+        for (int i = 0; i < points.Length; i++)
+        {
+            int step = i % count;
+            float angle = step * Mathf.PI / tips + Mathf.PI / 2f;
+            float radius = step % 2 == 0 ? 0.5f : 0.22f;
+            points[i] = new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
+        }
+
+        return points;
+    }
+
     void PlaceLabel(TextMeshPro label, Vector3 point, float side)
     {
         Transform guide = generatedPath.transform;
@@ -161,30 +312,118 @@ public class PatternManager : MonoBehaviour
         label.transform.rotation = Quaternion.LookRotation(-towardPlayer, Vector3.up);
     }
 
-    Recipe DrawRecipe(bool newPlay)
+    void PlaceStars(int count)
     {
-        if (deck.Count == 0)
-            BuildDeck();
+        BuildWorldPath();
+        PickStarDistances(count);
 
-        bool restart = newPlay || nextRecipe < 0 || nextRecipe >= deck.Count;
-        Recipe previous = default;
-        bool avoidRepeat = false;
-        if (restart && nextRecipe > 0 && nextRecipe <= deck.Count)
-        {
-            previous = deck[nextRecipe - 1];
-            avoidRepeat = true;
-        }
+        Transform guide = generatedPath.transform;
+        Transform area = guide.parent.parent.parent;
+        Vector3 towardPlayer = -area.forward;
+        Quaternion rotation = Quaternion.LookRotation(-towardPlayer, Vector3.up);
 
-        if (restart)
+        for (int i = 0; i < stars.Count; i++)
         {
-            ShuffleDeck();
-            if (avoidRepeat && SameRecipe(deck[0], previous))
+            GuideStar star = stars[i];
+            if (i >= starDistances.Count)
             {
-                Recipe first = deck[0];
-                deck[0] = deck[1];
-                deck[1] = first;
+                star.root.SetActive(false);
+                continue;
             }
 
+            Vector3 onLine = PointAlong(starDistances[i]);
+            star.collected = false;
+            star.fill.enabled = false;
+            star.worldPoint = onLine;
+            star.root.SetActive(true);
+            star.root.transform.SetParent(area, false);
+            star.root.transform.localScale = Vector3.one * 0.08f;
+            star.root.transform.SetPositionAndRotation(onLine + towardPlayer * 0.02f, rotation);
+        }
+    }
+
+    void BuildWorldPath()
+    {
+        worldPoints.Clear();
+        Transform guide = generatedPath.transform;
+
+        for (int i = 0; i < generatedPoints.Count; i++)
+            worldPoints.Add(guide.TransformPoint(generatedPoints[i]));
+    }
+
+    void PickStarDistances(int count)
+    {
+        starDistances.Clear();
+        float total = PathLength();
+        if (total < 0.05f || count <= 0)
+            return;
+
+        float margin = Mathf.Min(total * 0.15f, 0.08f);
+        float minGap = 0.12f;
+        int guard = 0;
+
+        while (starDistances.Count < count && guard < 50)
+        {
+            float distance = Random.Range(margin, Mathf.Max(margin + 0.01f, total - margin));
+            bool clear = true;
+
+            for (int i = 0; i < starDistances.Count; i++)
+            {
+                if (Mathf.Abs(starDistances[i] - distance) < minGap)
+                    clear = false;
+            }
+
+            if (clear)
+                starDistances.Add(distance);
+
+            guard++;
+        }
+
+        if (starDistances.Count < count)
+        {
+            starDistances.Clear();
+            for (int i = 0; i < count; i++)
+            {
+                float step = (i + 1f) / (count + 1f);
+                starDistances.Add(Mathf.Lerp(margin, total - margin, step));
+            }
+        }
+    }
+
+    float PathLength()
+    {
+        float length = 0f;
+
+        for (int i = 1; i < worldPoints.Count; i++)
+            length += Vector3.Distance(worldPoints[i - 1], worldPoints[i]);
+
+        return length;
+    }
+
+    Vector3 PointAlong(float distance)
+    {
+        float walked = 0f;
+
+        for (int i = 1; i < worldPoints.Count; i++)
+        {
+            float segment = Vector3.Distance(worldPoints[i - 1], worldPoints[i]);
+            if (walked + segment >= distance)
+            {
+                float t = segment <= 0.0001f ? 0f : (distance - walked) / segment;
+                return Vector3.Lerp(worldPoints[i - 1], worldPoints[i], t);
+            }
+
+            walked += segment;
+        }
+
+        return worldPoints[worldPoints.Count - 1];
+    }
+
+    Recipe DrawRecipe(bool newPlay)
+    {
+        if (newPlay || deck.Count == 0)
+        {
+            BuildDeck();
             nextRecipe = 0;
         }
 
@@ -193,116 +432,137 @@ public class PatternManager : MonoBehaviour
 
     void BuildDeck()
     {
-        const float amp = 0.22f;
+        List<Recipe> easy = new List<Recipe>();
+        List<Recipe> moderate = new List<Recipe>();
+        List<Recipe> hard = new List<Recipe>();
+
+        AddPair(easy, 0, 1, 0.12f, 0.22f, 1, 3);
+        AddPair(easy, 0, 2, 0.12f, 0.22f, 1, 3);
+        AddPair(easy, 1, 2, 0.12f, 0.22f, 1, 3);
+        AddPair(easy, 5, 0, 0.12f, 0.22f, 1, 3);
+        AddPair(easy, 3, 2, 0.12f, 0.22f, 1, 3);
+
+        AddPair(moderate, 0, 3, 0.2f, 0.42f, 1, 2);
+        AddPair(moderate, 0, 4, 0.18f, 0.42f, 1, 2);
+        AddPair(moderate, 1, 4, 0.2f, 0.42f, 1, 2);
+        AddPair(moderate, 1, 5, 0.18f, 0.42f, 1, 2);
+        AddPair(moderate, 4, 2, 0.2f, 0.42f, 1, 2);
+
+        AddPair(hard, 0, 2, 0.08f, 0.4f, 3, 1);
+        AddPair(hard, 0, 3, 0.08f, 0.4f, 3, 1);
+        AddPair(hard, 1, 3, 0.08f, 0.4f, 3, 1);
+        AddPair(hard, 1, 4, 0.08f, 0.4f, 3, 1);
+        AddPair(hard, 4, 2, 0.08f, 0.4f, 3, 1);
+
+        Shuffle(easy);
+        Shuffle(moderate);
+        Shuffle(hard);
+
         deck.Clear();
-
-        AddPair(0, 2, amp);
-        AddPair(0, 3, amp);
-        AddPair(1, 3, amp);
-        AddPair(1, 4, amp);
-        AddPair(1, 5, amp);
-        AddPair(2, 1, amp);
-        AddPair(3, 2, amp);
-        AddPair(3, 3, amp);
-        AddPair(4, 2, amp);
-        AddPair(5, 0, amp);
+        deck.AddRange(easy);
+        deck.AddRange(moderate);
+        deck.AddRange(hard);
     }
 
-    void AddPair(int kind, int count, float amp)
+    static void AddPair(List<Recipe> group, int kind, int count, float amp, float span, int passes, int starCount)
     {
-        deck.Add(new Recipe { kind = kind, count = count, amp = amp });
-        deck.Add(new Recipe { kind = kind, count = count, amp = -amp });
+        group.Add(new Recipe { kind = kind, count = count, amp = amp, span = span, passes = passes, stars = starCount });
+        group.Add(new Recipe { kind = kind, count = count, amp = -amp, span = span, passes = passes, stars = starCount });
     }
 
-    void ShuffleDeck()
+    static void Shuffle(List<Recipe> group)
     {
-        for (int i = deck.Count - 1; i > 0; i--)
+        for (int i = group.Count - 1; i > 0; i--)
         {
             int swap = Random.Range(0, i + 1);
-            Recipe current = deck[i];
-            deck[i] = deck[swap];
-            deck[swap] = current;
+            Recipe current = group[i];
+            group[i] = group[swap];
+            group[swap] = current;
         }
-    }
-
-    static bool SameRecipe(Recipe a, Recipe b)
-    {
-        return a.kind == b.kind && a.count == b.count && Mathf.Approximately(a.amp, b.amp);
     }
 
     void FillRecipe(Recipe recipe)
     {
         generatedPoints.Clear();
+        float gap = 0.16f;
 
-        const float x0 = -0.45f;
-        const float x1 = 0.45f;
+        for (int pass = 0; pass < recipe.passes; pass++)
+        {
+            float yBase = (pass - (recipe.passes - 1) * 0.5f) * gap;
+            bool reverse = pass % 2 == 1;
+            float xStart = reverse ? recipe.span : -recipe.span;
+            float xEnd = reverse ? -recipe.span : recipe.span;
+            AppendShape(recipe, xStart, xEnd, yBase);
+        }
+    }
 
+    void AppendShape(Recipe recipe, float xStart, float xEnd, float yBase)
+    {
         switch (recipe.kind)
         {
-            case 0:
-            case 2:
-                AddWave(x0, x1, recipe.amp, recipe.count);
-                break;
             case 1:
-                AddZigzag(x0, x1, recipe.amp, recipe.count);
+                AddZigzag(xStart, xEnd, yBase, recipe.amp, recipe.count);
                 break;
             case 3:
-                AddSteps(x0, x1, recipe.amp, recipe.count);
+                AddSteps(xStart, xEnd, yBase, recipe.amp, recipe.count);
                 break;
             case 4:
-                AddHills(x0, x1, recipe.amp);
+                AddHills(xStart, xEnd, yBase, recipe.amp);
+                break;
+            case 5:
+                AddCorner(xStart, xEnd, yBase, recipe.amp);
                 break;
             default:
-                AddCorner(x0, x1, recipe.amp);
+                AddWave(xStart, xEnd, yBase, recipe.amp, recipe.count);
                 break;
         }
     }
 
-    void AddWave(float x0, float x1, float amp, int humps)
+    void AddWave(float xStart, float xEnd, float yBase, float amp, int humps)
     {
         const int count = 40;
         for (int i = 0; i <= count; i++)
         {
             float t = i / (float)count;
-            float x = Mathf.Lerp(x0, x1, t);
-            float y = Mathf.Sin(t * humps * Mathf.PI) * amp;
+            float x = Mathf.Lerp(xStart, xEnd, t);
+            float y = yBase + Mathf.Sin(t * humps * Mathf.PI) * amp;
             generatedPoints.Add(new Vector3(x, y, 0f));
         }
     }
 
-    void AddHills(float x0, float x1, float amp)
+    void AddHills(float xStart, float xEnd, float yBase, float amp)
     {
         const int count = 40;
         for (int i = 0; i <= count; i++)
         {
             float t = i / (float)count;
-            float x = Mathf.Lerp(x0, x1, t);
+            float x = Mathf.Lerp(xStart, xEnd, t);
             float wave = Mathf.Sin(t * Mathf.PI * 2f);
-            float y = (wave * wave) * amp - amp * 0.5f;
+            float y = yBase + (wave * wave) * amp - amp * 0.5f;
             generatedPoints.Add(new Vector3(x, y, 0f));
         }
     }
 
-    void AddZigzag(float x0, float x1, float amp, int corners)
+    void AddZigzag(float xStart, float xEnd, float yBase, float amp, int corners)
     {
         for (int i = 0; i <= corners; i++)
         {
             float t = i / (float)corners;
-            float x = Mathf.Lerp(x0, x1, t);
-            float y = i % 2 == 0 ? amp : -amp;
+            float x = Mathf.Lerp(xStart, xEnd, t);
+            float y = yBase + (i % 2 == 0 ? amp : -amp);
             generatedPoints.Add(new Vector3(x, y, 0f));
         }
     }
 
-    void AddSteps(float x0, float x1, float amp, int rises)
+    void AddSteps(float xStart, float xEnd, float yBase, float amp, int rises)
     {
-        float yStart = -amp;
-        float yEnd = amp;
-        generatedPoints.Add(new Vector3(x0, yStart, 0f));
+        float yStart = yBase - amp;
+        float yEnd = yBase + amp;
+        generatedPoints.Add(new Vector3(xStart, yStart, 0f));
 
         for (int i = 0; i < rises; i++)
         {
-            float x = Mathf.Lerp(x0, x1, (i + 1f) / rises);
+            float x = Mathf.Lerp(xStart, xEnd, (i + 1f) / rises);
             float y = Mathf.Lerp(yStart, yEnd, i / (float)rises);
             float yNext = Mathf.Lerp(yStart, yEnd, (i + 1f) / rises);
             generatedPoints.Add(new Vector3(x, y, 0f));
@@ -310,11 +570,12 @@ public class PatternManager : MonoBehaviour
         }
     }
 
-    void AddCorner(float x0, float x1, float amp)
+    void AddCorner(float xStart, float xEnd, float yBase, float amp)
     {
-        generatedPoints.Add(new Vector3(x0, -amp, 0f));
-        generatedPoints.Add(new Vector3(0f, -amp, 0f));
-        generatedPoints.Add(new Vector3(0f, amp, 0f));
-        generatedPoints.Add(new Vector3(x1, amp, 0f));
+        float mid = (xStart + xEnd) * 0.5f;
+        generatedPoints.Add(new Vector3(xStart, yBase - amp, 0f));
+        generatedPoints.Add(new Vector3(mid, yBase - amp, 0f));
+        generatedPoints.Add(new Vector3(mid, yBase + amp, 0f));
+        generatedPoints.Add(new Vector3(xEnd, yBase + amp, 0f));
     }
 }

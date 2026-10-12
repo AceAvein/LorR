@@ -46,6 +46,8 @@ public class PathManager : MonoBehaviour
 
         SampleAccuracy(DistanceToPath(penTip.position));
         TryAdvance(penTip.position);
+        if (patternManager != null)
+            patternManager.CheckStars(penTip.position);
 
         if (progress >= totalLength - 0.01f)
         {
