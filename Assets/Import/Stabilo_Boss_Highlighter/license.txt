@@ -1,0 +1,11 @@
+Model Information:
+* title:	Stabilo Boss Highlighter
+* source:	https://sketchfab.com/3d-models/stabilo-boss-highlighter-25481a65cad54e2a956394ff2b2765cd
+* author:	lukematakitoga (https://sketchfab.com/lukematakitoga)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Stabilo Boss Highlighter" (https://sketchfab.com/3d-models/stabilo-boss-highlighter-25481a65cad54e2a956394ff2b2765cd) by lukematakitoga (https://sketchfab.com/lukematakitoga) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
