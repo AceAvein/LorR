@@ -11,7 +11,7 @@ public class PenSelect : MonoBehaviour
 
     public Transform penTip;
     public Vector3 pencilTip = new Vector3(0f, 3.035f, -0.267f);
-    public Vector3 ballpenTip = new Vector3(-0.006f, 1.014f, 0.013f);
+    public Vector3 ballpenTip = new Vector3(0.0014f, 1.0702f, 0.0187f);
     public Vector3 highlighterTip = new Vector3(-1.292f, 0f, 0.04f);
 
     void Awake()

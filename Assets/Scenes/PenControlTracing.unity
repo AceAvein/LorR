@@ -641,7 +641,7 @@ MonoBehaviour:
   highlighter: {fileID: 8065193375623026360}
   penTip: {fileID: 989054044}
   pencilTip: {x: 0, y: 3.035, z: -0.267}
-  ballpenTip: {x: -0.006, y: 1.014, z: 0.013}
+  ballpenTip: {x: 0.0014, y: 1.0702, z: 0.0187}
   highlighterTip: {x: -1.292, y: 0, z: 0.04}
 --- !u!1 &485365810
 GameObject:
