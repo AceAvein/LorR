@@ -13,6 +13,7 @@ public class TracingTimer : MonoBehaviour
     public float timeLimit = 10f;
 
     private float timeRemaining;
+    private float elapsed;
     private bool timerRunning = false;
 
     void Start()
@@ -25,7 +26,11 @@ public class TracingTimer : MonoBehaviour
     {
         gameObject.SetActive(true);
         timeRemaining = timeLimit;
+        elapsed = 0f;
         timerRunning = true;
+
+        if (pathManager != null)
+            pathManager.BeginPatternClock();
     }
 
     void Update()
@@ -34,6 +39,7 @@ public class TracingTimer : MonoBehaviour
             return;
 
         timeRemaining -= Time.deltaTime;
+        elapsed += Time.deltaTime;
 
         if (timeRemaining <= 0f)
         {
@@ -42,11 +48,7 @@ public class TracingTimer : MonoBehaviour
             gameObject.SetActive(false);
 
             pathManager.finishedScreen.SetActive(false);
-
-            pathManager.averageAccuracyText.text =
-            "Average Tracing Accuracy: " + pathManager.GetAccuracy().ToString("F1") + "%";
-
-            SetEndTitle("Time's Up!");
+            ShowResults(false);
             timesUpScreen.SetActive(true);
             tracingBoard.SetActive(false);
             tracingArea.SetActive(false);
@@ -81,29 +83,22 @@ public class TracingTimer : MonoBehaviour
 
         timerRunning = false;
         pathManager.finishedScreen.SetActive(false);
-        pathManager.averageAccuracyText.text =
-            "Average Tracing Accuracy: " + pathManager.GetAccuracy().ToString("F1") + "%";
-
-        SetEndTitle("Game Complete!");
+        ShowResults(true);
         timesUpScreen.SetActive(true);
         tracingBoard.SetActive(false);
         tracingArea.SetActive(false);
     }
 
-    void SetEndTitle(string message)
+    void ShowResults(bool deckCleared)
     {
-        if (timesUpScreen == null)
+        if (timesUpScreen == null || pathManager == null)
             return;
 
-        TMP_Text[] labels = timesUpScreen.GetComponentsInChildren<TMP_Text>(true);
-        for (int i = 0; i < labels.Length; i++)
-        {
-            if (labels[i].text == "Time's Up!" || labels[i].text == "Game Complete!")
-            {
-                labels[i].text = message;
-                return;
-            }
-        }
+        ResultsScreen results = timesUpScreen.GetComponent<ResultsScreen>();
+        if (results == null)
+            results = timesUpScreen.AddComponent<ResultsScreen>();
+
+        results.Show(pathManager.BuildReport(elapsed, timeRemaining, deckCleared));
     }
 
     public void TryAgain()

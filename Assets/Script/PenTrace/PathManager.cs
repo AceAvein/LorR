@@ -25,11 +25,13 @@ public class PathManager : MonoBehaviour
     float totalLength;
     float roundScoreSum;
     int roundPatterns;
+    float patternStartTime;
     bool patternScored;
     bool patternCompleted;
     LineRenderer coloredPath;
     readonly List<Vector3> points = new List<Vector3>();
     readonly List<Vector3> ink = new List<Vector3>();
+    readonly List<FinishedPattern> finished = new List<FinishedPattern>();
 
     static readonly Color DoneColor = new Color(0.2f, 0.85f, 0.35f);
     static readonly Color CurrentColor = new Color(1f, 0.92f, 0.25f);
@@ -138,20 +140,32 @@ public class PathManager : MonoBehaviour
         if (tracePath != null)
             RebuildPath();
 
-        if (points.Count < 2 || ink.Count == 0 || totalLength <= 0.01f)
+        return ScoreUpTo(totalLength);
+    }
+
+    float ScoreUpTo(float length)
+    {
+        if (points.Count < 2 || ink.Count == 0 || length <= 0.01f || totalLength <= 0.01f)
             return 0f;
 
+        float end = Mathf.Min(length, totalLength);
         float scoreSum = 0f;
         int samples = 0;
 
-        for (float distance = 0f; distance < totalLength; distance += ScoreSpacing)
+        for (float distance = 0f; distance < end; distance += ScoreSpacing)
         {
             scoreSum += Closeness(PointOnGuide(distance));
             samples++;
         }
 
-        scoreSum += Closeness(PointOnGuide(totalLength));
-        samples++;
+        if (end >= totalLength - 0.0001f)
+        {
+            scoreSum += Closeness(PointOnGuide(totalLength));
+            samples++;
+        }
+
+        if (samples == 0)
+            return 0f;
 
         return scoreSum / samples * 100f;
     }
@@ -304,15 +318,153 @@ public class PathManager : MonoBehaviour
         return total / count;
     }
 
+    public void BeginPatternClock()
+    {
+        patternStartTime = Time.time;
+    }
+
+    public RoundReport BuildReport(float timeUsed, float timeLeft, bool deckCleared)
+    {
+        if (tracePath != null)
+            RebuildPath();
+
+        bool open = !patternScored && totalLength > 0.01f && progress > 0.01f;
+        float coverage = totalLength <= 0.01f ? 0f : Mathf.Clamp01(progress / totalLength);
+        float openAccuracy = open ? ScoreUpTo(progress) : 0f;
+
+        int stars = 0;
+        float accuracySum = 0f;
+        float secondSum = 0f;
+        float total = 0f;
+        int easyDone = 0;
+        int moderateDone = 0;
+        int hardDone = 0;
+        int highest = -1;
+
+        for (int i = 0; i < finished.Count; i++)
+        {
+            FinishedPattern pattern = finished[i];
+            accuracySum += pattern.accuracy;
+            secondSum += pattern.seconds;
+            stars += pattern.starsGot;
+            total += PatternPoints(pattern);
+            highest = Mathf.Max(highest, pattern.tier);
+
+            if (pattern.tier == 0)
+                easyDone++;
+            else if (pattern.tier == 1)
+                moderateDone++;
+            else
+                hardDone++;
+        }
+
+        if (open && patternManager != null)
+        {
+            stars += patternManager.StarsCollected();
+            total += TierPoints(patternManager.CurrentTier()) * coverage * (openAccuracy / 100f);
+        }
+
+        int usedSeconds = Mathf.Max(0, Mathf.RoundToInt(timeUsed));
+        int leftSeconds = Mathf.Max(0, Mathf.RoundToInt(timeLeft));
+        if (deckCleared)
+            total += leftSeconds * 2f;
+
+        int patternTotal = patternManager != null ? patternManager.PatternTotal() : 30;
+        if (patternTotal <= 0)
+            patternTotal = 30;
+
+        RoundReport report = new RoundReport();
+        report.patternsCompleted = finished.Count;
+        report.patternTotal = patternTotal;
+        report.difficulty = TierName(highest);
+        report.accuracy = finished.Count == 0 ? 0f : accuracySum / finished.Count;
+        report.averageSeconds = finished.Count == 0 ? 0f : secondSum / finished.Count;
+        report.stars = stars;
+        report.timeUsed = usedSeconds;
+        report.timeLeft = leftSeconds;
+        report.easyCompleted = easyDone;
+        report.moderateCompleted = moderateDone;
+        report.hardCompleted = hardDone;
+        report.easyTotal = patternManager != null ? patternManager.TierCount(0) : 10;
+        report.moderateTotal = patternManager != null ? patternManager.TierCount(1) : 10;
+        report.hardTotal = patternManager != null ? patternManager.TierCount(2) : 10;
+        report.lastTraced = open ? coverage * 100f : (finished.Count > 0 ? 100f : 0f);
+        report.totalScore = total;
+        return report;
+    }
+
+    static float PatternPoints(FinishedPattern pattern)
+    {
+        float points = TierPoints(pattern.tier) * (pattern.accuracy / 100f);
+        float par = ParSeconds(pattern.tier);
+        float fraction = 0f;
+        if (pattern.seconds < par)
+            fraction = (par - pattern.seconds) / par;
+
+        return points + points * 0.25f * fraction;
+    }
+
+    static int TierPoints(int tier)
+    {
+        if (tier == 0)
+            return 10;
+
+        if (tier == 1)
+            return 20;
+
+        return 30;
+    }
+
+    static float ParSeconds(int tier)
+    {
+        if (tier == 0)
+            return 8f;
+
+        if (tier == 1)
+            return 12f;
+
+        return 18f;
+    }
+
+    static string TierName(int tier)
+    {
+        if (tier < 0)
+            return "None";
+
+        if (tier == 0)
+            return "Easy";
+
+        if (tier == 1)
+            return "Moderate";
+
+        if (tier == 2)
+            return "Hard";
+
+        return "None";
+    }
+
+    void RecordFinished(float accuracy)
+    {
+        if (patternScored || patternManager == null)
+            return;
+
+        FinishedPattern pattern = new FinishedPattern();
+        pattern.tier = patternManager.CurrentTier();
+        pattern.accuracy = accuracy;
+        pattern.seconds = patternStartTime <= 0f ? 0f : Time.time - patternStartTime;
+        pattern.starsGot = patternManager.StarsCollected();
+        pattern.starsOnPattern = patternManager.StarsOnPattern();
+        finished.Add(pattern);
+
+        roundScoreSum += accuracy;
+        roundPatterns++;
+        patternScored = true;
+    }
+
     IEnumerator PatternComplete()
     {
         float patternScore = ScoreCurrentPattern();
-        if (!patternScored)
-        {
-            roundScoreSum += patternScore;
-            roundPatterns++;
-            patternScored = true;
-        }
+        RecordFinished(patternScore);
 
         averageAccuracyText.text = "Average Tracing Accuracy: " + patternScore.ToString("F1") + "%";
         finishedScreen.SetActive(true);
@@ -328,6 +480,7 @@ public class PathManager : MonoBehaviour
         roundScoreSum = 0f;
         roundPatterns = 0;
         patternScored = false;
+        finished.Clear();
         ink.Clear();
     }
 
@@ -337,6 +490,7 @@ public class PathManager : MonoBehaviour
         patternCompleted = false;
         patternScored = false;
         ink.Clear();
+        BeginPatternClock();
 
         if (PenTrail.Active != null)
             PenTrail.Active.ClearInk();

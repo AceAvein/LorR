@@ -37,6 +37,9 @@ public class PatternManager : MonoBehaviour
     readonly List<Vector3> generatedPoints = new List<Vector3>();
     readonly List<Vector3> worldPoints = new List<Vector3>();
     readonly List<Recipe> deck = new List<Recipe>();
+    int easyCount;
+    int moderateCount;
+    int hardCount;
     readonly List<GuideStar> stars = new List<GuideStar>();
     readonly List<float> starDistances = new List<float>();
     int nextRecipe = -1;
@@ -500,10 +503,77 @@ public class PatternManager : MonoBehaviour
         Shuffle(moderate);
         Shuffle(hard);
 
+        easyCount = easy.Count;
+        moderateCount = moderate.Count;
+        hardCount = hard.Count;
+
         deck.Clear();
         deck.AddRange(easy);
         deck.AddRange(moderate);
         deck.AddRange(hard);
+    }
+
+    public int CurrentPatternIndex
+    {
+        get { return Mathf.Max(0, nextRecipe - 1); }
+    }
+
+    public int CurrentTier()
+    {
+        return TierOf(CurrentPatternIndex);
+    }
+
+    public int TierOf(int index)
+    {
+        if (index < easyCount)
+            return 0;
+
+        if (index < easyCount + moderateCount)
+            return 1;
+
+        return 2;
+    }
+
+    public int TierCount(int tier)
+    {
+        if (tier == 0)
+            return easyCount;
+
+        if (tier == 1)
+            return moderateCount;
+
+        return hardCount;
+    }
+
+    public int PatternTotal()
+    {
+        return easyCount + moderateCount + hardCount;
+    }
+
+    public int StarsCollected()
+    {
+        int count = 0;
+
+        for (int i = 0; i < stars.Count; i++)
+        {
+            if (stars[i].root.activeSelf && stars[i].collected)
+                count++;
+        }
+
+        return count;
+    }
+
+    public int StarsOnPattern()
+    {
+        int count = 0;
+
+        for (int i = 0; i < stars.Count; i++)
+        {
+            if (stars[i].root.activeSelf)
+                count++;
+        }
+
+        return count;
     }
 
     static void AddGuide(List<Recipe> group, int kind, int count, float amp, float span, int passes, int starCount)
