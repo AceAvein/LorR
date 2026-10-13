@@ -92,6 +92,9 @@ public class BallCollision : MonoBehaviour
 
         if (!correctHand)
         {
+            if (BallDropRound.Instance != null)
+                BallDropRound.Instance.WrongGrab(identity);
+
             pendingReject = true;
             pendingInteractor = args.interactorObject;
             return;
@@ -99,9 +102,14 @@ public class BallCollision : MonoBehaviour
 
         counted = true;
 
-        BallDropGameManager gameManager = FindFirstObjectByType<BallDropGameManager>();
-        if (gameManager != null)
-            gameManager.AddIntercepted();
+        if (BallDropRound.Instance != null)
+            BallDropRound.Instance.Catch(identity);
+        else
+        {
+            BallDropGameManager gameManager = FindFirstObjectByType<BallDropGameManager>();
+            if (gameManager != null)
+                gameManager.AddIntercepted();
+        }
 
         Renderer[] renderers = GetComponentsInChildren<Renderer>();
         for (int i = 0; i < renderers.Length; i++)

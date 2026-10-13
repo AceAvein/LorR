@@ -17,17 +17,22 @@ public class BallAssignController : MonoBehaviour
     public Image rightHandImage;
     public GameObject assignCanvas;
     public GameObject objectiveScreen;
+    public GameObject handCanvas;
     public GameObject gameCanvas;
     public BallDropSystem dropSystem;
     public SportBall[] sportsBalls;
 
     SportBall leftBall;
     SportBall rightBall;
+    BallDropRound round;
 
     void Awake()
     {
         ResolveReferences();
         BindTemplates();
+        round = GetComponent<BallDropRound>();
+        if (round == null)
+            round = gameObject.AddComponent<BallDropRound>();
         ShowObjective();
         WireButtons();
     }
@@ -38,6 +43,10 @@ public class BallAssignController : MonoBehaviour
             assignCanvas = FindRoot("Ball assign canvas");
         if (objectiveScreen == null)
             objectiveScreen = FindRoot("ObjectiveScreen");
+        if (handCanvas == null)
+            handCanvas = FindRoot("Select Non Dominant Hand");
+        if (handCanvas == null)
+            handCanvas = FindRoot("Select hand");
         if (gameCanvas == null)
             gameCanvas = FindRoot("GameCanvas");
         if (dropSystem == null)
@@ -79,7 +88,9 @@ public class BallAssignController : MonoBehaviour
 
     void WireButtons()
     {
-        Wire(objectiveScreen, "Objective_Panel/Btn_Start", ShowAssign);
+        Wire(objectiveScreen, "Objective_Panel/Btn_Start", ShowHandSelect);
+        Wire(handCanvas, "Objective_Panel/Left Hand", ChooseLeftHand);
+        Wire(handCanvas, "Objective_Panel/Right Hand", ChooseRightHand);
         Wire(assignCanvas, "Btn_Start", StartGame);
     }
 
@@ -87,10 +98,40 @@ public class BallAssignController : MonoBehaviour
     {
         if (objectiveScreen != null)
             objectiveScreen.SetActive(true);
+        if (handCanvas != null)
+            handCanvas.SetActive(false);
         if (assignCanvas != null)
             assignCanvas.SetActive(false);
         if (gameCanvas != null)
             gameCanvas.SetActive(false);
+        if (round != null)
+            round.HideResults();
+    }
+
+    public void ShowHandSelect()
+    {
+        if (objectiveScreen != null)
+            objectiveScreen.SetActive(false);
+        if (handCanvas != null)
+            handCanvas.SetActive(true);
+        if (assignCanvas != null)
+            assignCanvas.SetActive(false);
+        if (gameCanvas != null)
+            gameCanvas.SetActive(false);
+    }
+
+    public void ChooseLeftHand()
+    {
+        if (round != null)
+            round.SetNonDominantLeft(true);
+        ShowAssign();
+    }
+
+    public void ChooseRightHand()
+    {
+        if (round != null)
+            round.SetNonDominantLeft(false);
+        ShowAssign();
     }
 
     public void ShowAssign()
@@ -100,6 +141,8 @@ public class BallAssignController : MonoBehaviour
 
         if (objectiveScreen != null)
             objectiveScreen.SetActive(false);
+        if (handCanvas != null)
+            handCanvas.SetActive(false);
         if (assignCanvas != null)
             assignCanvas.SetActive(true);
     }
@@ -117,8 +160,13 @@ public class BallAssignController : MonoBehaviour
 
         if (assignCanvas != null)
             assignCanvas.SetActive(false);
+        if (handCanvas != null)
+            handCanvas.SetActive(false);
         if (gameCanvas != null)
             gameCanvas.SetActive(true);
+
+        if (round != null)
+            round.Begin(dropSystem, gameCanvas);
 
         dropSystem.Begin(leftBall.template, rightBall.template);
     }

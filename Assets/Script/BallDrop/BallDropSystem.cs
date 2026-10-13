@@ -7,9 +7,9 @@ public class BallDropSystem : MonoBehaviour
     public float targetDiameter = 0.15f;
 
     const int ballsPerLevel = 10;
-    const float easyFallSpeed = 1.2f;
-    const float moderateFallSpeed = 2f;
-    const float hardFallSpeed = 3f;
+    const float easyFallSpeed = 0.6f;
+    const float moderateFallSpeed = 1.2f;
+    const float hardFallSpeed = 2f;
     const float easySpawnInterval = 2.6f;
     const float moderateSpawnInterval = 2f;
     const float hardSpawnInterval = 1.4f;
@@ -18,27 +18,54 @@ public class BallDropSystem : MonoBehaviour
     GameObject rightBallTemplate;
     Transform[] spawnPoints;
     int spawnedBalls;
+    bool spawning;
+    Coroutine spawnLoop;
 
     public void Begin(GameObject leftTemplate, GameObject rightTemplate)
     {
         leftBallTemplate = leftTemplate;
         rightBallTemplate = rightTemplate;
-        gameObject.SetActive(true);
+        spawnedBalls = 0;
+        spawning = true;
+
+        if (!gameObject.activeSelf)
+            gameObject.SetActive(true);
+
+        CacheSpawnPoints();
+
+        if (spawnLoop != null)
+            StopCoroutine(spawnLoop);
+
+        spawnLoop = StartCoroutine(SpawnLoop());
+    }
+
+    public void StopSpawning()
+    {
+        spawning = false;
     }
 
     void Start()
     {
+        CacheSpawnPoints();
+    }
+
+    void CacheSpawnPoints()
+    {
+        if (transformAbove == null)
+            return;
+
+        if (spawnPoints != null && spawnPoints.Length == transformAbove.childCount)
+            return;
+
         spawnPoints = new Transform[transformAbove.childCount];
 
         for (int i = 0; i < transformAbove.childCount; i++)
             spawnPoints[i] = transformAbove.GetChild(i);
-
-        StartCoroutine(SpawnLoop());
     }
 
     IEnumerator SpawnLoop()
     {
-        while (true)
+        while (spawning)
         {
             float fallSpeed = FallSpeedForBall(spawnedBalls);
             float interval = SpawnIntervalForBall(spawnedBalls);
@@ -69,18 +96,22 @@ public class BallDropSystem : MonoBehaviour
 
     void SpawnBall(float fallSpeed)
     {
-        if (spawnPoints == null || spawnPoints.Length == 0 || leftBallTemplate == null || rightBallTemplate == null)
+        if (!spawning || spawnPoints == null || spawnPoints.Length == 0 || leftBallTemplate == null || rightBallTemplate == null)
             return;
+
+        int tier = spawnedBalls / ballsPerLevel;
+        if (tier > 2)
+            tier = 2;
 
         int randomPoint = Random.Range(0, spawnPoints.Length);
         bool forLeftHand = Random.value < 0.5f;
         GameObject template = forLeftHand ? leftBallTemplate : rightBallTemplate;
 
-        SpawnWrapped(template, forLeftHand, spawnPoints[randomPoint].position, fallSpeed);
+        SpawnWrapped(template, forLeftHand, tier, spawnPoints[randomPoint].position, fallSpeed);
         spawnedBalls++;
     }
 
-    void SpawnWrapped(GameObject template, bool forLeftHand, Vector3 position, float fallSpeed)
+    void SpawnWrapped(GameObject template, bool forLeftHand, int tier, Vector3 position, float fallSpeed)
     {
         GameObject root = new GameObject(template.name);
         root.transform.SetPositionAndRotation(position, Quaternion.identity);
@@ -109,6 +140,8 @@ public class BallDropSystem : MonoBehaviour
 
         DropBall identity = root.AddComponent<DropBall>();
         identity.forLeftHand = forLeftHand;
+        identity.tier = tier;
+        identity.spawnedAt = Time.time;
 
         BallFall fall = root.AddComponent<BallFall>();
         fall.fallSpeed = fallSpeed;
