@@ -1,0 +1,11 @@
+Model Information:
+* title:	Bowling ball :(
+* source:	https://sketchfab.com/3d-models/bowling-ball-b1bfc1581e1c4566889a721d547e2d40
+* author:	Metroshock (https://sketchfab.com/Metroshock)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Bowling ball :(" (https://sketchfab.com/3d-models/bowling-ball-b1bfc1581e1c4566889a721d547e2d40) by Metroshock (https://sketchfab.com/Metroshock) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

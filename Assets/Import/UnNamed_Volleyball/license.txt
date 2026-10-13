@@ -1,0 +1,11 @@
+Model Information:
+* title:	UnNamed Volleyball
+* source:	https://sketchfab.com/3d-models/unnamed-volleyball-f63ffe0e3b9d4b8fa947226e8bb1400b
+* author:	tyufa (https://sketchfab.com/tyufa)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "UnNamed Volleyball" (https://sketchfab.com/3d-models/unnamed-volleyball-f63ffe0e3b9d4b8fa947226e8bb1400b) by tyufa (https://sketchfab.com/tyufa) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
