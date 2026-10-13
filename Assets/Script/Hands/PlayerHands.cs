@@ -12,6 +12,7 @@ public class PlayerHands : MonoBehaviour
         "Menu",
         "TrainingRange",
         "PenControlTracing",
+        "Ball Drop",
         "BallDrop_HalfwayTest",
         "ColorSort",
     };
