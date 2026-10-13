@@ -7,6 +7,9 @@ public class BallCollision : MonoBehaviour
 {
     XRGrabInteractable grab;
     bool counted;
+    bool pendingReject;
+    bool pendingDestroy;
+    IXRSelectInteractor pendingInteractor;
 
     void Awake()
     {
@@ -30,6 +33,12 @@ public class BallCollision : MonoBehaviour
         grab.throwOnDetach = false;
         grab.attachEaseInTime = 0f;
 
+        if (ballCollider != null)
+        {
+            grab.colliders.Clear();
+            grab.colliders.Add(ballCollider);
+        }
+
         grab.selectEntered.AddListener(OnGrabbed);
         grab.selectExited.AddListener(OnReleased);
     }
@@ -43,6 +52,25 @@ public class BallCollision : MonoBehaviour
         grab.selectExited.RemoveListener(OnReleased);
     }
 
+    void LateUpdate()
+    {
+        if (pendingInteractor != null && grab != null && grab.isSelected && grab.interactionManager != null)
+            grab.interactionManager.SelectExit(pendingInteractor, grab);
+
+        pendingInteractor = null;
+
+        if (pendingReject)
+        {
+            pendingReject = false;
+            BallFall fall = GetComponent<BallFall>();
+            if (fall != null)
+                fall.enabled = true;
+        }
+
+        if (pendingDestroy)
+            Destroy(gameObject);
+    }
+
     void OnGrabbed(SelectEnterEventArgs args)
     {
         BallFall fall = GetComponent<BallFall>();
@@ -54,21 +82,44 @@ public class BallCollision : MonoBehaviour
 
         bool isLeftHand = args.interactorObject.handedness == InteractorHandedness.Left;
         bool isRightHand = args.interactorObject.handedness == InteractorHandedness.Right;
-        bool isRedBall = CompareTag("RedBall");
-        bool isBlueBall = CompareTag("BlueBall");
+        DropBall identity = GetComponent<DropBall>();
 
-        if ((isRedBall && isLeftHand) || (isBlueBall && isRightHand))
+        bool correctHand;
+        if (identity != null)
+            correctHand = (identity.forLeftHand && isLeftHand) || (!identity.forLeftHand && isRightHand);
+        else
+            correctHand = (CompareTag("RedBall") && isLeftHand) || (CompareTag("BlueBall") && isRightHand);
+
+        if (!correctHand)
         {
-            counted = true;
-
-            BallDropGameManager gameManager = FindFirstObjectByType<BallDropGameManager>();
-            if (gameManager != null)
-                gameManager.AddIntercepted();
+            pendingReject = true;
+            pendingInteractor = args.interactorObject;
+            return;
         }
+
+        counted = true;
+
+        BallDropGameManager gameManager = FindFirstObjectByType<BallDropGameManager>();
+        if (gameManager != null)
+            gameManager.AddIntercepted();
+
+        Renderer[] renderers = GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].enabled = false;
+
+        Collider[] colliders = GetComponentsInChildren<Collider>();
+        for (int i = 0; i < colliders.Length; i++)
+            colliders[i].enabled = false;
+
+        pendingDestroy = true;
+        pendingInteractor = args.interactorObject;
     }
 
     void OnReleased(SelectExitEventArgs args)
     {
+        if (pendingDestroy)
+            return;
+
         BallFall fall = GetComponent<BallFall>();
         if (fall != null)
             fall.enabled = true;

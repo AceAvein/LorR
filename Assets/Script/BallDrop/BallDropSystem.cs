@@ -1,26 +1,28 @@
-using UnityEngine;
 using System.Collections;
+using UnityEngine;
 
 public class BallDropSystem : MonoBehaviour
 {
     public Transform transformAbove;
+    public float targetDiameter = 0.15f;
 
-    public GameObject redBallPrefab;
-    public GameObject blueBallPrefab;
+    GameObject leftBallTemplate;
+    GameObject rightBallTemplate;
+    Transform[] spawnPoints;
 
-    private Transform[] spawnPoints;
+    public void Begin(GameObject leftTemplate, GameObject rightTemplate)
+    {
+        leftBallTemplate = leftTemplate;
+        rightBallTemplate = rightTemplate;
+        gameObject.SetActive(true);
+    }
 
     void Start()
     {
-        // Get all 10 spawn points
         spawnPoints = new Transform[transformAbove.childCount];
 
         for (int i = 0; i < transformAbove.childCount; i++)
-        {
             spawnPoints[i] = transformAbove.GetChild(i);
-        }
-
-        Debug.Log("Found " + spawnPoints.Length + " spawn points.");
 
         StartCoroutine(SpawnLoop());
     }
@@ -30,33 +32,53 @@ public class BallDropSystem : MonoBehaviour
         while (true)
         {
             SpawnBall();
-
             yield return new WaitForSeconds(2f);
         }
     }
 
     void SpawnBall()
     {
-        // Pick a random spawn point
+        if (spawnPoints == null || spawnPoints.Length == 0 || leftBallTemplate == null || rightBallTemplate == null)
+            return;
+
         int randomPoint = Random.Range(0, spawnPoints.Length);
+        bool forLeftHand = Random.value < 0.5f;
+        GameObject template = forLeftHand ? leftBallTemplate : rightBallTemplate;
 
-        // Randomly choose red or blue
-        GameObject ballPrefab;
+        SpawnWrapped(template, forLeftHand, spawnPoints[randomPoint].position);
+    }
 
-        if (Random.value < 0.5f)
-        {
-            ballPrefab = redBallPrefab;
-        }
-        else
-        {
-            ballPrefab = blueBallPrefab;
-        }
+    void SpawnWrapped(GameObject template, bool forLeftHand, Vector3 position)
+    {
+        GameObject root = new GameObject(template.name);
+        root.transform.SetPositionAndRotation(position, Quaternion.identity);
 
-        // Spawn the ball
-        Instantiate(
-            ballPrefab,
-            spawnPoints[randomPoint].position,
-            Quaternion.identity
-        );
+        SphereCollider ballCollider = root.AddComponent<SphereCollider>();
+        ballCollider.radius = targetDiameter * 0.5f;
+        ballCollider.isTrigger = false;
+
+        Rigidbody body = root.AddComponent<Rigidbody>();
+        body.isKinematic = true;
+        body.useGravity = false;
+
+        GameObject visual = Instantiate(template);
+        Collider[] extraColliders = visual.GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < extraColliders.Length; i++)
+            DestroyImmediate(extraColliders[i]);
+
+        visual.transform.SetParent(root.transform, false);
+        visual.transform.localPosition = Vector3.zero;
+        visual.transform.localRotation = Quaternion.identity;
+        visual.SetActive(true);
+
+        FitBallVisual fit = visual.AddComponent<FitBallVisual>();
+        fit.targetDiameter = targetDiameter;
+        fit.Fit();
+
+        DropBall identity = root.AddComponent<DropBall>();
+        identity.forLeftHand = forLeftHand;
+
+        root.AddComponent<BallFall>();
+        root.AddComponent<BallCollision>();
     }
 }
