@@ -84,8 +84,10 @@ public class ScreenHudFit : MonoBehaviour
         for (int i = 0; i < transform.childCount; i++)
         {
             Transform child = transform.GetChild(i);
-            if (child != safeArea)
-                children.Add(child);
+            if (child == safeArea || child.GetComponent<TMP_Text>() == null)
+                continue;
+
+            children.Add(child);
         }
 
         for (int i = 0; i < children.Count; i++)
@@ -111,7 +113,7 @@ public class ScreenHudFit : MonoBehaviour
             label.enableAutoSizing = false;
             label.textWrappingMode = TextWrappingModes.NoWrap;
             label.overflowMode = TextOverflowModes.Overflow;
-            label.alignment = TextAlignmentOptions.MidlineLeft;
+            label.alignment = TextAlignmentOptions.BaselineLeft;
             label.margin = Vector4.zero;
 
             RectTransform rect = label.rectTransform;
@@ -119,6 +121,40 @@ public class ScreenHudFit : MonoBehaviour
             rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
         }
+
+        HideGameplay();
+    }
+
+    public void ShowGameplay()
+    {
+        SetGameplayVisible(true);
+        FlowLabels();
+    }
+
+    public void HideGameplay()
+    {
+        SetGameplayVisible(false);
+        FlowLabels();
+    }
+
+    void SetGameplayVisible(bool visible)
+    {
+        if (labels == null)
+            return;
+
+        for (int i = 0; i < labels.Length; i++)
+        {
+            TMP_Text label = labels[i];
+            if (label == null || IsModule(label))
+                continue;
+
+            label.gameObject.SetActive(visible);
+        }
+    }
+
+    static bool IsModule(TMP_Text label)
+    {
+        return label.gameObject.name.StartsWith("Module");
     }
 
     static int CompareLeftToRight(TMP_Text a, TMP_Text b)
@@ -147,7 +183,7 @@ public class ScreenHudFit : MonoBehaviour
         for (int i = 0; i < labels.Length; i++)
         {
             TMP_Text label = labels[i];
-            if (label == null)
+            if (label == null || !label.gameObject.activeSelf)
                 continue;
 
             cachedText[i] = label.text;
@@ -194,7 +230,7 @@ public class ScreenHudFit : MonoBehaviour
         for (int i = 0; i < labels.Length; i++)
         {
             TMP_Text label = labels[i];
-            if (label == null || string.IsNullOrEmpty(label.text))
+            if (label == null || !label.gameObject.activeSelf || string.IsNullOrEmpty(label.text))
                 continue;
 
             label.fontSize = size;

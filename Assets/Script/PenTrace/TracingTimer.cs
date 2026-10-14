@@ -41,6 +41,9 @@ public class TracingTimer : MonoBehaviour
         elapsed = 0f;
         timerRunning = true;
         HideFeedback();
+        ScreenHudFit hud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
+        if (hud != null)
+            hud.ShowGameplay();
 
         if (pathManager != null)
             pathManager.BeginPatternClock();
@@ -249,6 +252,9 @@ public class TracingTimer : MonoBehaviour
     public void TryAgain()
     {
         HideFeedback();
+        ScreenHudFit hud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
+        if (hud != null)
+            hud.HideGameplay();
         timesUpScreen.SetActive(false);
 
         patternManager.ResetPatterns();

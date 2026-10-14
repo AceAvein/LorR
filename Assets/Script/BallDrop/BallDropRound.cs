@@ -102,6 +102,9 @@ public class BallDropRound : MonoBehaviour
         ended = false;
         running = true;
         HideFeedback();
+        ScreenHudFit screenHud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
+        if (screenHud != null)
+            screenHud.ShowGameplay();
 
         if (hud != null)
             hud.ResetCount();

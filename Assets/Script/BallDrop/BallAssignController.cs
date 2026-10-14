@@ -106,6 +106,10 @@ public class BallAssignController : MonoBehaviour
             gameCanvas.SetActive(false);
         if (round != null)
             round.HideResults();
+
+        ScreenHudFit hud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
+        if (hud != null)
+            hud.HideGameplay();
     }
 
     public void ShowHandSelect()
