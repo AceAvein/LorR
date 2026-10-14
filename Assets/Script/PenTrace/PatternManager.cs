@@ -69,6 +69,7 @@ public class PatternManager : MonoBehaviour
         pathManager.traceEnd = newTraceEnd;
         pathManager.ResetPattern();
         RefreshTracingHud();
+        AnnounceTier(TierOf(index));
     }
 
     public void NextPattern()
@@ -154,6 +155,16 @@ public class PatternManager : MonoBehaviour
         pathManager.traceEnd = endLabel.transform;
         pathManager.ResetPattern();
         RefreshTracingHud();
+        AnnounceTier(CurrentTier());
+    }
+
+    void AnnounceTier(int tier)
+    {
+        TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
+        if (timer == null || !timer.IsRunning)
+            return;
+
+        LevelVoices.PlayTier(tier);
     }
 
     void RefreshTracingHud()
@@ -532,8 +543,16 @@ public class PatternManager : MonoBehaviour
         return TierOf(CurrentPatternIndex);
     }
 
+    public bool HasDeck
+    {
+        get { return easyCount + moderateCount + hardCount > 0; }
+    }
+
     public int TierOf(int index)
     {
+        if (easyCount <= 0)
+            return 0;
+
         if (index < easyCount)
             return 0;
 

@@ -30,7 +30,7 @@ EditorBuildSettings:
     path: Assets/Test_Scenes/Alyza_Test/01_ProfileSelection.unity
     guid: a00adc67a7bc1664aa10299811dc000e
   - enabled: 1
-    path: Assets/Test_Scenes/Ace_Test/ReactionLight_InitTest.unity
+    path: Assets/Scenes/ReactionLight_InitTest.unity
     guid: d74e07be3d813bf4896a55f6ff2e0265
   - enabled: 0
     path: Assets/Test_Scenes/Alyza_Test/ReactionLight/09_ReactionLight.unity

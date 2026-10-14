@@ -29,6 +29,11 @@ public class TracingTimer : MonoBehaviour
     private bool timerRunning = false;
     private bool feedbackShowing;
 
+    public bool IsRunning
+    {
+        get { return timerRunning; }
+    }
+
     void Start()
     {
         ResolveHud();
@@ -50,6 +55,9 @@ public class TracingTimer : MonoBehaviour
         if (hud != null)
             hud.ShowGameplay();
         ShowWristHud();
+        LevelVoices.Reset();
+        if (patternManager != null && patternManager.HasDeck)
+            LevelVoices.PlayTier(patternManager.CurrentTier());
 
         if (pathManager != null)
             pathManager.BeginPatternClock();

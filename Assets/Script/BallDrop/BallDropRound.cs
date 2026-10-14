@@ -105,6 +105,7 @@ public class BallDropRound : MonoBehaviour
         currentTier = 0;
         ended = false;
         running = true;
+        LevelVoices.Reset();
         HideFeedback();
         ScreenHudFit screenHud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
         if (screenHud != null)
@@ -171,6 +172,7 @@ public class BallDropRound : MonoBehaviour
     {
         spawnedCount = count;
         currentTier = tier;
+        LevelVoices.PlayTier(tier);
         RefreshHud();
     }
 
