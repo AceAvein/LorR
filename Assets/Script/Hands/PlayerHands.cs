@@ -15,6 +15,8 @@ public class PlayerHands : MonoBehaviour
         "Ball Drop",
         "BallDrop_HalfwayTest",
         "ColorSort",
+        "ReactionLight",
+        "09_ReactionLight",
     };
 
     static PlayerHands instance;
