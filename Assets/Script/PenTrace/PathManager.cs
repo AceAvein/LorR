@@ -62,7 +62,6 @@ public class PathManager : MonoBehaviour
             progress = totalLength;
             PaintGuide();
             patternCompleted = true;
-            PenSounds.PlayPatternDone();
             StartCoroutine(PatternComplete());
         }
     }
@@ -465,6 +464,7 @@ public class PathManager : MonoBehaviour
     {
         float patternScore = ScoreCurrentPattern();
         RecordFinished(patternScore);
+        PenSounds.PlayRating(patternScore);
 
         TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
         if (timer != null)

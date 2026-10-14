@@ -13,7 +13,9 @@ public static class PenSounds
     static AudioClip ballpen;
     static AudioClip marker;
     static AudioClip starChime;
-    static AudioClip patternDone;
+    static AudioClip fairChime;
+    static AudioClip goodChime;
+    static AudioClip greatChime;
     static AudioSource effectSource;
 
     public static AudioClip Clip(Tool tool)
@@ -43,12 +45,29 @@ public static class PenSounds
         Speaker().PlayOneShot(starChime, 0.85f);
     }
 
-    public static void PlayPatternDone()
+    public static void PlayRating(float accuracy)
     {
-        if (patternDone == null)
-            patternDone = BuildPatternDone();
+        AudioClip clip;
+        if (accuracy < 60f)
+        {
+            if (fairChime == null)
+                fairChime = BuildNotes("FairChime", 0.4f, 0.16f, 349.23f, 261.63f);
+            clip = fairChime;
+        }
+        else if (accuracy < 85f)
+        {
+            if (goodChime == null)
+                goodChime = BuildNotes("GoodChime", 0.72f, 0.13f, 523.25f, 659.25f, 783.99f);
+            clip = goodChime;
+        }
+        else
+        {
+            if (greatChime == null)
+                greatChime = BuildNotes("GreatChime", 0.9f, 0.11f, 523.25f, 659.25f, 783.99f, 1046.5f);
+            clip = greatChime;
+        }
 
-        Speaker().PlayOneShot(patternDone, 0.9f);
+        Speaker().PlayOneShot(clip, 0.9f);
     }
 
     static AudioSource Speaker()
@@ -85,17 +104,15 @@ public static class PenSounds
         return clip;
     }
 
-    static AudioClip BuildPatternDone()
+    static AudioClip BuildNotes(string clipName, float duration, float spacing, params float[] notes)
     {
         const int rate = 44100;
-        const float duration = 0.72f;
         int length = (int)(rate * duration);
         float[] samples = new float[length];
-        float[] notes = { 523.25f, 659.25f, 783.99f };
 
         for (int n = 0; n < notes.Length; n++)
         {
-            float start = n * 0.13f;
+            float start = n * spacing;
 
             for (int i = 0; i < length; i++)
             {
@@ -109,7 +126,7 @@ public static class PenSounds
             }
         }
 
-        AudioClip clip = AudioClip.Create("PatternDone", length, 1, rate, false);
+        AudioClip clip = AudioClip.Create(clipName, length, 1, rate, false);
         clip.SetData(samples, 0);
         return clip;
     }

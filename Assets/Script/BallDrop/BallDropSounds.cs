@@ -38,41 +38,37 @@ public static class BallDropSounds
 
     static AudioClip BuildCatch()
     {
-        const int rate = 44100;
-        const float duration = 0.16f;
-        int length = (int)(rate * duration);
-        float[] samples = new float[length];
-
-        for (int i = 0; i < length; i++)
-        {
-            float t = i / (float)rate;
-            float envelope = Mathf.Exp(-t * 18f);
-            float tone = Mathf.Sin(2f * Mathf.PI * 880f * t) * 0.45f;
-            tone += Mathf.Sin(2f * Mathf.PI * 1320f * t) * 0.25f;
-            samples[i] = tone * envelope;
-        }
-
-        AudioClip clip = AudioClip.Create("BallCatch", length, 1, rate, false);
-        clip.SetData(samples, 0);
-        return clip;
+        return BuildNotes("BallCatch", 0.72f, 0.13f, 523.25f, 659.25f, 783.99f);
     }
 
     static AudioClip BuildMiss()
     {
+        return BuildNotes("BallMiss", 0.4f, 0.16f, 349.23f, 261.63f);
+    }
+
+    static AudioClip BuildNotes(string clipName, float duration, float spacing, params float[] notes)
+    {
         const int rate = 44100;
-        const float duration = 0.22f;
         int length = (int)(rate * duration);
         float[] samples = new float[length];
 
-        for (int i = 0; i < length; i++)
+        for (int n = 0; n < notes.Length; n++)
         {
-            float t = i / (float)rate;
-            float envelope = Mathf.Exp(-t * 10f);
-            float frequency = Mathf.Lerp(220f, 90f, Mathf.Clamp01(t / duration));
-            samples[i] = Mathf.Sin(2f * Mathf.PI * frequency * t) * 0.55f * envelope;
+            float start = n * spacing;
+
+            for (int i = 0; i < length; i++)
+            {
+                float t = i / (float)rate;
+                float local = t - start;
+                if (local < 0f)
+                    continue;
+
+                float envelope = Mathf.Exp(-local * 5.5f);
+                samples[i] += Mathf.Sin(2f * Mathf.PI * notes[n] * t) * 0.3f * envelope;
+            }
         }
 
-        AudioClip clip = AudioClip.Create("BallMiss", length, 1, rate, false);
+        AudioClip clip = AudioClip.Create(clipName, length, 1, rate, false);
         clip.SetData(samples, 0);
         return clip;
     }
