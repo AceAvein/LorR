@@ -11,6 +11,9 @@ public class BallFall : MonoBehaviour
 
     void Update()
     {
+        if (GamePauseMenu.IsFrozen)
+            return;
+
         if (grab == null)
             grab = GetComponent<XRGrabInteractable>();
 

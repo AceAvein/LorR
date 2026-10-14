@@ -39,7 +39,7 @@ public class PathManager : MonoBehaviour
 
     void Update()
     {
-        if (patternCompleted || penTip == null || tracePath == null)
+        if (GamePauseMenu.IsFrozen || patternCompleted || penTip == null || tracePath == null)
             return;
 
         RebuildPath();

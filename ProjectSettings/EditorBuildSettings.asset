@@ -18,8 +18,8 @@ EditorBuildSettings:
     path: Assets/Scenes/PenControlTracing.unity
     guid: 3c9c8de51ec055349b8ce03971094448
   - enabled: 1
-    path: Assets/Test_Scenes/Ace_Test/BallDrop_HalfwayTest.unity
-    guid: 8cbb41780bfcb4646beba4cd90142acb
+    path: Assets/Scenes/Ball Drop.unity
+    guid: d7a780a93e7d0ce468adb0a81e4c0f41
   - enabled: 1
     path: Assets/Scenes/ColorSort.unity
     guid: f190f74640517f645bff7a48a695b28a

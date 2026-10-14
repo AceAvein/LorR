@@ -71,7 +71,15 @@ public class BallDropSystem : MonoBehaviour
             float fallSpeed = FallSpeedForBall(spawnedBalls);
             float interval = SpawnIntervalForBall(spawnedBalls);
             SpawnBall(fallSpeed);
-            yield return new WaitForSeconds(interval);
+
+            float waited = 0f;
+            while (waited < interval)
+            {
+                if (!GamePauseMenu.IsFrozen)
+                    waited += Time.deltaTime;
+
+                yield return null;
+            }
         }
     }
 

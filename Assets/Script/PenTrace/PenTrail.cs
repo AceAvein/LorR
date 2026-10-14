@@ -113,6 +113,15 @@ public class PenTrail : MonoBehaviour
 
     void Update()
     {
+        if (GamePauseMenu.IsFrozen)
+        {
+            if (drawSound != null && drawSound.isPlaying)
+                drawSound.Stop();
+
+            wasPressed = false;
+            return;
+        }
+
         if (drawAction == null || trail == null || penTip == null)
             return;
 

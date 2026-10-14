@@ -73,6 +73,13 @@ public class BallCollision : MonoBehaviour
 
     void OnGrabbed(SelectEnterEventArgs args)
     {
+        if (GamePauseMenu.IsFrozen)
+        {
+            pendingReject = true;
+            pendingInteractor = args.interactorObject;
+            return;
+        }
+
         BallFall fall = GetComponent<BallFall>();
         if (fall != null)
             fall.enabled = false;

@@ -184,6 +184,9 @@ public class BallDropRound : MonoBehaviour
 
     void Update()
     {
+        if (GamePauseMenu.IsFrozen)
+            return;
+
         if (feedbackShowing && Time.time >= feedbackHideAt)
             HideFeedback();
 
