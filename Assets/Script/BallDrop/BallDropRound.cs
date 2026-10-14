@@ -49,7 +49,8 @@ public class BallDropRound : MonoBehaviour
     readonly List<TMP_Text> levelValues = new List<TMP_Text>();
     readonly List<TMP_Text> timerValues = new List<TMP_Text>();
     readonly List<TMP_Text> ballsValues = new List<TMP_Text>();
-    GameObject wristHud;
+    GameObject leftWristHud;
+    GameObject rightWristHud;
     GameObject caughtImage;
     GameObject missedImage;
     GameObject resultsScreen;
@@ -74,7 +75,7 @@ public class BallDropRound : MonoBehaviour
         FindTexts("Level Value", levelValues);
         FindTexts("Timer Value", timerValues);
         FindTexts("Balls Value", ballsValues);
-        wristHud = FindNamed("Hand Canvas");
+        ResolveWristHuds();
         HideWristHud();
         caughtImage = FindNamed("Caught");
         missedImage = FindNamed("Missed");
@@ -118,25 +119,52 @@ public class BallDropRound : MonoBehaviour
 
     public void HideWristHud()
     {
-        if (wristHud == null)
-            wristHud = FindNamed("Hand Canvas");
-        if (wristHud != null)
-            wristHud.SetActive(false);
+        ResolveWristHuds();
+        if (leftWristHud != null)
+            leftWristHud.SetActive(false);
+        if (rightWristHud != null)
+            rightWristHud.SetActive(false);
     }
 
     public void ShowWristHud()
     {
-        if (wristHud == null)
-            wristHud = FindNamed("Hand Canvas");
-        if (wristHud == null)
+        ResolveWristHuds();
+        if (leftWristHud != null)
+            leftWristHud.SetActive(nonDominantIsLeft);
+        if (rightWristHud != null)
+            rightWristHud.SetActive(!nonDominantIsLeft);
+    }
+
+    void ResolveWristHuds()
+    {
+        if (leftWristHud != null && rightWristHud != null)
             return;
 
-        string handName = nonDominantIsLeft ? "Left Hand Model" : "Right Hand Model";
-        GameObject hand = FindNamed(handName);
-        if (hand != null)
-            wristHud.transform.SetParent(hand.transform, false);
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (transforms[i].name != "Hand Canvas")
+                continue;
 
-        wristHud.SetActive(true);
+            if (IsUnder(transforms[i], "Left Hand Model"))
+                leftWristHud = transforms[i].gameObject;
+            else if (IsUnder(transforms[i], "Right Hand Model"))
+                rightWristHud = transforms[i].gameObject;
+        }
+    }
+
+    static bool IsUnder(Transform child, string ancestorName)
+    {
+        Transform current = child;
+        while (current != null)
+        {
+            if (current.name == ancestorName)
+                return true;
+
+            current = current.parent;
+        }
+
+        return false;
     }
 
     public void BallSpawned(int count, int tier)
