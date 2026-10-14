@@ -46,9 +46,10 @@ public class BallDropRound : MonoBehaviour
     readonly List<BallRecord> records = new List<BallRecord>();
 
     TMP_Text timerText;
-    TMP_Text levelValue;
-    TMP_Text timerValue;
-    TMP_Text ballsValue;
+    readonly List<TMP_Text> levelValues = new List<TMP_Text>();
+    readonly List<TMP_Text> timerValues = new List<TMP_Text>();
+    readonly List<TMP_Text> ballsValues = new List<TMP_Text>();
+    GameObject wristHud;
     GameObject caughtImage;
     GameObject missedImage;
     GameObject resultsScreen;
@@ -70,9 +71,11 @@ public class BallDropRound : MonoBehaviour
         Instance = this;
         hud = GetComponent<BallDropGameManager>();
         timerText = FindText("Text_Timer");
-        levelValue = FindText("Level Value");
-        timerValue = FindText("Timer Value");
-        ballsValue = FindText("Balls Value");
+        FindTexts("Level Value", levelValues);
+        FindTexts("Timer Value", timerValues);
+        FindTexts("Balls Value", ballsValues);
+        wristHud = FindNamed("Hand Canvas");
+        HideWristHud();
         caughtImage = FindNamed("Caught");
         missedImage = FindNamed("Missed");
         resultsScreen = FindRoot("ResultsScreen");
@@ -109,7 +112,31 @@ public class BallDropRound : MonoBehaviour
         if (hud != null)
             hud.ResetCount();
 
+        ShowWristHud();
         RefreshHud();
+    }
+
+    public void HideWristHud()
+    {
+        if (wristHud == null)
+            wristHud = FindNamed("Hand Canvas");
+        if (wristHud != null)
+            wristHud.SetActive(false);
+    }
+
+    public void ShowWristHud()
+    {
+        if (wristHud == null)
+            wristHud = FindNamed("Hand Canvas");
+        if (wristHud == null)
+            return;
+
+        string handName = nonDominantIsLeft ? "Left Hand Model" : "Right Hand Model";
+        GameObject hand = FindNamed(handName);
+        if (hand != null)
+            wristHud.transform.SetParent(hand.transform, false);
+
+        wristHud.SetActive(true);
     }
 
     public void BallSpawned(int count, int tier)
@@ -336,20 +363,17 @@ public class BallDropRound : MonoBehaviour
         if (timerText != null)
             timerText.text = "Time: " + seconds;
 
-        if (levelValue == null)
-            levelValue = FindText("Level Value");
-        if (levelValue != null)
-            levelValue.text = TierName(currentTier);
+        if (levelValues.Count == 0)
+            FindTexts("Level Value", levelValues);
+        SetTexts(levelValues, TierName(currentTier));
 
-        if (timerValue == null)
-            timerValue = FindText("Timer Value");
-        if (timerValue != null)
-            timerValue.text = seconds.ToString();
+        if (timerValues.Count == 0)
+            FindTexts("Timer Value", timerValues);
+        SetTexts(timerValues, seconds.ToString());
 
-        if (ballsValue == null)
-            ballsValue = FindText("Balls Value");
-        if (ballsValue != null)
-            ballsValue.text = spawnedCount + "/" + BallDropSystem.BallTotal;
+        if (ballsValues.Count == 0)
+            FindTexts("Balls Value", ballsValues);
+        SetTexts(ballsValues, spawnedCount + "/" + BallDropSystem.BallTotal);
     }
 
     void ShowFeedback(bool caught)
@@ -384,6 +408,26 @@ public class BallDropRound : MonoBehaviour
         if (tier == 1)
             return "Moderate";
         return "Hard";
+    }
+
+    static void SetTexts(List<TMP_Text> labels, string value)
+    {
+        for (int i = 0; i < labels.Count; i++)
+        {
+            if (labels[i] != null)
+                labels[i].text = value;
+        }
+    }
+
+    static void FindTexts(string objectName, List<TMP_Text> results)
+    {
+        results.Clear();
+        TMP_Text[] labels = FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (labels[i].gameObject.name == objectName)
+                results.Add(labels[i]);
+        }
     }
 
     static TMP_Text FindText(string objectName)

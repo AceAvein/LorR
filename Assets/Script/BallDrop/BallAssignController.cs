@@ -110,6 +110,8 @@ public class BallAssignController : MonoBehaviour
         ScreenHudFit hud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
         if (hud != null)
             hud.HideGameplay();
+        if (round != null)
+            round.HideWristHud();
     }
 
     public void ShowHandSelect()
