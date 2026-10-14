@@ -10,6 +10,10 @@ public class TracingTimer : MonoBehaviour
     public PathManager pathManager;
     public PatternManager patternManager;
 
+    TMP_Text levelValue;
+    TMP_Text timerValue;
+    TMP_Text patternsValue;
+
     public float timeLimit = 10f;
 
     private float timeRemaining;
@@ -18,6 +22,7 @@ public class TracingTimer : MonoBehaviour
 
     void Start()
     {
+        ResolveHud();
         timeRemaining = timeLimit;
         UpdateTimerDisplay();
     }
@@ -59,7 +64,70 @@ public class TracingTimer : MonoBehaviour
 
     void UpdateTimerDisplay()
     {
-        timerText.text = Mathf.CeilToInt(timeRemaining).ToString();
+        int seconds = Mathf.Max(0, Mathf.CeilToInt(timeRemaining));
+
+        if (timerText != null)
+            timerText.text = seconds.ToString();
+
+        ResolveHud();
+
+        if (timerValue != null)
+            timerValue.text = seconds.ToString();
+
+        if (patternManager == null)
+            return;
+
+        int total = patternManager.PatternTotal();
+        if (total <= 0)
+            total = 30;
+
+        int number = patternManager.CurrentPatternIndex + 1;
+        if (number < 1)
+            number = 1;
+        if (number > total)
+            number = total;
+
+        if (patternsValue != null)
+            patternsValue.text = number + "/" + total;
+
+        if (levelValue != null)
+            levelValue.text = patternManager.PatternTotal() > 0 ? TierName(patternManager.CurrentTier()) : "Easy";
+    }
+
+    public void RefreshHud()
+    {
+        UpdateTimerDisplay();
+    }
+
+    void ResolveHud()
+    {
+        if (levelValue == null)
+            levelValue = FindText("Level Value");
+        if (timerValue == null)
+            timerValue = FindText("Timer Value");
+        if (patternsValue == null)
+            patternsValue = FindText("Patterns Value");
+    }
+
+    static string TierName(int tier)
+    {
+        if (tier <= 0)
+            return "Easy";
+        if (tier == 1)
+            return "Moderate";
+        return "Hard";
+    }
+
+    static TMP_Text FindText(string objectName)
+    {
+        TMP_Text[] labels = FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (labels[i].gameObject.name == objectName)
+                return labels[i];
+        }
+
+        return null;
     }
 
     public void StopTimer()

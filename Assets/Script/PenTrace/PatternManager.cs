@@ -68,6 +68,7 @@ public class PatternManager : MonoBehaviour
         pathManager.tracePath = newTracePath;
         pathManager.traceEnd = newTraceEnd;
         pathManager.ResetPattern();
+        RefreshTracingHud();
     }
 
     public void NextPattern()
@@ -152,6 +153,14 @@ public class PatternManager : MonoBehaviour
         pathManager.tracePath = generatedPath;
         pathManager.traceEnd = endLabel.transform;
         pathManager.ResetPattern();
+        RefreshTracingHud();
+    }
+
+    void RefreshTracingHud()
+    {
+        TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
+        if (timer != null)
+            timer.RefreshHud();
     }
 
     void EnsureGeneratedGuide()
