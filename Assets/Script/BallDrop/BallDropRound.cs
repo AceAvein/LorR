@@ -46,6 +46,11 @@ public class BallDropRound : MonoBehaviour
     readonly List<BallRecord> records = new List<BallRecord>();
 
     TMP_Text timerText;
+    TMP_Text levelValue;
+    TMP_Text timerValue;
+    TMP_Text ballsValue;
+    GameObject caughtImage;
+    GameObject missedImage;
     GameObject resultsScreen;
     GameObject gameCanvas;
     BallDropSystem dropSystem;
@@ -53,17 +58,30 @@ public class BallDropRound : MonoBehaviour
 
     float timeRemaining;
     float elapsed;
+    float feedbackHideAt;
+    int spawnedCount;
+    int currentTier;
     int wrongGrabs;
     bool ended;
+    bool feedbackShowing;
 
     void Awake()
     {
         Instance = this;
         hud = GetComponent<BallDropGameManager>();
         timerText = FindText("Text_Timer");
+        levelValue = FindText("Level Value");
+        timerValue = FindText("Timer Value");
+        ballsValue = FindText("Balls Value");
+        caughtImage = FindNamed("Caught");
+        missedImage = FindNamed("Missed");
         resultsScreen = FindRoot("ResultsScreen");
         if (resultsScreen != null)
             resultsScreen.SetActive(false);
+
+        HideFeedback();
+        timeRemaining = timeLimit;
+        RefreshHud();
     }
 
     public void SetNonDominantLeft(bool leftHand)
@@ -79,13 +97,23 @@ public class BallDropRound : MonoBehaviour
         wrongGrabs = 0;
         elapsed = 0f;
         timeRemaining = timeLimit;
+        spawnedCount = 0;
+        currentTier = 0;
         ended = false;
         running = true;
+        HideFeedback();
 
         if (hud != null)
             hud.ResetCount();
 
-        UpdateTimerDisplay();
+        RefreshHud();
+    }
+
+    public void BallSpawned(int count, int tier)
+    {
+        spawnedCount = count;
+        currentTier = tier;
+        RefreshHud();
     }
 
     public void HideResults()
@@ -96,6 +124,9 @@ public class BallDropRound : MonoBehaviour
 
     void Update()
     {
+        if (feedbackShowing && Time.time >= feedbackHideAt)
+            HideFeedback();
+
         if (!running)
             return;
 
@@ -105,12 +136,12 @@ public class BallDropRound : MonoBehaviour
         if (timeRemaining <= 0f)
         {
             timeRemaining = 0f;
-            UpdateTimerDisplay();
+            RefreshHud();
             EndRound();
             return;
         }
 
-        UpdateTimerDisplay();
+        RefreshHud();
     }
 
     public void WrongGrab(DropBall ball)
@@ -138,7 +169,8 @@ public class BallDropRound : MonoBehaviour
         if (hud != null)
             hud.AddIntercepted();
 
-        UpdateTimerDisplay();
+        ShowFeedback(true);
+        RefreshHud();
     }
 
     public void Miss(DropBall ball)
@@ -149,6 +181,7 @@ public class BallDropRound : MonoBehaviour
         ball.resolved = true;
         records.Add(MakeRecord(ball, false, 0f));
         BallDropSounds.PlayMiss();
+        ShowFeedback(false);
         Destroy(ball.gameObject);
     }
 
@@ -291,16 +324,63 @@ public class BallDropRound : MonoBehaviour
         return 30;
     }
 
-    void UpdateTimerDisplay()
+    void RefreshHud()
     {
+        int seconds = Mathf.Max(0, Mathf.CeilToInt(timeRemaining));
+
         if (timerText == null)
             timerText = FindText("Text_Timer");
+        if (timerText != null)
+            timerText.text = "Time: " + seconds;
 
-        if (timerText == null)
-            return;
+        if (levelValue == null)
+            levelValue = FindText("Level Value");
+        if (levelValue != null)
+            levelValue.text = TierName(currentTier);
 
-        int seconds = Mathf.Max(0, Mathf.CeilToInt(timeRemaining));
-        timerText.text = "Time: " + seconds;
+        if (timerValue == null)
+            timerValue = FindText("Timer Value");
+        if (timerValue != null)
+            timerValue.text = seconds.ToString();
+
+        if (ballsValue == null)
+            ballsValue = FindText("Balls Value");
+        if (ballsValue != null)
+            ballsValue.text = spawnedCount + "/" + BallDropSystem.BallTotal;
+    }
+
+    void ShowFeedback(bool caught)
+    {
+        if (caughtImage == null)
+            caughtImage = FindNamed("Caught");
+        if (missedImage == null)
+            missedImage = FindNamed("Missed");
+
+        if (caughtImage != null)
+            caughtImage.SetActive(caught);
+        if (missedImage != null)
+            missedImage.SetActive(!caught);
+
+        feedbackHideAt = Time.time + 1f;
+        feedbackShowing = true;
+    }
+
+    void HideFeedback()
+    {
+        feedbackShowing = false;
+        if (caughtImage != null)
+            caughtImage.SetActive(false);
+        if (missedImage != null)
+            missedImage.SetActive(false);
+    }
+
+    static string TierName(int tier)
+    {
+        if (tier <= 0)
+            return "Easy";
+        if (tier == 1)
+            return "Moderate";
+        return "Hard";
     }
 
     static TMP_Text FindText(string objectName)
@@ -321,6 +401,18 @@ public class BallDropRound : MonoBehaviour
         for (int i = 0; i < transforms.Length; i++)
         {
             if (transforms[i].parent == null && transforms[i].name == objectName)
+                return transforms[i].gameObject;
+        }
+
+        return null;
+    }
+
+    static GameObject FindNamed(string objectName)
+    {
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (transforms[i].name == objectName)
                 return transforms[i].gameObject;
         }
 

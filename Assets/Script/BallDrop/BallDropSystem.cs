@@ -6,6 +6,7 @@ public class BallDropSystem : MonoBehaviour
     public Transform transformAbove;
     public float targetDiameter = 0.15f;
 
+    public const int BallTotal = 30;
     const int ballsPerLevel = 10;
     const float easyFallSpeed = 0.6f;
     const float moderateFallSpeed = 1.2f;
@@ -65,7 +66,7 @@ public class BallDropSystem : MonoBehaviour
 
     IEnumerator SpawnLoop()
     {
-        while (spawning)
+        while (spawning && spawnedBalls < BallTotal)
         {
             float fallSpeed = FallSpeedForBall(spawnedBalls);
             float interval = SpawnIntervalForBall(spawnedBalls);
@@ -109,6 +110,12 @@ public class BallDropSystem : MonoBehaviour
 
         SpawnWrapped(template, forLeftHand, tier, spawnPoints[randomPoint].position, fallSpeed);
         spawnedBalls++;
+
+        if (BallDropRound.Instance != null)
+            BallDropRound.Instance.BallSpawned(spawnedBalls, tier);
+
+        if (spawnedBalls >= BallTotal)
+            spawning = false;
     }
 
     void SpawnWrapped(GameObject template, bool forLeftHand, int tier, Vector3 position, float fallSpeed)
