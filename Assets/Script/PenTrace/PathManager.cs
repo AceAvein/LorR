@@ -466,6 +466,10 @@ public class PathManager : MonoBehaviour
         float patternScore = ScoreCurrentPattern();
         RecordFinished(patternScore);
 
+        TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
+        if (timer != null)
+            timer.ShowPatternRating(patternScore);
+
         averageAccuracyText.text = "Average Tracing Accuracy: " + patternScore.ToString("F1") + "%";
         finishedScreen.SetActive(true);
 
