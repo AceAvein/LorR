@@ -1,4 +1,6 @@
+using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -25,6 +27,7 @@ public class BallAssignController : MonoBehaviour
     SportBall leftBall;
     SportBall rightBall;
     BallDropRound round;
+    bool countingDown;
 
     void Awake()
     {
@@ -155,6 +158,9 @@ public class BallAssignController : MonoBehaviour
 
     public void StartGame()
     {
+        if (countingDown)
+            return;
+
         if (leftBall == null || rightBall == null)
             PickPair();
 
@@ -169,12 +175,62 @@ public class BallAssignController : MonoBehaviour
         if (handCanvas != null)
             handCanvas.SetActive(false);
         if (gameCanvas != null)
+            gameCanvas.SetActive(false);
+
+        StartCoroutine(CountdownThenStart());
+    }
+
+    IEnumerator CountdownThenStart()
+    {
+        countingDown = true;
+        GameObject screen = FindNamed("CountdownScreen");
+        TMP_Text label = FindLabel("Text_Countdown");
+        if (screen != null)
+            screen.SetActive(true);
+
+        int[] steps = { 3, 2, 1 };
+        for (int i = 0; i < steps.Length; i++)
+        {
+            if (label != null)
+                label.text = steps[i].ToString();
+            LevelVoices.PlayCount(steps[i]);
+            yield return new WaitForSeconds(1f);
+        }
+
+        if (screen != null)
+            screen.SetActive(false);
+        if (gameCanvas != null)
             gameCanvas.SetActive(true);
 
         if (round != null)
             round.Begin(dropSystem, gameCanvas);
 
         dropSystem.Begin(leftBall.template, rightBall.template);
+        countingDown = false;
+    }
+
+    static GameObject FindNamed(string objectName)
+    {
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (transforms[i].name == objectName)
+                return transforms[i].gameObject;
+        }
+
+        return null;
+    }
+
+    static TMP_Text FindLabel(string objectName)
+    {
+        TMP_Text[] labels = FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (labels[i].gameObject.name == objectName)
+                return labels[i];
+        }
+
+        return null;
     }
 
     void PickPair()

@@ -27,12 +27,15 @@ public class Countdown : MonoBehaviour
         tracingArea.SetActive(false);
 
         countdownText.text = "3";
+        LevelVoices.PlayCount(3);
         yield return new WaitForSeconds(1f);
 
         countdownText.text = "2";
+        LevelVoices.PlayCount(2);
         yield return new WaitForSeconds(1f);
 
         countdownText.text = "1";
+        LevelVoices.PlayCount(1);
         yield return new WaitForSeconds(1f);
 
         countdownScreen.SetActive(false);

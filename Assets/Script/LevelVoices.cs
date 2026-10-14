@@ -5,6 +5,9 @@ public static class LevelVoices
     static AudioClip easy;
     static AudioClip moderate;
     static AudioClip hard;
+    static AudioClip three;
+    static AudioClip two;
+    static AudioClip one;
     static AudioSource speaker;
     static int lastTier = -1;
 
@@ -25,6 +28,39 @@ public static class LevelVoices
 
         AudioSource source = Speaker();
         source.PlayOneShot(clip, 1f);
+    }
+
+    public static void PlayCount(int number)
+    {
+        AudioClip clip = CountClip(number);
+        if (clip == null)
+            return;
+
+        if (clip.loadState != AudioDataLoadState.Loaded)
+            clip.LoadAudioData();
+
+        Speaker().PlayOneShot(clip, 1f);
+    }
+
+    static AudioClip CountClip(int number)
+    {
+        if (number == 3)
+        {
+            if (three == null)
+                three = Resources.Load<AudioClip>("Voices/3");
+            return three;
+        }
+
+        if (number == 2)
+        {
+            if (two == null)
+                two = Resources.Load<AudioClip>("Voices/2");
+            return two;
+        }
+
+        if (one == null)
+            one = Resources.Load<AudioClip>("Voices/1");
+        return one;
     }
 
     static AudioClip ClipFor(int tier)
