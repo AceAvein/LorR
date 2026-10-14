@@ -51,8 +51,8 @@ public class BallDropRound : MonoBehaviour
     readonly List<TMP_Text> ballsValues = new List<TMP_Text>();
     GameObject leftWristHud;
     GameObject rightWristHud;
-    GameObject caughtImage;
-    GameObject missedImage;
+    readonly List<GameObject> caughtImages = new List<GameObject>();
+    readonly List<GameObject> missedImages = new List<GameObject>();
     GameObject resultsScreen;
     GameObject gameCanvas;
     BallDropSystem dropSystem;
@@ -77,8 +77,8 @@ public class BallDropRound : MonoBehaviour
         FindTexts("Balls Value", ballsValues);
         ResolveWristHuds();
         HideWristHud();
-        caughtImage = FindNamed("Caught");
-        missedImage = FindNamed("Missed");
+        FindNamed("Caught", caughtImages);
+        FindNamed("Missed", missedImages);
         resultsScreen = FindRoot("ResultsScreen");
         if (resultsScreen != null)
             resultsScreen.SetActive(false);
@@ -416,15 +416,13 @@ public class BallDropRound : MonoBehaviour
 
     void ShowFeedback(bool caught)
     {
-        if (caughtImage == null)
-            caughtImage = FindNamed("Caught");
-        if (missedImage == null)
-            missedImage = FindNamed("Missed");
+        if (caughtImages.Count == 0)
+            FindNamed("Caught", caughtImages);
+        if (missedImages.Count == 0)
+            FindNamed("Missed", missedImages);
 
-        if (caughtImage != null)
-            caughtImage.SetActive(caught);
-        if (missedImage != null)
-            missedImage.SetActive(!caught);
+        SetActive(caughtImages, caught);
+        SetActive(missedImages, !caught);
 
         feedbackHideAt = Time.time + 1f;
         feedbackShowing = true;
@@ -433,10 +431,8 @@ public class BallDropRound : MonoBehaviour
     void HideFeedback()
     {
         feedbackShowing = false;
-        if (caughtImage != null)
-            caughtImage.SetActive(false);
-        if (missedImage != null)
-            missedImage.SetActive(false);
+        SetActive(caughtImages, false);
+        SetActive(missedImages, false);
     }
 
     static string TierName(int tier)
@@ -492,15 +488,23 @@ public class BallDropRound : MonoBehaviour
         return null;
     }
 
-    static GameObject FindNamed(string objectName)
+    static void FindNamed(string objectName, List<GameObject> results)
     {
+        results.Clear();
         Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < transforms.Length; i++)
         {
             if (transforms[i].name == objectName)
-                return transforms[i].gameObject;
+                results.Add(transforms[i].gameObject);
         }
+    }
 
-        return null;
+    static void SetActive(List<GameObject> images, bool active)
+    {
+        for (int i = 0; i < images.Count; i++)
+        {
+            if (images[i] != null)
+                images[i].SetActive(active);
+        }
     }
 }
