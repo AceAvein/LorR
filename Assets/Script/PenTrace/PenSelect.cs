@@ -16,6 +16,11 @@ public class PenSelect : MonoBehaviour
     public Vector3 highlighterTip = new Vector3(-1.292f, 0f, 0.04f);
 
     bool useRightHand;
+
+    public bool WritingWithRightHand
+    {
+        get { return useRightHand; }
+    }
     Vector3 pencilPosition;
     Quaternion pencilRotation;
     Vector3 ballpenPosition;

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 
@@ -10,9 +11,11 @@ public class TracingTimer : MonoBehaviour
     public PathManager pathManager;
     public PatternManager patternManager;
 
-    TMP_Text levelValue;
-    TMP_Text timerValue;
-    TMP_Text patternsValue;
+    readonly List<TMP_Text> levelValues = new List<TMP_Text>();
+    readonly List<TMP_Text> timerValues = new List<TMP_Text>();
+    readonly List<TMP_Text> patternValues = new List<TMP_Text>();
+    GameObject leftWristHud;
+    GameObject rightWristHud;
     GameObject fairImage;
     GameObject goodImage;
     GameObject greatImage;
@@ -28,6 +31,7 @@ public class TracingTimer : MonoBehaviour
     void Start()
     {
         ResolveHud();
+        ResolveWristHuds();
         ResolveFeedback();
         HideFeedback();
         timeRemaining = timeLimit;
@@ -44,6 +48,7 @@ public class TracingTimer : MonoBehaviour
         ScreenHudFit hud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
         if (hud != null)
             hud.ShowGameplay();
+        ShowWristHud();
 
         if (pathManager != null)
             pathManager.BeginPatternClock();
@@ -86,8 +91,7 @@ public class TracingTimer : MonoBehaviour
 
         ResolveHud();
 
-        if (timerValue != null)
-            timerValue.text = seconds.ToString();
+        SetTexts(timerValues, seconds.ToString());
 
         if (patternManager == null)
             return;
@@ -102,11 +106,8 @@ public class TracingTimer : MonoBehaviour
         if (number > total)
             number = total;
 
-        if (patternsValue != null)
-            patternsValue.text = number + "/" + total;
-
-        if (levelValue != null)
-            levelValue.text = patternManager.PatternTotal() > 0 ? TierName(patternManager.CurrentTier()) : "Easy";
+        SetTexts(patternValues, number + "/" + total);
+        SetTexts(levelValues, patternManager.PatternTotal() > 0 ? TierName(patternManager.CurrentTier()) : "Easy");
     }
 
     public void RefreshHud()
@@ -116,12 +117,85 @@ public class TracingTimer : MonoBehaviour
 
     void ResolveHud()
     {
-        if (levelValue == null)
-            levelValue = FindText("Level Value");
-        if (timerValue == null)
-            timerValue = FindText("Timer Value");
-        if (patternsValue == null)
-            patternsValue = FindText("Patterns Value");
+        if (levelValues.Count == 0)
+            FindTexts("Level Value", levelValues);
+        if (timerValues.Count == 0)
+            FindTexts("Timer Value", timerValues);
+        if (patternValues.Count == 0)
+            FindTexts("Patterns Value", patternValues);
+    }
+
+    public void HideWristHud()
+    {
+        ResolveWristHuds();
+        if (leftWristHud != null)
+            leftWristHud.SetActive(false);
+        if (rightWristHud != null)
+            rightWristHud.SetActive(false);
+    }
+
+    public void ShowWristHud()
+    {
+        ResolveWristHuds();
+        PenSelect select = FindFirstObjectByType<PenSelect>(FindObjectsInactive.Include);
+        bool rightHand = select != null && select.WritingWithRightHand;
+        if (leftWristHud != null)
+            leftWristHud.SetActive(!rightHand);
+        if (rightWristHud != null)
+            rightWristHud.SetActive(rightHand);
+    }
+
+    void ResolveWristHuds()
+    {
+        if (leftWristHud != null && rightWristHud != null)
+            return;
+
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            string canvasName = transforms[i].name;
+            if (canvasName != "Hand Canvas" && canvasName != "Left Hand Canvas" && canvasName != "Right Hand Canvas")
+                continue;
+
+            if (canvasName == "Left Hand Canvas" || IsUnder(transforms[i], "Left Controller"))
+                leftWristHud = transforms[i].gameObject;
+            else if (canvasName == "Right Hand Canvas" || IsUnder(transforms[i], "Right Controller"))
+                rightWristHud = transforms[i].gameObject;
+        }
+    }
+
+    static bool IsUnder(Transform child, string ancestorName)
+    {
+        Transform current = child;
+        while (current != null)
+        {
+            if (current.name == ancestorName)
+                return true;
+
+            current = current.parent;
+        }
+
+        return false;
+    }
+
+    static void SetTexts(List<TMP_Text> labels, string value)
+    {
+        for (int i = 0; i < labels.Count; i++)
+        {
+            if (labels[i] != null)
+                labels[i].text = value;
+        }
+    }
+
+    static void FindTexts(string objectName, List<TMP_Text> results)
+    {
+        results.Clear();
+        TMP_Text[] labels = FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (labels[i].gameObject.name == objectName)
+                results.Add(labels[i]);
+        }
     }
 
     static string TierName(int tier)
@@ -131,18 +205,6 @@ public class TracingTimer : MonoBehaviour
         if (tier == 1)
             return "Moderate";
         return "Hard";
-    }
-
-    static TMP_Text FindText(string objectName)
-    {
-        TMP_Text[] labels = FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        for (int i = 0; i < labels.Length; i++)
-        {
-            if (labels[i].gameObject.name == objectName)
-                return labels[i];
-        }
-
-        return null;
     }
 
     public void StopTimer()
@@ -252,6 +314,7 @@ public class TracingTimer : MonoBehaviour
     public void TryAgain()
     {
         HideFeedback();
+        HideWristHud();
         ScreenHudFit hud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
         if (hud != null)
             hud.HideGameplay();

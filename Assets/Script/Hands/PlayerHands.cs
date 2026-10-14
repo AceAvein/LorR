@@ -155,15 +155,50 @@ public class PlayerHands : MonoBehaviour
 
     static void HideHandModel(Transform controller)
     {
+        Transform hand = FindHandModel(controller);
+        if (hand != null)
+            SetHandVisible(hand, false);
+    }
+
+    static Transform FindHandModel(Transform controller)
+    {
         if (controller == null)
-            return;
+            return null;
 
         for (int i = 0; i < controller.childCount; i++)
         {
             Transform child = controller.GetChild(i);
             if (child.name.Contains("Hand Model"))
-                child.gameObject.SetActive(false);
+                return child;
         }
+
+        return null;
+    }
+
+    static void SetHandVisible(Transform hand, bool visible)
+    {
+        Renderer[] renderers = hand.GetComponentsInChildren<Renderer>(true);
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (IsUnderHandCanvas(renderers[i].transform))
+                continue;
+
+            renderers[i].enabled = visible;
+        }
+    }
+
+    static bool IsUnderHandCanvas(Transform child)
+    {
+        Transform current = child;
+        while (current != null)
+        {
+            if (current.name.Contains("Hand Canvas"))
+                return true;
+
+            current = current.parent;
+        }
+
+        return false;
     }
 
     static void EnsureHand(Transform controller, GameObject prefab, bool leftHand)
@@ -171,13 +206,7 @@ public class PlayerHands : MonoBehaviour
         if (controller == null || prefab == null)
             return;
 
-        Transform existing = null;
-        for (int i = 0; i < controller.childCount; i++)
-        {
-            Transform child = controller.GetChild(i);
-            if (child.name.Contains("Hand Model"))
-                existing = child;
-        }
+        Transform existing = FindHandModel(controller);
 
         GameObject hand;
         if (existing != null)
@@ -191,6 +220,7 @@ public class PlayerHands : MonoBehaviour
         }
 
         hand.SetActive(true);
+        SetHandVisible(hand.transform, true);
 
         HandPoseDriver driver = hand.GetComponent<HandPoseDriver>();
         if (driver == null)

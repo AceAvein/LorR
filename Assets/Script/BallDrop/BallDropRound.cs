@@ -229,6 +229,7 @@ public class BallDropRound : MonoBehaviour
 
         ShowFeedback(true);
         RefreshHud();
+        TryFinishDeck();
     }
 
     public void Miss(DropBall ball)
@@ -241,6 +242,15 @@ public class BallDropRound : MonoBehaviour
         BallDropSounds.PlayMiss();
         ShowFeedback(false);
         Destroy(ball.gameObject);
+        TryFinishDeck();
+    }
+
+    void TryFinishDeck()
+    {
+        if (!running || records.Count < BallDropSystem.BallTotal)
+            return;
+
+        EndRound();
     }
 
     public void StopSpawning()
