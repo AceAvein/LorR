@@ -16,9 +16,10 @@ public class TracingTimer : MonoBehaviour
     readonly List<TMP_Text> patternValues = new List<TMP_Text>();
     GameObject leftWristHud;
     GameObject rightWristHud;
-    GameObject fairImage;
-    GameObject goodImage;
-    GameObject greatImage;
+    readonly List<GameObject> fairImages = new List<GameObject>();
+    readonly List<GameObject> goodImages = new List<GameObject>();
+    readonly List<GameObject> greatImages = new List<GameObject>();
+    bool feedbackResolved;
 
     public float timeLimit = 10f;
 
@@ -72,7 +73,8 @@ public class TracingTimer : MonoBehaviour
             HideFeedback();
             gameObject.SetActive(false);
 
-            pathManager.finishedScreen.SetActive(false);
+            if (pathManager.finishedScreen != null)
+                pathManager.finishedScreen.SetActive(false);
             ShowResults(false);
             timesUpScreen.SetActive(true);
             tracingBoard.SetActive(false);
@@ -228,7 +230,8 @@ public class TracingTimer : MonoBehaviour
 
         timerRunning = false;
         HideFeedback();
-        pathManager.finishedScreen.SetActive(false);
+        if (pathManager.finishedScreen != null)
+            pathManager.finishedScreen.SetActive(false);
         ShowResults(true);
         timesUpScreen.SetActive(true);
         tracingBoard.SetActive(false);
@@ -251,12 +254,18 @@ public class TracingTimer : MonoBehaviour
     {
         ResolveFeedback();
 
-        ShowOne(fairImage, accuracy < 60f);
-        ShowOne(goodImage, accuracy >= 60f && accuracy < 85f);
-        ShowOne(greatImage, accuracy >= 85f);
+        ShowGroup(fairImages, accuracy < 60f);
+        ShowGroup(goodImages, accuracy >= 60f && accuracy < 85f);
+        ShowGroup(greatImages, accuracy >= 85f);
 
         feedbackHideAt = Time.time + 1f;
         feedbackShowing = true;
+    }
+
+    static void ShowGroup(List<GameObject> images, bool show)
+    {
+        for (int i = 0; i < images.Count; i++)
+            ShowOne(images[i], show);
     }
 
     static void ShowOne(GameObject image, bool show)
@@ -280,35 +289,33 @@ public class TracingTimer : MonoBehaviour
 
     void ResolveFeedback()
     {
-        if (fairImage == null)
-            fairImage = FindNamed("Fair");
-        if (goodImage == null)
-            goodImage = FindNamed("Good");
-        if (greatImage == null)
-            greatImage = FindNamed("Great");
+        if (feedbackResolved)
+            return;
+
+        feedbackResolved = true;
+        FindNamed("Fair", fairImages);
+        FindNamed("Good", goodImages);
+        FindNamed("Great", greatImages);
     }
 
-    void HideFeedback()
+    static void FindNamed(string objectName, List<GameObject> results)
     {
-        feedbackShowing = false;
-        if (fairImage != null)
-            fairImage.SetActive(false);
-        if (goodImage != null)
-            goodImage.SetActive(false);
-        if (greatImage != null)
-            greatImage.SetActive(false);
-    }
-
-    static GameObject FindNamed(string objectName)
-    {
+        results.Clear();
         Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < transforms.Length; i++)
         {
             if (transforms[i].name == objectName)
-                return transforms[i].gameObject;
+                results.Add(transforms[i].gameObject);
         }
+    }
 
-        return null;
+    public void HideFeedback()
+    {
+        feedbackShowing = false;
+        ResolveFeedback();
+        ShowGroup(fairImages, false);
+        ShowGroup(goodImages, false);
+        ShowGroup(greatImages, false);
     }
 
     public void TryAgain()

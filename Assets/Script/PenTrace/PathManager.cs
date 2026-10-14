@@ -470,12 +470,14 @@ public class PathManager : MonoBehaviour
         if (timer != null)
             timer.ShowPatternRating(patternScore);
 
-        averageAccuracyText.text = "Average Tracing Accuracy: " + patternScore.ToString("F1") + "%";
-        finishedScreen.SetActive(true);
+        if (averageAccuracyText != null)
+            averageAccuracyText.text = "Average Tracing Accuracy: " + patternScore.ToString("F1") + "%";
 
         yield return new WaitForSeconds(1f);
 
-        finishedScreen.SetActive(false);
+        if (timer != null)
+            timer.HideFeedback();
+
         patternManager.NextPattern();
     }
 
