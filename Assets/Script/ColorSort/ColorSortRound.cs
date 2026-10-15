@@ -11,7 +11,7 @@ using UnityEngine.XR.Interaction.Toolkit.Interactors;
 public class ColorSortRound : MonoBehaviour
 {
     const int SetTotal = 30;
-    const float RoundSeconds = 30f;
+    const float RoundSeconds = 180f;
     const float SetBonus = 2f;
 
     enum SortColor
@@ -28,8 +28,15 @@ public class ColorSortRound : MonoBehaviour
         public SortColor color;
     }
 
+    struct BoxSlot
+    {
+        public Vector3 localPosition;
+        public Quaternion localRotation;
+    }
+
     readonly List<ColorSortPiece> shapes = new List<ColorSortPiece>();
     readonly List<SortBox> boxes = new List<SortBox>();
+    readonly List<BoxSlot> boxSlots = new List<BoxSlot>();
     readonly List<ColorSortPiece> active = new List<ColorSortPiece>();
     readonly List<TMP_Text> levelValues = new List<TMP_Text>();
     readonly List<TMP_Text> timerValues = new List<TMP_Text>();
@@ -48,11 +55,13 @@ public class ColorSortRound : MonoBehaviour
     bool running;
     bool setOpen;
     bool setSpoiled;
+    bool pendingAdvance;
+    bool pendingCleared;
     int setIndex;
     int announcedTier = -1;
     float timeRemaining;
-    float setEndsAt;
     float wordHideAt;
+    Transform shapeArea;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -83,6 +92,7 @@ public class ColorSortRound : MonoBehaviour
     void Awake()
     {
         FindShapes();
+        FindShapeArea();
         FindBoxes();
         HideShapes();
         if (boxesRoot != null)
@@ -120,9 +130,21 @@ public class ColorSortRound : MonoBehaviour
             return;
         }
 
+        if (pendingAdvance)
+        {
+            bool cleared = pendingCleared;
+            pendingAdvance = false;
+            for (int i = 0; i < active.Count; i++)
+            {
+                if (active[i].resolved)
+                    active[i].HideResolved();
+            }
+
+            if (setOpen)
+                FinishSet(cleared);
+        }
+
         RefreshHud();
-        if (setOpen && Time.time >= setEndsAt)
-            FinishSet(false);
     }
 
     void ShowObjective()
@@ -179,7 +201,7 @@ public class ColorSortRound : MonoBehaviour
         timeRemaining = RoundSeconds;
         running = true;
         LevelVoices.Reset();
-        PlaceBoxes();
+        ShuffleBoxes();
         if (boxesRoot != null)
             boxesRoot.SetActive(true);
 
@@ -209,8 +231,9 @@ public class ColorSortRound : MonoBehaviour
 
         setSpoiled = false;
         setOpen = true;
-        setEndsAt = Time.time + DurationFor(setIndex);
         active.Clear();
+        for (int i = 0; i < shapes.Count; i++)
+            shapes[i].Remove();
 
         int count = CountFor(setIndex);
         List<ColorSortPiece> pool = new List<ColorSortPiece>(shapes);
@@ -244,7 +267,10 @@ public class ColorSortRound : MonoBehaviour
         }
 
         if (remaining == 0)
-            FinishSet(!setSpoiled);
+        {
+            pendingCleared = !setSpoiled;
+            pendingAdvance = true;
+        }
     }
 
     void FinishSet(bool cleared)
@@ -279,6 +305,7 @@ public class ColorSortRound : MonoBehaviour
 
         running = false;
         setOpen = false;
+        pendingAdvance = false;
         timeRemaining = Mathf.Max(0f, timeRemaining);
         HideShapes();
         if (boxesRoot != null)
@@ -309,6 +336,18 @@ public class ColorSortRound : MonoBehaviour
             piece.Bind(this);
             shapes.Add(piece);
         }
+    }
+
+    void FindShapeArea()
+    {
+        GameObject area = FindNamed("AREA");
+        if (area == null)
+            return;
+
+        shapeArea = area.transform;
+        Renderer areaRenderer = area.GetComponent<Renderer>();
+        if (areaRenderer != null)
+            areaRenderer.enabled = false;
     }
 
     void FindBoxes()
@@ -358,6 +397,11 @@ public class ColorSortRound : MonoBehaviour
         box.collider = collider;
         box.color = color;
         boxes.Add(box);
+
+        BoxSlot slot = new BoxSlot();
+        slot.localPosition = boxObject.transform.localPosition;
+        slot.localRotation = boxObject.transform.localRotation;
+        boxSlots.Add(slot);
     }
 
     Material MaterialFor(SortColor color)
@@ -375,54 +419,71 @@ public class ColorSortRound : MonoBehaviour
             shapes[i].Remove();
     }
 
-    void PlaceBoxes()
+    void ShuffleBoxes()
     {
-        if (boxesRoot == null)
+        if (boxes.Count == 0 || boxSlots.Count != boxes.Count)
             return;
 
-        Camera headset = Camera.main;
-        Vector3 forward = Vector3.forward;
-        Vector3 eye = new Vector3(0f, 1.4f, 0f);
-        if (headset != null)
+        int[] order = new int[boxes.Count];
+        for (int i = 0; i < order.Length; i++)
+            order[i] = i;
+
+        for (int i = 0; i < order.Length; i++)
         {
-            eye = headset.transform.position;
-            forward = headset.transform.forward;
-            forward.y = 0f;
-            if (forward.sqrMagnitude < 0.001f)
-                forward = Vector3.forward;
-            forward.Normalize();
+            int swap = Random.Range(i, order.Length);
+            int held = order[i];
+            order[i] = order[swap];
+            order[swap] = held;
         }
 
-        Vector3 position = eye + forward * 0.85f;
-        position.y = eye.y + 0.22f;
-        boxesRoot.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
+        for (int i = 0; i < boxes.Count; i++)
+        {
+            BoxSlot slot = boxSlots[order[i]];
+            boxes[i].transform.localPosition = slot.localPosition;
+            boxes[i].transform.localRotation = slot.localRotation;
+        }
     }
 
     void PlaceShapes()
     {
+        if (shapeArea == null)
+            return;
+
+        Vector3 forward = shapeArea.forward;
+        forward.y = 0f;
         Camera headset = Camera.main;
-        Vector3 forward = Vector3.forward;
-        Vector3 eye = new Vector3(0f, 1.4f, 0f);
         if (headset != null)
         {
-            eye = headset.transform.position;
-            forward = headset.transform.forward;
+            forward = headset.transform.position - shapeArea.position;
             forward.y = 0f;
-            if (forward.sqrMagnitude < 0.001f)
-                forward = Vector3.forward;
-            forward.Normalize();
         }
 
-        Vector3 right = Vector3.Cross(Vector3.up, forward).normalized;
-        Vector3 origin = eye + forward * 0.5f;
-        origin.y = eye.y;
-        float spacing = 0.22f;
+        if (forward.sqrMagnitude < 0.001f)
+            forward = Vector3.forward;
+        forward.Normalize();
 
+        Vector3 right = shapeArea.right;
+        right.y = 0f;
+        if (right.sqrMagnitude < 0.001f)
+            right = Vector3.Cross(Vector3.up, forward);
+        right.Normalize();
+
+        float width = Mathf.Abs(shapeArea.lossyScale.x);
+        float spacing = 0.16f;
+        if (active.Count > 1)
+        {
+            float span = width * 0.75f;
+            float needed = (active.Count - 1) * spacing;
+            if (needed > span && span > 0.01f)
+                spacing = span / (active.Count - 1);
+        }
+
+        Vector3 center = shapeArea.position;
+        Quaternion rotation = Quaternion.LookRotation(-forward, Vector3.up);
         for (int i = 0; i < active.Count; i++)
         {
             float x = (i - (active.Count - 1) * 0.5f) * spacing;
-            Vector3 position = origin + right * x;
-            active[i].Place(position, Quaternion.LookRotation(forward, Vector3.up));
+            active[i].Place(center + right * x, rotation);
         }
     }
 
@@ -638,16 +699,6 @@ public class ColorSortRound : MonoBehaviour
         return 4;
     }
 
-    static float DurationFor(int index)
-    {
-        int tier = TierFor(index);
-        if (tier <= 0)
-            return 5f;
-        if (tier == 1)
-            return 4f;
-        return 3f;
-    }
-
     static string TierName(int tier)
     {
         if (tier <= 0)
@@ -782,14 +833,35 @@ public class ColorSortPiece : MonoBehaviour
 
     public void Place(Vector3 position, Quaternion rotation)
     {
-        homePosition = position;
-        homeRotation = rotation;
         transform.SetPositionAndRotation(position, rotation);
+
+        Renderer mesh = null;
+        if (renderers != null)
+        {
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] != null)
+                {
+                    mesh = renderers[i];
+                    break;
+                }
+            }
+        }
+
+        if (mesh != null)
+        {
+            Vector3 shift = position - mesh.bounds.center;
+            if (shift.sqrMagnitude > 0.000001f)
+                transform.position += shift;
+        }
+
+        homePosition = transform.position;
+        homeRotation = transform.rotation;
         Rigidbody rigidbody = GetComponent<Rigidbody>();
         if (rigidbody != null)
         {
-            rigidbody.position = position;
-            rigidbody.rotation = rotation;
+            rigidbody.position = transform.position;
+            rigidbody.rotation = transform.rotation;
             rigidbody.linearVelocity = Vector3.zero;
             rigidbody.angularVelocity = Vector3.zero;
         }
@@ -807,6 +879,15 @@ public class ColorSortPiece : MonoBehaviour
     public void Remove()
     {
         resolved = true;
+        ForceRelease();
+        gameObject.SetActive(false);
+    }
+
+    public void HideResolved()
+    {
+        if (!resolved)
+            return;
+
         ForceRelease();
         gameObject.SetActive(false);
     }
@@ -941,8 +1022,6 @@ public class ColorSortPiece : MonoBehaviour
         }
 
         resolved = true;
-        ForceRelease();
-        gameObject.SetActive(false);
 
         if (correct)
         {
@@ -956,6 +1035,7 @@ public class ColorSortPiece : MonoBehaviour
         }
 
         round.OnPieceResolved(correct);
+        ForceRelease();
     }
 
     void ReturnHome()
