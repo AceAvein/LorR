@@ -201,7 +201,6 @@ public class ColorSortRound : MonoBehaviour
         timeRemaining = RoundSeconds;
         running = true;
         LevelVoices.Reset();
-        ShuffleBoxes();
         if (boxesRoot != null)
             boxesRoot.SetActive(true);
 
@@ -231,6 +230,7 @@ public class ColorSortRound : MonoBehaviour
 
         setSpoiled = false;
         setOpen = true;
+        ShuffleBoxes();
         active.Clear();
         for (int i = 0; i < shapes.Count; i++)
             shapes[i].Remove();
