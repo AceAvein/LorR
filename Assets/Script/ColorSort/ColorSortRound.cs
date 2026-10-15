@@ -462,28 +462,40 @@ public class ColorSortRound : MonoBehaviour
             forward = Vector3.forward;
         forward.Normalize();
 
-        Vector3 right = shapeArea.right;
-        right.y = 0f;
-        if (right.sqrMagnitude < 0.001f)
-            right = Vector3.Cross(Vector3.up, forward);
-        right.Normalize();
-
-        float width = Mathf.Abs(shapeArea.lossyScale.x);
-        float spacing = 0.16f;
-        if (active.Count > 1)
+        Vector3 axis = shapeArea.right;
+        float span = Mathf.Abs(shapeArea.lossyScale.x);
+        float depth = Mathf.Abs(shapeArea.lossyScale.z);
+        if (depth > span)
         {
-            float span = width * 0.75f;
-            float needed = (active.Count - 1) * spacing;
-            if (needed > span && span > 0.01f)
-                spacing = span / (active.Count - 1);
+            axis = shapeArea.forward;
+            span = depth;
         }
+
+        axis.y = 0f;
+        if (axis.sqrMagnitude < 0.001f)
+            axis = Vector3.right;
+        axis.Normalize();
 
         Vector3 center = shapeArea.position;
         Quaternion rotation = Quaternion.LookRotation(-forward, Vector3.up);
+        float widest = 0.14f;
+        for (int i = 0; i < active.Count; i++)
+        {
+            active[i].Place(center, rotation);
+            widest = Mathf.Max(widest, active[i].HorizontalSize());
+        }
+
+        float spacing = widest + 0.08f;
+        if (active.Count > 1)
+        {
+            float spread = span * 0.9f / (active.Count - 1);
+            spacing = Mathf.Max(spacing, spread);
+        }
+
         for (int i = 0; i < active.Count; i++)
         {
             float x = (i - (active.Count - 1) * 0.5f) * spacing;
-            active[i].Place(center + right * x, rotation);
+            active[i].Place(center + axis * x, rotation);
         }
     }
 
@@ -835,19 +847,7 @@ public class ColorSortPiece : MonoBehaviour
     {
         transform.SetPositionAndRotation(position, rotation);
 
-        Renderer mesh = null;
-        if (renderers != null)
-        {
-            for (int i = 0; i < renderers.Length; i++)
-            {
-                if (renderers[i] != null)
-                {
-                    mesh = renderers[i];
-                    break;
-                }
-            }
-        }
-
+        Renderer mesh = FirstRenderer();
         if (mesh != null)
         {
             Vector3 shift = position - mesh.bounds.center;
@@ -865,6 +865,30 @@ public class ColorSortPiece : MonoBehaviour
             rigidbody.linearVelocity = Vector3.zero;
             rigidbody.angularVelocity = Vector3.zero;
         }
+    }
+
+    public float HorizontalSize()
+    {
+        Renderer mesh = FirstRenderer();
+        if (mesh == null)
+            return 0.14f;
+
+        Vector3 size = mesh.bounds.size;
+        return Mathf.Max(size.x, size.z);
+    }
+
+    Renderer FirstRenderer()
+    {
+        if (renderers == null)
+            return null;
+
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] != null)
+                return renderers[i];
+        }
+
+        return null;
     }
 
     public void CancelHold()
@@ -943,7 +967,13 @@ public class ColorSortPiece : MonoBehaviour
 
     void LateUpdate()
     {
-        if (resolved || grab == null || color != SortColor.Yellow)
+        if (resolved)
+        {
+            HideResolved();
+            return;
+        }
+
+        if (grab == null || color != SortColor.Yellow)
             return;
 
         if (GamePauseMenu.IsFrozen)
