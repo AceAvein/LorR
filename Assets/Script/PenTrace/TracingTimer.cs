@@ -40,6 +40,7 @@ public class TracingTimer : MonoBehaviour
         ResolveWristHuds();
         ResolveFeedback();
         HideFeedback();
+        HideResults();
         timeRemaining = timeLimit;
         UpdateTimerDisplay();
     }
@@ -87,7 +88,6 @@ public class TracingTimer : MonoBehaviour
             if (pathManager.finishedScreen != null)
                 pathManager.finishedScreen.SetActive(false);
             ShowResults(false);
-            timesUpScreen.SetActive(true);
             tracingBoard.SetActive(false);
             tracingArea.SetActive(false);
         }
@@ -244,21 +244,69 @@ public class TracingTimer : MonoBehaviour
         if (pathManager.finishedScreen != null)
             pathManager.finishedScreen.SetActive(false);
         ShowResults(true);
-        timesUpScreen.SetActive(true);
         tracingBoard.SetActive(false);
         tracingArea.SetActive(false);
     }
 
     void ShowResults(bool deckCleared)
     {
-        if (timesUpScreen == null || pathManager == null)
+        if (pathManager == null)
             return;
 
-        ResultsScreen results = timesUpScreen.GetComponent<ResultsScreen>();
+        GameObject screen = FindResultsScreen();
+        if (screen == null)
+            screen = timesUpScreen;
+        if (screen == null)
+            return;
+
+        if (timesUpScreen != null && timesUpScreen != screen)
+            timesUpScreen.SetActive(false);
+
+        screen.SetActive(true);
+        PlaceInFront(screen, 0.7f);
+        ResultsScreen results = screen.GetComponent<ResultsScreen>();
         if (results == null)
-            results = timesUpScreen.AddComponent<ResultsScreen>();
+            results = screen.AddComponent<ResultsScreen>();
 
         results.Show(pathManager.BuildReport(elapsed, timeRemaining, deckCleared));
+    }
+
+    void HideResults()
+    {
+        GameObject screen = FindResultsScreen();
+        if (screen != null)
+            screen.SetActive(false);
+        if (timesUpScreen != null)
+            timesUpScreen.SetActive(false);
+    }
+
+    static GameObject FindResultsScreen()
+    {
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (transforms[i].name == "ResultsScreen")
+                return transforms[i].gameObject;
+        }
+
+        return null;
+    }
+
+    static void PlaceInFront(GameObject panel, float distance)
+    {
+        Camera headset = Camera.main;
+        if (headset == null || panel == null)
+            return;
+
+        Vector3 forward = headset.transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.001f)
+            forward = Vector3.forward;
+        forward.Normalize();
+
+        Vector3 position = headset.transform.position + forward * distance;
+        position.y = headset.transform.position.y;
+        panel.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
     }
 
     public void ShowPatternRating(float accuracy)
@@ -336,7 +384,7 @@ public class TracingTimer : MonoBehaviour
         ScreenHudFit hud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
         if (hud != null)
             hud.HideGameplay();
-        timesUpScreen.SetActive(false);
+        HideResults();
 
         patternManager.ResetPatterns();
 

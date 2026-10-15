@@ -34,19 +34,19 @@ public class ColorSortResults : MonoBehaviour
             panel = transform;
 
         ClearValues();
-        AddValue(0.802f).text = report.setsCleared + " / " + report.setTotal;
-        AddValue(0.752f).text = report.nonDominantHand;
-        AddValue(0.701f).text = report.accuracy.ToString("0") + "%";
-        AddValue(0.651f).text = Pair(report.nonDominantCorrect, report.nonDominantShown);
-        AddValue(0.601f).text = Pair(report.dominantCorrect, report.dominantShown);
-        AddValue(0.550f).text = Pair(report.bothCorrect, report.bothShown);
-        AddValue(0.500f).text = report.timeAdded + "s";
-        AddValue(0.450f).text = report.timeUsed + "s";
-        AddValue(0.399f).text = report.timeLeft + "s";
-        AddValue(0.295f).text = report.easyCleared + " / 10";
-        AddValue(0.245f).text = report.moderateCleared + " / 10";
-        AddValue(0.194f).text = report.hardCleared + " / 10";
-        AddValue(0.097f).text = report.totalScore.ToString("0.##");
+        AddValue(0.795f).text = report.setsCleared + " / " + report.setTotal;
+        AddValue(0.760f).text = report.nonDominantHand;
+        AddValue(0.726f).text = report.accuracy.ToString("0") + "%";
+        AddValue(0.691f).text = Pair(report.nonDominantCorrect, report.nonDominantShown);
+        AddValue(0.656f).text = Pair(report.dominantCorrect, report.dominantShown);
+        AddValue(0.622f).text = Pair(report.bothCorrect, report.bothShown);
+        AddValue(0.587f).text = report.timeAdded + "s";
+        AddValue(0.552f).text = report.timeUsed + "s";
+        AddValue(0.517f).text = report.timeLeft + "s";
+        AddValue(0.418f).text = report.easyCleared + " / 10";
+        AddValue(0.382f).text = report.moderateCleared + " / 10";
+        AddValue(0.345f).text = report.hardCleared + " / 10";
+        AddValue(0.262f).text = report.totalScore.ToString("0.##");
     }
 
     static string Pair(int done, int total)
@@ -70,8 +70,8 @@ public class ColorSortResults : MonoBehaviour
         valueObject.transform.SetParent(panel, false);
 
         RectTransform rect = valueObject.AddComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.52f, y);
-        rect.anchorMax = new Vector2(0.92f, y);
+        rect.anchorMin = new Vector2(0.56f, y);
+        rect.anchorMax = new Vector2(0.94f, y);
         rect.pivot = new Vector2(0f, 0.5f);
         rect.sizeDelta = new Vector2(0f, 3.2f);
         rect.anchoredPosition = Vector2.zero;

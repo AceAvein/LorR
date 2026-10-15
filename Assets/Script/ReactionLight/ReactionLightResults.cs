@@ -40,21 +40,21 @@ public class ReactionLightResults : MonoBehaviour
             panel = CreatePanel();
 
         ClearValues(panel);
-        AddValue(panel, report.setsCleared + " / " + report.setTotal, 0.781f);
-        AddValue(panel, report.hand, 0.741f);
-        AddValue(panel, report.accuracy.ToString("0") + "%", 0.702f);
-        AddValue(panel, report.averageReaction.ToString("0.0") + "s", 0.664f);
-        AddValue(panel, report.greenHits.ToString(), 0.628f);
-        AddValue(panel, report.yellowPresses.ToString(), 0.589f);
-        AddValue(panel, report.redPresses.ToString(), 0.550f);
-        AddValue(panel, report.timeAdded + "s", 0.512f);
-        AddValue(panel, report.timeUsed + "s", 0.474f);
-        AddValue(panel, report.timeLeft + "s", 0.435f);
-        AddValue(panel, report.easyCleared + " / " + report.tierTotal, 0.337f);
-        AddValue(panel, report.moderateCleared + " / " + report.tierTotal, 0.297f);
-        AddValue(panel, report.hardCleared + " / " + report.tierTotal, 0.258f);
-        AddValue(panel, report.lastSet, 0.162f);
-        AddValue(panel, report.totalScore.ToString(), 0.116f);
+        AddValue(panel, report.setsCleared + " / " + report.setTotal, 0.800f);
+        AddValue(panel, report.hand, 0.767f);
+        AddValue(panel, report.accuracy.ToString("0") + "%", 0.734f);
+        AddValue(panel, report.averageReaction.ToString("0.0") + "s", 0.701f);
+        AddValue(panel, report.greenHits.ToString(), 0.668f);
+        AddValue(panel, report.yellowPresses.ToString(), 0.635f);
+        AddValue(panel, report.redPresses.ToString(), 0.602f);
+        AddValue(panel, report.timeAdded + "s", 0.569f);
+        AddValue(panel, report.timeUsed + "s", 0.536f);
+        AddValue(panel, report.timeLeft + "s", 0.503f);
+        AddValue(panel, report.easyCleared + " / " + report.tierTotal, 0.403f);
+        AddValue(panel, report.moderateCleared + " / " + report.tierTotal, 0.368f);
+        AddValue(panel, report.hardCleared + " / " + report.tierTotal, 0.333f);
+        AddValue(panel, report.lastSet, 0.253f);
+        AddValue(panel, report.totalScore.ToString(), 0.215f);
     }
 
     static void ClearValues(Transform panel)
@@ -94,8 +94,8 @@ public class ReactionLightResults : MonoBehaviour
         valueObject.transform.SetParent(panel, false);
 
         RectTransform rect = valueObject.AddComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.46f, y);
-        rect.anchorMax = new Vector2(0.90f, y);
+        rect.anchorMin = new Vector2(0.56f, y);
+        rect.anchorMax = new Vector2(0.94f, y);
         rect.pivot = new Vector2(0f, 0.5f);
         rect.sizeDelta = new Vector2(0f, 3.2f);
         rect.anchoredPosition = Vector2.zero;

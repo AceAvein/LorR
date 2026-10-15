@@ -47,11 +47,13 @@ public class ResultsScreen : MonoBehaviour
     TMP_Text hardCompleted;
     TMP_Text lastPatternTraced;
     TMP_Text totalScore;
+    Transform valueRoot;
     bool built;
 
     void Awake()
     {
         EnsureVisuals();
+        gameObject.SetActive(false);
     }
 
     public void Show(RoundReport report)
@@ -79,20 +81,23 @@ public class ResultsScreen : MonoBehaviour
 
         built = true;
         HideOldLabels();
-        FitPanel();
+        valueRoot = transform.Find("ResultsPanel");
+        if (valueRoot == null)
+            valueRoot = transform;
+        FitPanel(valueRoot);
 
         patternsCompleted = AddValue("Value_Patterns", 0.785f);
-        difficultyReached = AddValue("Value_Difficulty", 0.735f);
-        accuracy = AddValue("Value_Accuracy", 0.679f);
-        averageSpeed = AddValue("Value_Speed", 0.629f);
-        starsCollected = AddValue("Value_Stars", 0.582f);
-        timeUsed = AddValue("Value_TimeUsed", 0.531f);
-        timeLeft = AddValue("Value_TimeLeft", 0.480f);
-        easyCompleted = AddValue("Value_Easy", 0.356f);
-        moderateCompleted = AddValue("Value_Moderate", 0.303f);
-        hardCompleted = AddValue("Value_Hard", 0.250f);
-        lastPatternTraced = AddValue("Value_LastTraced", 0.124f);
-        totalScore = AddValue("Value_Total", 0.072f);
+        difficultyReached = AddValue("Value_Difficulty", 0.747f);
+        accuracy = AddValue("Value_Accuracy", 0.708f);
+        averageSpeed = AddValue("Value_Speed", 0.670f);
+        starsCollected = AddValue("Value_Stars", 0.632f);
+        timeUsed = AddValue("Value_TimeUsed", 0.594f);
+        timeLeft = AddValue("Value_TimeLeft", 0.556f);
+        easyCompleted = AddValue("Value_Easy", 0.420f);
+        moderateCompleted = AddValue("Value_Moderate", 0.382f);
+        hardCompleted = AddValue("Value_Hard", 0.344f);
+        lastPatternTraced = AddValue("Value_LastTraced", 0.267f);
+        totalScore = AddValue("Value_Total", 0.227f);
     }
 
     void HideOldLabels()
@@ -106,35 +111,40 @@ public class ResultsScreen : MonoBehaviour
         }
     }
 
-    void FitPanel()
+    void FitPanel(Transform panel)
     {
-        Image image = GetComponent<Image>();
+        Image image = panel.GetComponent<Image>();
         if (image != null)
         {
             if (panelSprite != null)
                 image.sprite = panelSprite;
+            if (image.sprite == null)
+                image.sprite = Resources.Load<Sprite>("PenTrace/ResultsPanel");
 
             image.color = Color.white;
             image.type = Image.Type.Simple;
             image.preserveAspect = true;
         }
 
-        RectTransform rect = GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.5f, 0.5f);
-        rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(72f, 96f);
-        rect.anchoredPosition = Vector2.zero;
+        if (panel == transform)
+        {
+            RectTransform rect = panel.GetComponent<RectTransform>();
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(72f, 96f);
+            rect.anchoredPosition = Vector2.zero;
+        }
     }
 
     TMP_Text AddValue(string name, float y)
     {
         GameObject valueObject = new GameObject(name);
-        valueObject.transform.SetParent(transform, false);
+        valueObject.transform.SetParent(valueRoot, false);
 
         RectTransform rect = valueObject.AddComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.52f, y);
-        rect.anchorMax = new Vector2(0.92f, y);
+        rect.anchorMin = new Vector2(0.56f, y);
+        rect.anchorMax = new Vector2(0.94f, y);
         rect.pivot = new Vector2(0f, 0.5f);
         rect.sizeDelta = new Vector2(0f, 3.6f);
         rect.anchoredPosition = Vector2.zero;
