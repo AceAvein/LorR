@@ -131,9 +131,13 @@ public class GamePauseMenu : MonoBehaviour
     {
         countingDown = true;
 
+        if (countdownScreen == null)
+            FindPanels();
+
         if (countdownScreen != null)
         {
-            if (SceneManager.GetActiveScene().name == "ReactionLight")
+            string sceneName = SceneManager.GetActiveScene().name;
+            if (sceneName == "ReactionLight" || sceneName == "ColorSort")
                 PlaceInFront(countdownScreen);
             countdownScreen.SetActive(true);
         }
