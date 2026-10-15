@@ -48,15 +48,30 @@ public class ColorSortRound : MonoBehaviour
     TMP_Text countdownText;
     GameObject leftWristHud;
     GameObject rightWristHud;
+    GameObject selectHand;
+    GameObject resultsScreen;
     Material redMaterial;
     Material blueMaterial;
     Material yellowMaterial;
     bool countingDown;
+    bool choosingHand;
     bool running;
     bool setOpen;
     bool pendingAdvance;
+    bool nonDominantIsLeft = true;
     int setCorrect;
     int setWrong;
+    int[] shownByColor = new int[3];
+    int[] correctByColor = new int[3];
+    int placedTotal;
+    int placedCorrect;
+    int greatSets;
+    int easyGreat;
+    int moderateGreat;
+    int hardGreat;
+    int timeAdded;
+    float elapsed;
+    float score;
     int setIndex;
     int announcedTier = -1;
     float timeRemaining;
@@ -99,6 +114,12 @@ public class ColorSortRound : MonoBehaviour
             boxesRoot.SetActive(false);
 
         objectiveScreen = FindNamed("ObjectiveScreen");
+        selectHand = FindNamed("Select hand");
+        resultsScreen = FindNamed("ResultsScreen");
+        if (selectHand != null)
+            selectHand.SetActive(false);
+        if (resultsScreen != null)
+            resultsScreen.SetActive(false);
         EnsureCountdown();
         WireStart();
         HideWord();
@@ -123,6 +144,7 @@ public class ColorSortRound : MonoBehaviour
         if (!running)
             return;
 
+        elapsed += Time.deltaTime;
         timeRemaining -= Time.deltaTime;
         if (timeRemaining <= 0f)
         {
@@ -159,13 +181,49 @@ public class ColorSortRound : MonoBehaviour
 
         HideGameplayHud();
         HideWristHud();
+        if (selectHand != null)
+            selectHand.SetActive(false);
     }
 
     public void BeginFromStart()
     {
+        if (running || countingDown || choosingHand)
+            return;
+
+        if (objectiveScreen != null)
+            objectiveScreen.SetActive(false);
+        if (resultsScreen != null)
+            resultsScreen.SetActive(false);
+        if (selectHand != null)
+        {
+            choosingHand = true;
+            PlaceInFront(selectHand, 0.75f);
+            selectHand.SetActive(true);
+            return;
+        }
+
+        StartCoroutine(CountdownThenPlay());
+    }
+
+    public void ChooseLeftHand()
+    {
+        BeginCountdown(true);
+    }
+
+    public void ChooseRightHand()
+    {
+        BeginCountdown(false);
+    }
+
+    void BeginCountdown(bool leftIsNonDominant)
+    {
         if (running || countingDown)
             return;
 
+        nonDominantIsLeft = leftIsNonDominant;
+        choosingHand = false;
+        if (selectHand != null)
+            selectHand.SetActive(false);
         if (objectiveScreen != null)
             objectiveScreen.SetActive(false);
 
@@ -202,6 +260,20 @@ public class ColorSortRound : MonoBehaviour
         setIndex = 0;
         announcedTier = -1;
         timeRemaining = RoundSeconds;
+        elapsed = 0f;
+        score = 0f;
+        timeAdded = 0;
+        greatSets = 0;
+        easyGreat = 0;
+        moderateGreat = 0;
+        hardGreat = 0;
+        placedTotal = 0;
+        placedCorrect = 0;
+        for (int i = 0; i < 3; i++)
+        {
+            shownByColor[i] = 0;
+            correctByColor[i] = 0;
+        }
         running = true;
         LevelVoices.Reset();
         if (boxesRoot != null)
@@ -248,6 +320,7 @@ public class ColorSortRound : MonoBehaviour
             pool.RemoveAt(pick);
             SortColor color = (SortColor)Random.Range(0, 3);
             piece.PrepareColor((int)color, MaterialFor(color));
+            shownByColor[(int)color]++;
             active.Add(piece);
         }
 
@@ -255,15 +328,21 @@ public class ColorSortRound : MonoBehaviour
         RefreshHud();
     }
 
-    public void OnPieceResolved(bool correct)
+    public void OnPieceResolved(int colorIndex, bool correct)
     {
         if (!setOpen)
             return;
 
+        placedTotal++;
         if (!correct)
             setWrong++;
         else
+        {
             setCorrect++;
+            placedCorrect++;
+            if (colorIndex >= 0 && colorIndex < correctByColor.Length)
+                correctByColor[colorIndex]++;
+        }
 
         int remaining = 0;
         for (int i = 0; i < active.Count; i++)
@@ -289,14 +368,26 @@ public class ColorSortRound : MonoBehaviour
         }
 
         bool perfect = active.Count > 0 && setCorrect == active.Count && setWrong == 0;
+        int tier = TierFor(setIndex);
+        float points = tier <= 0 ? 10f : tier == 1 ? 15f : 20f;
         if (perfect)
         {
             timeRemaining += SetBonus;
+            timeAdded += (int)SetBonus;
+            greatSets++;
+            if (tier <= 0)
+                easyGreat++;
+            else if (tier == 1)
+                moderateGreat++;
+            else
+                hardGreat++;
+            score += points;
             ShowWord("Great");
             BallDropSounds.PlayCatch();
         }
         else if (setCorrect > 0)
         {
+            score += points * 0.5f;
             ShowWord("Good");
             BallDropSounds.PlayCatch();
         }
@@ -307,6 +398,8 @@ public class ColorSortRound : MonoBehaviour
         }
 
         setIndex++;
+        if (setIndex >= SetTotal)
+            score += Mathf.Max(0f, timeRemaining) * 2f;
         if (setIndex >= SetTotal || timeRemaining <= 0f)
         {
             EndRound();
@@ -332,6 +425,47 @@ public class ColorSortRound : MonoBehaviour
         HideGameplayHud();
         HideWristHud();
         RefreshHud();
+        ShowResults();
+    }
+
+    void ShowResults()
+    {
+        if (resultsScreen == null)
+            resultsScreen = FindNamed("ResultsScreen");
+        if (resultsScreen == null)
+            return;
+
+        resultsScreen.SetActive(true);
+        PlaceInFront(resultsScreen, 0.7f);
+        ColorSortResults results = resultsScreen.GetComponent<ColorSortResults>();
+        if (results == null)
+            results = resultsScreen.AddComponent<ColorSortResults>();
+        results.Show(BuildReport());
+    }
+
+    ColorSortReport BuildReport()
+    {
+        int weak = nonDominantIsLeft ? 0 : 1;
+        int strong = nonDominantIsLeft ? 1 : 0;
+        ColorSortReport report = new ColorSortReport();
+        report.setsCleared = greatSets;
+        report.setTotal = SetTotal;
+        report.nonDominantHand = nonDominantIsLeft ? "Left" : "Right";
+        report.accuracy = placedTotal == 0 ? 0f : placedCorrect * 100f / placedTotal;
+        report.nonDominantCorrect = correctByColor[weak];
+        report.nonDominantShown = shownByColor[weak];
+        report.dominantCorrect = correctByColor[strong];
+        report.dominantShown = shownByColor[strong];
+        report.bothCorrect = correctByColor[2];
+        report.bothShown = shownByColor[2];
+        report.timeAdded = timeAdded;
+        report.timeUsed = Mathf.Max(0, Mathf.RoundToInt(elapsed));
+        report.timeLeft = Mathf.Max(0, Mathf.RoundToInt(timeRemaining));
+        report.easyCleared = easyGreat;
+        report.moderateCleared = moderateGreat;
+        report.hardCleared = hardGreat;
+        report.totalScore = score;
+        return report;
     }
 
     void FindShapes()
@@ -649,9 +783,9 @@ public class ColorSortRound : MonoBehaviour
     {
         ResolveWristHuds();
         if (leftWristHud != null)
-            leftWristHud.SetActive(true);
+            leftWristHud.SetActive(nonDominantIsLeft);
         if (rightWristHud != null)
-            rightWristHud.SetActive(false);
+            rightWristHud.SetActive(!nonDominantIsLeft);
     }
 
     void HideWristHud()
@@ -707,6 +841,10 @@ public class ColorSortRound : MonoBehaviour
         {
             if (buttons[i].gameObject.name == "Btn_Start")
                 buttons[i].onClick.AddListener(BeginFromStart);
+            else if (buttons[i].gameObject.name == "Left Hand")
+                buttons[i].onClick.AddListener(ChooseLeftHand);
+            else if (buttons[i].gameObject.name == "Right Hand")
+                buttons[i].onClick.AddListener(ChooseRightHand);
         }
     }
 
@@ -1077,7 +1215,7 @@ public class ColorSortPiece : MonoBehaviour
         else
             BallDropSounds.PlayMiss();
 
-        round.OnPieceResolved(correct);
+        round.OnPieceResolved((int)color, correct);
         ForceRelease();
     }
 
