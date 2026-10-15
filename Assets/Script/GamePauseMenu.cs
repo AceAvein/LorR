@@ -38,7 +38,7 @@ public class GamePauseMenu : MonoBehaviour
         if (!scene.IsValid())
             return;
 
-        if (scene.name != "PenControlTracing" && scene.name != "Ball Drop" && scene.name != "BallDrop_HalfwayTest")
+        if (scene.name != "PenControlTracing" && scene.name != "Ball Drop" && scene.name != "BallDrop_HalfwayTest" && scene.name != "ReactionLight")
             return;
 
         if (active != null)
