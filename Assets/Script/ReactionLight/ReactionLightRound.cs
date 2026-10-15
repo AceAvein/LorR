@@ -47,7 +47,11 @@ public class ReactionLightRound : MonoBehaviour
     GameObject selectHand;
     GameObject countdownScreen;
     TMP_Text countdownText;
-    TextMeshPro timerLabel;
+    readonly List<TMP_Text> levelValues = new List<TMP_Text>();
+    readonly List<TMP_Text> timerValues = new List<TMP_Text>();
+    readonly List<TMP_Text> setValues = new List<TMP_Text>();
+    GameObject leftWristHud;
+    GameObject rightWristHud;
     InputAction grip;
     InputAction trigger;
     Transform fingerTip;
@@ -102,13 +106,9 @@ public class ReactionLightRound : MonoBehaviour
         FindBalls();
         FindScreens();
         PaintAll(LightKind.Red);
+        SetBallsVisible(false);
         WireButtons();
         ShowObjective();
-    }
-
-    void Start()
-    {
-        StartCoroutine(PlaceWhenReady());
     }
 
     void OnDestroy()
@@ -118,12 +118,6 @@ public class ReactionLightRound : MonoBehaviour
 
         grip?.Dispose();
         trigger?.Dispose();
-    }
-
-    IEnumerator PlaceWhenReady()
-    {
-        yield return null;
-        PlaceBalls();
     }
 
     void Update()
@@ -142,7 +136,7 @@ public class ReactionLightRound : MonoBehaviour
             return;
         }
 
-        RefreshTimer();
+        RefreshHud();
         ReadPokes();
 
         if (running && Time.time >= setEndsAt)
@@ -157,6 +151,9 @@ public class ReactionLightRound : MonoBehaviour
             selectHand.SetActive(false);
         if (countdownScreen != null)
             countdownScreen.SetActive(false);
+
+        HideGameplayHud();
+        HideWristHud();
     }
 
     public void ShowHandSelect()
@@ -171,8 +168,6 @@ public class ReactionLightRound : MonoBehaviour
             PlaceInFront(selectHand, 0.75f);
             selectHand.SetActive(true);
         }
-
-        PlaceBalls();
     }
 
     public void ChooseLeftHand()
@@ -197,7 +192,6 @@ public class ReactionLightRound : MonoBehaviour
             objectiveScreen.SetActive(false);
 
         BindHand();
-        PlaceBalls();
         StartCoroutine(CountdownThenPlay());
     }
 
@@ -239,9 +233,12 @@ public class ReactionLightRound : MonoBehaviour
         running = true;
         touching.Clear();
         LevelVoices.Reset();
-        EnsureTimer();
+        SetBallsVisible(true);
+        PlaceBalls();
+        ShowGameplayHud();
+        ShowWristHud();
         BeginSet();
-        RefreshTimer();
+        RefreshHud();
     }
 
     void BeginSet()
@@ -323,7 +320,7 @@ public class ReactionLightRound : MonoBehaviour
         timeRemaining = timeLeft;
         PaintAll(LightKind.Red);
         touching.Clear();
-        RefreshTimer();
+        RefreshHud();
     }
 
     void ReadPokes()
@@ -481,42 +478,134 @@ public class ReactionLightRound : MonoBehaviour
             balls[i].transform.position = origin + right * x + Vector3.up * y;
             balls[i].radius = balls[i].transform.lossyScale.x * 0.5f;
         }
-
-        if (timerLabel != null)
-            timerLabel.transform.position = origin + Vector3.up * 0.42f;
     }
 
-    void EnsureTimer()
+    void ShowGameplayHud()
     {
-        if (timerLabel != null)
-            return;
-
-        GameObject labelObject = new GameObject("ReactionTimer");
-        timerLabel = labelObject.AddComponent<TextMeshPro>();
-        timerLabel.font = TMP_Settings.defaultFontAsset;
-        timerLabel.fontSize = 8f;
-        timerLabel.alignment = TextAlignmentOptions.Center;
-        timerLabel.color = Color.white;
-        timerLabel.rectTransform.sizeDelta = new Vector2(4f, 2f);
-        labelObject.transform.localScale = Vector3.one * 0.12f;
-        timerLabel.text = Mathf.CeilToInt(RoundSeconds).ToString();
-        PlaceBalls();
+        ScreenHudFit hud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
+        if (hud != null)
+            hud.ShowGameplay();
     }
 
-    void RefreshTimer()
+    void HideGameplayHud()
     {
-        if (timerLabel == null)
+        ScreenHudFit hud = FindFirstObjectByType<ScreenHudFit>(FindObjectsInactive.Include);
+        if (hud != null)
+            hud.HideGameplay();
+    }
+
+    void RefreshHud()
+    {
+        if (levelValues.Count == 0)
+            FindTexts("Level Value", levelValues);
+        if (timerValues.Count == 0)
+            FindTexts("Timer Value", timerValues);
+        if (setValues.Count == 0)
+            FindTexts("Sets Value", setValues);
+
+        int seconds = Mathf.Max(0, Mathf.CeilToInt(timeRemaining));
+        int shownSet = setIndex + 1;
+        if (shownSet > SetTotal)
+            shownSet = SetTotal;
+        if (shownSet < 1)
+            shownSet = 1;
+
+        int tier = setIndex / 10;
+        if (tier > 2)
+            tier = 2;
+
+        SetTexts(levelValues, TierName(tier));
+        SetTexts(timerValues, seconds.ToString());
+        SetTexts(setValues, shownSet + "/" + SetTotal);
+    }
+
+    void HideWristHud()
+    {
+        ResolveWristHuds();
+        if (leftWristHud != null)
+            leftWristHud.SetActive(false);
+        if (rightWristHud != null)
+            rightWristHud.SetActive(false);
+    }
+
+    void ShowWristHud()
+    {
+        ResolveWristHuds();
+        if (leftWristHud != null)
+            leftWristHud.SetActive(!useRightHand);
+        if (rightWristHud != null)
+            rightWristHud.SetActive(useRightHand);
+    }
+
+    void ResolveWristHuds()
+    {
+        if (leftWristHud != null && rightWristHud != null)
             return;
 
-        timerLabel.text = Mathf.Max(0, Mathf.CeilToInt(timeRemaining)).ToString();
-        Camera headset = Camera.main;
-        if (headset == null)
-            return;
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            string canvasName = transforms[i].name;
+            if (canvasName != "Hand Canvas" && canvasName != "Left Hand Canvas" && canvasName != "Right Hand Canvas")
+                continue;
 
-        Vector3 toPlayer = headset.transform.position - timerLabel.transform.position;
-        toPlayer.y = 0f;
-        if (toPlayer.sqrMagnitude > 0.001f)
-            timerLabel.transform.rotation = Quaternion.LookRotation(toPlayer.normalized, Vector3.up);
+            if (canvasName == "Left Hand Canvas" || IsUnder(transforms[i], "Left Controller") || IsUnder(transforms[i], "Left Hand Model"))
+                leftWristHud = transforms[i].gameObject;
+            else if (canvasName == "Right Hand Canvas" || IsUnder(transforms[i], "Right Controller") || IsUnder(transforms[i], "Right Hand Model"))
+                rightWristHud = transforms[i].gameObject;
+        }
+    }
+
+    static bool IsUnder(Transform child, string ancestorName)
+    {
+        Transform current = child;
+        while (current != null)
+        {
+            if (current.name == ancestorName)
+                return true;
+
+            current = current.parent;
+        }
+
+        return false;
+    }
+
+    static void SetTexts(List<TMP_Text> labels, string value)
+    {
+        for (int i = 0; i < labels.Count; i++)
+        {
+            if (labels[i] != null)
+                labels[i].text = value;
+        }
+    }
+
+    static void FindTexts(string objectName, List<TMP_Text> results)
+    {
+        results.Clear();
+        TMP_Text[] labels = FindObjectsByType<TMP_Text>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (labels[i].gameObject.name == objectName)
+                results.Add(labels[i]);
+        }
+    }
+
+    static string TierName(int tier)
+    {
+        if (tier <= 0)
+            return "Easy";
+        if (tier == 1)
+            return "Moderate";
+        return "Hard";
+    }
+
+    void SetBallsVisible(bool visible)
+    {
+        for (int i = 0; i < balls.Count; i++)
+        {
+            if (balls[i].transform != null)
+                balls[i].transform.gameObject.SetActive(visible);
+        }
     }
 
     void PaintAll(LightKind kind)
