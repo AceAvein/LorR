@@ -54,9 +54,9 @@ public class ColorSortRound : MonoBehaviour
     bool countingDown;
     bool running;
     bool setOpen;
-    bool setSpoiled;
     bool pendingAdvance;
-    bool pendingCleared;
+    int setCorrect;
+    int setWrong;
     int setIndex;
     int announcedTier = -1;
     float timeRemaining;
@@ -101,6 +101,7 @@ public class ColorSortRound : MonoBehaviour
         objectiveScreen = FindNamed("ObjectiveScreen");
         EnsureCountdown();
         WireStart();
+        HideWord();
         ShowObjective();
     }
 
@@ -126,13 +127,15 @@ public class ColorSortRound : MonoBehaviour
         if (timeRemaining <= 0f)
         {
             timeRemaining = 0f;
-            EndRound();
+            if (setOpen)
+                FinishSet();
+            else
+                EndRound();
             return;
         }
 
         if (pendingAdvance)
         {
-            bool cleared = pendingCleared;
             pendingAdvance = false;
             for (int i = 0; i < active.Count; i++)
             {
@@ -141,7 +144,7 @@ public class ColorSortRound : MonoBehaviour
             }
 
             if (setOpen)
-                FinishSet(cleared);
+                FinishSet();
         }
 
         RefreshHud();
@@ -228,7 +231,8 @@ public class ColorSortRound : MonoBehaviour
             LevelVoices.PlayTier(tier);
         }
 
-        setSpoiled = false;
+        setCorrect = 0;
+        setWrong = 0;
         setOpen = true;
         ShuffleBoxes();
         active.Clear();
@@ -257,7 +261,9 @@ public class ColorSortRound : MonoBehaviour
             return;
 
         if (!correct)
-            setSpoiled = true;
+            setWrong++;
+        else
+            setCorrect++;
 
         int remaining = 0;
         for (int i = 0; i < active.Count; i++)
@@ -267,13 +273,10 @@ public class ColorSortRound : MonoBehaviour
         }
 
         if (remaining == 0)
-        {
-            pendingCleared = !setSpoiled;
             pendingAdvance = true;
-        }
     }
 
-    void FinishSet(bool cleared)
+    void FinishSet()
     {
         if (!setOpen)
             return;
@@ -285,8 +288,23 @@ public class ColorSortRound : MonoBehaviour
                 active[i].Remove();
         }
 
-        if (cleared)
+        bool perfect = active.Count > 0 && setCorrect == active.Count && setWrong == 0;
+        if (perfect)
+        {
             timeRemaining += SetBonus;
+            ShowWord("Great");
+            BallDropSounds.PlayCatch();
+        }
+        else if (setCorrect > 0)
+        {
+            ShowWord("Good");
+            BallDropSounds.PlayCatch();
+        }
+        else
+        {
+            ShowWord("Fair");
+            BallDropSounds.PlayMiss();
+        }
 
         setIndex++;
         if (setIndex >= SetTotal || timeRemaining <= 0f)
@@ -314,7 +332,6 @@ public class ColorSortRound : MonoBehaviour
         HideGameplayHud();
         HideWristHud();
         RefreshHud();
-        HideWord();
     }
 
     void FindShapes()
@@ -608,6 +625,8 @@ public class ColorSortRound : MonoBehaviour
     {
         wordHideAt = 0f;
         SetNamedActive("Great", false);
+        SetNamedActive("Good", false);
+        SetNamedActive("Fair", false);
         SetNamedActive("Wrong", false);
         SetNamedActive("Oops", false);
     }
@@ -632,7 +651,7 @@ public class ColorSortRound : MonoBehaviour
         if (leftWristHud != null)
             leftWristHud.SetActive(true);
         if (rightWristHud != null)
-            rightWristHud.SetActive(true);
+            rightWristHud.SetActive(false);
     }
 
     void HideWristHud()
@@ -1054,15 +1073,9 @@ public class ColorSortPiece : MonoBehaviour
         resolved = true;
 
         if (correct)
-        {
-            round.ShowWord("Great");
             BallDropSounds.PlayCatch();
-        }
         else
-        {
-            round.ShowWord("Wrong");
             BallDropSounds.PlayMiss();
-        }
 
         round.OnPieceResolved(correct);
         ForceRelease();
