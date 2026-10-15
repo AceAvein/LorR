@@ -132,7 +132,11 @@ public class GamePauseMenu : MonoBehaviour
         countingDown = true;
 
         if (countdownScreen != null)
+        {
+            if (SceneManager.GetActiveScene().name == "ReactionLight")
+                PlaceInFront(countdownScreen);
             countdownScreen.SetActive(true);
+        }
 
         int[] steps = { 3, 2, 1 };
         for (int i = 0; i < steps.Length; i++)

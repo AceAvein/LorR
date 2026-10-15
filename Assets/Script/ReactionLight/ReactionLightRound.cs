@@ -42,6 +42,7 @@ public class ReactionLightRound : MonoBehaviour
     readonly List<Target> balls = new List<Target>();
     readonly HashSet<Target> touching = new HashSet<Target>();
     readonly List<Target> greenBalls = new List<Target>();
+    readonly List<SetRecord> records = new List<SetRecord>();
 
     GameObject objectiveScreen;
     GameObject selectHand;
@@ -63,6 +64,10 @@ public class ReactionLightRound : MonoBehaviour
     int announcedTier = -1;
     float timeRemaining;
     float setEndsAt;
+    float setStartedAt;
+    float roundStartedAt;
+    bool setOpen;
+    float wordHideAt;
 
     static readonly Color Red = new Color(0.85f, 0.08f, 0.08f);
     static readonly Color Green = new Color(0.1f, 0.9f, 0.2f);
@@ -108,6 +113,8 @@ public class ReactionLightRound : MonoBehaviour
         PaintAll(LightKind.Red);
         SetBallsVisible(false);
         WireButtons();
+        HideWord();
+        SetNamedActive("ResultsScreen", false);
         ShowObjective();
     }
 
@@ -138,6 +145,7 @@ public class ReactionLightRound : MonoBehaviour
 
         RefreshHud();
         ReadPokes();
+        HideWordIfDue();
 
         if (running && Time.time >= setEndsAt)
             FinishSet(false);
@@ -198,11 +206,9 @@ public class ReactionLightRound : MonoBehaviour
     IEnumerator CountdownThenPlay()
     {
         countingDown = true;
+        PrepareWorldCountdown();
         if (countdownScreen != null)
-        {
-            PlaceInFront(countdownScreen, 0.45f);
             countdownScreen.SetActive(true);
-        }
 
         int[] steps = { 3, 2, 1 };
         for (int i = 0; i < steps.Length; i++)
@@ -221,6 +227,35 @@ public class ReactionLightRound : MonoBehaviour
         StartRound();
     }
 
+    void PrepareWorldCountdown()
+    {
+        if (countdownScreen == null)
+            countdownScreen = FindNamed("CountdownScreen");
+        if (countdownScreen == null)
+            return;
+
+        if (countdownText == null)
+            countdownText = countdownScreen.GetComponentInChildren<TMP_Text>(true);
+
+        if (countdownText != null)
+        {
+            RectTransform rect = countdownText.rectTransform;
+            rect.localPosition = Vector3.zero;
+            rect.localRotation = Quaternion.identity;
+            rect.localScale = Vector3.one;
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = new Vector2(50f, 50f);
+            countdownText.fontSize = 36f;
+            countdownText.alignment = TextAlignmentOptions.Center;
+            countdownText.color = Color.white;
+        }
+
+        PlaceInFront(countdownScreen, 0.75f);
+    }
+
     void StartRound()
     {
         greenHits = 0;
@@ -230,6 +265,9 @@ public class ReactionLightRound : MonoBehaviour
         setIndex = 0;
         announcedTier = -1;
         timeRemaining = RoundSeconds;
+        roundStartedAt = Time.time;
+        setOpen = false;
+        records.Clear();
         running = true;
         touching.Clear();
         LevelVoices.Reset();
@@ -284,6 +322,8 @@ public class ReactionLightRound : MonoBehaviour
         }
 
         greensLeft = greenBalls.Count;
+        setStartedAt = Time.time;
+        setOpen = true;
         setEndsAt = Time.time + duration;
     }
 
@@ -293,6 +333,7 @@ public class ReactionLightRound : MonoBehaviour
             return;
 
         setEndsAt = float.PositiveInfinity;
+        RecordSet(cleared);
         if (cleared)
         {
             setsCleared++;
@@ -316,11 +357,112 @@ public class ReactionLightRound : MonoBehaviour
 
         running = false;
         setEndsAt = float.PositiveInfinity;
+        RecordSet(false);
         timeLeft = Mathf.Max(0, Mathf.RoundToInt(timeRemaining));
         timeRemaining = timeLeft;
         PaintAll(LightKind.Red);
         touching.Clear();
+        SetBallsVisible(false);
+        HideGameplayHud();
+        HideWristHud();
+        HideWord();
         RefreshHud();
+        ShowResults();
+    }
+
+    void RecordSet(bool cleared)
+    {
+        if (!setOpen)
+            return;
+
+        setOpen = false;
+        SetRecord record = new SetRecord();
+        record.tier = setIndex / 10;
+        if (record.tier > 2)
+            record.tier = 2;
+        record.cleared = cleared;
+        record.reaction = cleared ? Mathf.Max(0f, Time.time - setStartedAt) : 0f;
+        records.Add(record);
+    }
+
+    void ShowResults()
+    {
+        GameObject screen = FindNamed("ResultsScreen");
+        if (screen == null)
+            return;
+
+        screen.SetActive(true);
+        PlaceInFront(screen, 0.7f);
+        ReactionLightResults results = screen.GetComponent<ReactionLightResults>();
+        if (results == null)
+            results = screen.AddComponent<ReactionLightResults>();
+        results.Show(BuildReport());
+    }
+
+    ReactionLightReport BuildReport()
+    {
+        int easyCleared = 0;
+        int moderateCleared = 0;
+        int hardCleared = 0;
+        float reactionSum = 0f;
+        int reactionCount = 0;
+        int score = 0;
+
+        for (int i = 0; i < records.Count; i++)
+        {
+            SetRecord record = records[i];
+            if (!record.cleared)
+                continue;
+
+            reactionSum += record.reaction;
+            reactionCount++;
+            if (record.tier <= 0)
+            {
+                easyCleared++;
+                score += 10;
+            }
+            else if (record.tier == 1)
+            {
+                moderateCleared++;
+                score += 20;
+            }
+            else
+            {
+                hardCleared++;
+                score += 30;
+            }
+        }
+
+        ReactionLightReport report = new ReactionLightReport();
+        report.setsCleared = setsCleared;
+        report.setTotal = SetTotal;
+        report.setsPlayed = records.Count;
+        report.hand = useRightHand ? "Right" : "Left";
+        report.accuracy = records.Count == 0 ? 0f : setsCleared * 100f / records.Count;
+        report.averageReaction = reactionCount == 0 ? 0f : reactionSum / reactionCount;
+        report.greenHits = greenHits;
+        report.yellowPresses = yellowHits;
+        report.redPresses = redHits;
+        report.timeAdded = Mathf.RoundToInt(setsCleared * SetBonus);
+        report.timeUsed = Mathf.Max(0, Mathf.RoundToInt(Time.time - roundStartedAt));
+        report.timeLeft = timeLeft;
+        report.easyCleared = easyCleared;
+        report.moderateCleared = moderateCleared;
+        report.hardCleared = hardCleared;
+        report.tierTotal = 10;
+        report.lastSet = LastSetText();
+        report.totalScore = score;
+        return report;
+    }
+
+    string LastSetText()
+    {
+        if (records.Count == 0)
+            return "None";
+
+        SetRecord record = records[records.Count - 1];
+        string outcome = record.cleared ? "Cleared" : "Missed";
+        return outcome + " · " + TierName(record.tier);
     }
 
     void ReadPokes()
@@ -355,6 +497,8 @@ public class ReactionLightRound : MonoBehaviour
         if (ball.kind == LightKind.Green)
         {
             greenHits++;
+            ShowWord("Great");
+            BallDropSounds.PlayCatch();
             Paint(ball, LightKind.Red);
             greenBalls.Remove(ball);
             greensLeft--;
@@ -366,10 +510,14 @@ public class ReactionLightRound : MonoBehaviour
         if (ball.kind == LightKind.Yellow)
         {
             yellowHits++;
+            ShowWord("Oops");
+            ReactionLightSounds.PlayOops();
             return;
         }
 
         redHits++;
+        ShowWord("Wrong");
+        BallDropSounds.PlayMiss();
         timeRemaining -= RedPenalty;
         if (timeRemaining <= 0f)
         {
@@ -478,6 +626,49 @@ public class ReactionLightRound : MonoBehaviour
             balls[i].transform.position = origin + right * x + Vector3.up * y;
             balls[i].radius = balls[i].transform.lossyScale.x * 0.5f;
         }
+    }
+
+    void ShowWord(string objectName)
+    {
+        HideWord();
+        SetNamedActive(objectName, true);
+        wordHideAt = Time.time + 1f;
+    }
+
+    void HideWordIfDue()
+    {
+        if (wordHideAt > 0f && Time.time >= wordHideAt)
+            HideWord();
+    }
+
+    void HideWord()
+    {
+        wordHideAt = 0f;
+        SetNamedActive("Great", false);
+        SetNamedActive("Wrong", false);
+        SetNamedActive("Oops", false);
+    }
+
+    static void SetNamedActive(string objectName, bool active)
+    {
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (transforms[i].name == objectName)
+                transforms[i].gameObject.SetActive(active);
+        }
+    }
+
+    static GameObject FindNamed(string objectName)
+    {
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (transforms[i].name == objectName)
+                return transforms[i].gameObject;
+        }
+
+        return null;
     }
 
     void ShowGameplayHud()
@@ -663,7 +854,7 @@ public class ReactionLightRound : MonoBehaviour
             return 2f;
         if (tier == 1)
             return 1.5f;
-        return 1f;
+        return 1.3f;
     }
 
     void FindScreens()
@@ -676,11 +867,11 @@ public class ReactionLightRound : MonoBehaviour
             if (selectHand == null && transforms[i].name == "Select hand")
                 selectHand = transforms[i].gameObject;
             if (countdownScreen == null && transforms[i].name == "CountdownScreen")
+            {
                 countdownScreen = transforms[i].gameObject;
+                countdownText = countdownScreen.GetComponentInChildren<TMP_Text>(true);
+            }
         }
-
-        if (countdownScreen != null)
-            countdownText = countdownScreen.GetComponentInChildren<TMP_Text>(true);
     }
 
     void WireButtons()
