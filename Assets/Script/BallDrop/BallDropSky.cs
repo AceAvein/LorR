@@ -48,6 +48,8 @@ public class BallDropSky : MonoBehaviour
 
         if (floorRenderer != null && grid != null)
             floorRenderer.sharedMaterial = grid;
+
+        LevelMusic.Play(tier);
     }
 
     void EnsureFloor()
