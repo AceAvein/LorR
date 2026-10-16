@@ -30,9 +30,14 @@ public class MenuProfilePanel : MonoBehaviour
     TMP_Text confirmText;
     TMP_Text errorText;
     TMP_Text avatarNameText;
+    TMP_Text windowTitle;
     TMP_InputField nameInput;
+    Sprite cardSprite;
+    TMP_FontAsset labelFont;
+    Material labelMaterial;
     Image leftPlate;
     Image rightPlate;
+    GameObject keyboardRoot;
     Button[] avatarButtons;
     Image[] avatarFaces;
     Sprite[] avatars;
@@ -87,8 +92,9 @@ public class MenuProfilePanel : MonoBehaviour
         confirmText = FindDeep("Question").GetComponent<TMP_Text>();
         errorText = FindDeep("Error").GetComponent<TMP_Text>();
         avatarNameText = FindDeep("AvatarName").GetComponent<TMP_Text>();
+        windowTitle = FindDeep("Title").GetComponent<TMP_Text>();
         content = FindDeep("Content");
-        cardTemplate = FindDeep("CardTemplate");
+        cardTemplate = FindOptional("CardTemplate");
 
         leftPlate = FindDeep("Left").GetComponent<Image>();
         rightPlate = FindDeep("Right").GetComponent<Image>();
@@ -102,10 +108,15 @@ public class MenuProfilePanel : MonoBehaviour
             avatarFaces[i] = slot.Find("Face").GetComponent<Image>();
         }
 
-        Transform library = FindDeep("AvatarLibrary");
-        avatars = new Sprite[library.childCount];
-        for (int i = 0; i < library.childCount; i++)
-            avatars[i] = library.GetChild(i).GetComponent<Image>().sprite;
+        avatars = LoadAvatars();
+        labelFont = statusText.font;
+        labelMaterial = statusText.fontSharedMaterial;
+
+        Image addImage = FindDeep("Add").GetComponent<Image>();
+        cardSprite = addImage.sprite;
+        keyboardRoot = FindOptional("Keyboard") != null ? FindOptional("Keyboard").gameObject : null;
+        if (cardTemplate != null)
+            cardTemplate.gameObject.SetActive(false);
 
         nameInput = BuildNameField(FindDeep("NameField"));
 
@@ -134,6 +145,7 @@ public class MenuProfilePanel : MonoBehaviour
         Hook("Ok", OnCreate);
         Hook("Yes", ConfirmDelete);
         Hook("No", () => confirmRoot.SetActive(false));
+        WireKeyboard();
 
         if (profileButton != null)
             profileButton.onClick.AddListener(Open);
@@ -194,6 +206,9 @@ public class MenuProfilePanel : MonoBehaviour
         confirmRoot.SetActive(false);
         backButton.SetActive(false);
         listView.SetActive(true);
+        HideKeyboard();
+        if (windowTitle != null)
+            windowTitle.text = "Profiles";
         RefreshList();
         ShowCurrentOnButton();
     }
@@ -204,6 +219,9 @@ public class MenuProfilePanel : MonoBehaviour
         confirmRoot.SetActive(false);
         createView.SetActive(true);
         backButton.SetActive(true);
+        HideKeyboard();
+        if (windowTitle != null)
+            windowTitle.text = "Add User";
         selectedAvatar = 0;
         nameInput.text = "";
         errorText.text = "";
@@ -218,6 +236,7 @@ public class MenuProfilePanel : MonoBehaviour
             Transform child = content.GetChild(i);
             if (child == cardTemplate)
                 continue;
+            child.SetParent(null, false);
             Destroy(child.gameObject);
         }
         spawned.Clear();
@@ -233,7 +252,9 @@ public class MenuProfilePanel : MonoBehaviour
 
         for (int i = 0; i < profiles.Count; i++)
         {
-            GameObject card = Instantiate(cardTemplate.gameObject, content);
+            GameObject card = cardTemplate != null
+                ? Instantiate(cardTemplate.gameObject, content)
+                : CreateCard();
             card.name = "Card";
             card.SetActive(true);
             spawned.Add(card);
@@ -270,11 +291,19 @@ public class MenuProfilePanel : MonoBehaviour
 
     void RefreshAvatars()
     {
-        int count = avatars.Length;
-        int start = Mathf.Clamp(selectedAvatar - 1, 0, Mathf.Max(0, count - 4));
+        int count = avatars == null ? 0 : avatars.Length;
+        if (count == 0)
+            return;
+
+        int start = Mathf.Clamp(selectedAvatar - 1, 0, Mathf.Max(0, count - avatarButtons.Length));
         for (int i = 0; i < avatarButtons.Length; i++)
         {
-            int index = Mathf.Min(start + i, count - 1);
+            int index = start + i;
+            bool visible = index < count;
+            avatarButtons[i].gameObject.SetActive(visible);
+            if (!visible)
+                continue;
+
             avatarFaces[i].sprite = avatars[index];
             bool selected = index == selectedAvatar;
             avatarButtons[i].GetComponent<Image>().color = selected ? SelectedPlate : IdlePlate;
@@ -440,6 +469,14 @@ public class MenuProfilePanel : MonoBehaviour
 
     Transform FindDeep(string childName)
     {
+        Transform found = FindOptional(childName);
+        if (found == null)
+            Debug.LogError("Profile window is missing " + childName);
+        return found;
+    }
+
+    Transform FindOptional(string childName)
+    {
         Transform[] all = GetComponentsInChildren<Transform>(true);
         for (int i = 0; i < all.Length; i++)
         {
@@ -447,33 +484,216 @@ public class MenuProfilePanel : MonoBehaviour
                 return all[i];
         }
 
-        Debug.LogError("Profile window is missing " + childName);
         return null;
+    }
+
+    Sprite[] LoadAvatars()
+    {
+        Transform library = FindOptional("AvatarLibrary");
+        if (library != null && library.childCount > 0)
+        {
+            Sprite[] fromLibrary = new Sprite[library.childCount];
+            for (int i = 0; i < library.childCount; i++)
+            {
+                Image image = library.GetChild(i).GetComponent<Image>();
+                if (image != null)
+                    fromLibrary[i] = image.sprite;
+            }
+
+            return fromLibrary;
+        }
+
+        List<Sprite> found = new List<Sprite>();
+        for (int i = 0; i < avatarFaces.Length; i++)
+        {
+            if (avatarFaces[i] != null && avatarFaces[i].sprite != null)
+                found.Add(avatarFaces[i].sprite);
+        }
+
+        return found.ToArray();
+    }
+
+    public void ShowKeyboard()
+    {
+        if (keyboardRoot == null)
+            return;
+
+        keyboardRoot.SetActive(true);
+        keyboardRoot.transform.SetAsLastSibling();
+    }
+
+    public void HideKeyboard()
+    {
+        if (keyboardRoot != null)
+            keyboardRoot.SetActive(false);
+    }
+
+    void WireKeyboard()
+    {
+        if (keyboardRoot == null)
+            return;
+
+        Button[] keys = keyboardRoot.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < keys.Length; i++)
+        {
+            string keyName = keys[i].gameObject.name;
+            if (!keyName.StartsWith("Key_"))
+                continue;
+
+            string token = keyName.Substring(4);
+            keys[i].onClick.RemoveAllListeners();
+            if (keys[i].targetGraphic == null)
+                keys[i].targetGraphic = keys[i].GetComponent<Image>();
+
+            if (token == "Back")
+                keys[i].onClick.AddListener(BackspaceName);
+            else if (token == "Space")
+                keys[i].onClick.AddListener(() => TypeName(" "));
+            else if (token == "Done")
+                keys[i].onClick.AddListener(HideKeyboard);
+            else
+            {
+                string captured = token;
+                keys[i].onClick.AddListener(() => TypeName(captured));
+            }
+        }
+    }
+
+    void TypeName(string value)
+    {
+        if (nameInput == null || string.IsNullOrEmpty(value))
+            return;
+
+        int limit = nameInput.characterLimit;
+        if (limit > 0 && nameInput.text.Length + value.Length > limit)
+            return;
+
+        nameInput.text += value;
+        nameInput.caretPosition = nameInput.text.Length;
+    }
+
+    void BackspaceName()
+    {
+        if (nameInput == null || string.IsNullOrEmpty(nameInput.text))
+            return;
+
+        nameInput.text = nameInput.text.Substring(0, nameInput.text.Length - 1);
+        nameInput.caretPosition = nameInput.text.Length;
+    }
+
+    GameObject CreateCard()
+    {
+        GameObject card = new GameObject("Card", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
+        card.transform.SetParent(content, false);
+
+        LayoutElement layout = card.GetComponent<LayoutElement>();
+        layout.preferredHeight = 12f;
+        layout.minHeight = 12f;
+
+        Image plate = card.GetComponent<Image>();
+        plate.sprite = cardSprite;
+        plate.type = cardSprite == null ? Image.Type.Simple : Image.Type.Sliced;
+        plate.color = Color.white;
+        plate.raycastTarget = true;
+
+        Button select = card.GetComponent<Button>();
+        select.targetGraphic = plate;
+
+        Image face = CreateImage(card.transform, "CardFace", false);
+        RectTransform faceRect = face.rectTransform;
+        faceRect.anchorMin = new Vector2(0f, 0.5f);
+        faceRect.anchorMax = new Vector2(0f, 0.5f);
+        faceRect.pivot = new Vector2(0.5f, 0.5f);
+        faceRect.anchoredPosition = new Vector2(8f, 0f);
+        faceRect.sizeDelta = new Vector2(8f, 8f);
+        face.preserveAspect = true;
+
+        CreateLabel(card.transform, "CardName", new Vector2(14f, 1.4f), new Vector2(-28f, 4f), 3.1f, Ink, FontStyles.Bold);
+        CreateLabel(card.transform, "CardHand", new Vector2(14f, -2.2f), new Vector2(-28f, 3.2f), 2.1f, new Color(0.35f, 0.45f, 0.58f, 1f), FontStyles.Normal);
+
+        Image deletePlate = CreateImage(card.transform, "CardDelete", true);
+        deletePlate.sprite = cardSprite;
+        deletePlate.type = cardSprite == null ? Image.Type.Simple : Image.Type.Sliced;
+        deletePlate.color = new Color(0.95f, 0.35f, 0.38f, 1f);
+        RectTransform deleteRect = deletePlate.rectTransform;
+        deleteRect.anchorMin = new Vector2(1f, 0.5f);
+        deleteRect.anchorMax = new Vector2(1f, 0.5f);
+        deleteRect.pivot = new Vector2(0.5f, 0.5f);
+        deleteRect.anchoredPosition = new Vector2(-6f, 0f);
+        deleteRect.sizeDelta = new Vector2(6f, 6f);
+        Button delete = deletePlate.gameObject.AddComponent<Button>();
+        delete.targetGraphic = deletePlate;
+        TMP_Text deleteLabel = CreateLabel(deletePlate.transform, "DeleteLabel", Vector2.zero, Vector2.zero, 2.6f, Color.white, FontStyles.Bold);
+        deleteLabel.text = "X";
+        deleteLabel.alignment = TextAlignmentOptions.Center;
+        RectTransform deleteLabelRect = deleteLabel.rectTransform;
+        deleteLabelRect.anchorMin = Vector2.zero;
+        deleteLabelRect.anchorMax = Vector2.one;
+        deleteLabelRect.pivot = new Vector2(0.5f, 0.5f);
+        deleteLabelRect.offsetMin = Vector2.zero;
+        deleteLabelRect.offsetMax = Vector2.zero;
+
+        return card;
+    }
+
+    Image CreateImage(Transform parent, string objectName, bool raycast)
+    {
+        GameObject obj = new GameObject(objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        obj.transform.SetParent(parent, false);
+        Image image = obj.GetComponent<Image>();
+        image.raycastTarget = raycast;
+        return image;
+    }
+
+    TMP_Text CreateLabel(Transform parent, string objectName, Vector2 position, Vector2 size, float fontSize, Color color, FontStyles style)
+    {
+        GameObject obj = new GameObject(objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(TextMeshProUGUI));
+        obj.transform.SetParent(parent, false);
+        RectTransform rect = obj.GetComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 0.5f);
+        rect.anchorMax = new Vector2(1f, 0.5f);
+        rect.pivot = new Vector2(0f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = size;
+
+        TMP_Text label = obj.GetComponent<TMP_Text>();
+        label.font = labelFont;
+        label.fontSharedMaterial = labelMaterial;
+        label.fontSize = fontSize;
+        label.fontStyle = style;
+        label.color = color;
+        label.alignment = TextAlignmentOptions.MidlineLeft;
+        label.raycastTarget = false;
+        label.enableWordWrapping = false;
+        label.overflowMode = TextOverflowModes.Ellipsis;
+        return label;
     }
 }
 
-public class VrNameKeyboard : MonoBehaviour, ISelectHandler
+public class VrNameKeyboard : MonoBehaviour, ISelectHandler, IPointerClickHandler
 {
     public TMP_InputField field;
-    TouchScreenKeyboard keyboard;
 
     public void OnSelect(BaseEventData eventData)
     {
-        if (field == null || !TouchScreenKeyboard.isSupported)
-            return;
-
-        keyboard = TouchScreenKeyboard.Open(field.text, TouchScreenKeyboardType.Default, false, false, false, false, "Name");
+        OpenKeyboard();
     }
 
-    void Update()
+    public void OnPointerClick(PointerEventData eventData)
     {
-        if (keyboard == null || field == null || !TouchScreenKeyboard.isSupported)
-            return;
+        OpenKeyboard();
+    }
 
-        if (keyboard.text != field.text)
-            field.text = keyboard.text;
+    void OpenKeyboard()
+    {
+        if (field != null)
+        {
+            field.ActivateInputField();
+            field.caretPosition = field.text.Length;
+        }
 
-        if (!keyboard.active)
-            keyboard = null;
+        MenuProfilePanel panel = GetComponentInParent<MenuProfilePanel>();
+        if (panel != null)
+            panel.ShowKeyboard();
     }
 }
