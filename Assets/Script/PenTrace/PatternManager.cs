@@ -160,6 +160,7 @@ public class PatternManager : MonoBehaviour
 
     void AnnounceTier(int tier)
     {
+        BallDropSky.ApplyCurrent(tier);
         TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
         if (timer == null || !timer.IsRunning)
             return;

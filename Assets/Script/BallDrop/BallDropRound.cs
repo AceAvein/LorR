@@ -116,6 +116,7 @@ public class BallDropRound : MonoBehaviour
 
         ShowWristHud();
         RefreshHud();
+        ApplySky(0);
     }
 
     public void HideWristHud()
@@ -173,7 +174,13 @@ public class BallDropRound : MonoBehaviour
         spawnedCount = count;
         currentTier = tier;
         LevelVoices.PlayTier(tier);
+        ApplySky(tier);
         RefreshHud();
+    }
+
+    static void ApplySky(int tier)
+    {
+        BallDropSky.ApplyCurrent(tier);
     }
 
     public void HideResults()

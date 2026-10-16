@@ -58,7 +58,10 @@ public class TracingTimer : MonoBehaviour
         ShowWristHud();
         LevelVoices.Reset();
         if (patternManager != null && patternManager.HasDeck)
+        {
             LevelVoices.PlayTier(patternManager.CurrentTier());
+            BallDropSky.ApplyCurrent(patternManager.CurrentTier());
+        }
 
         if (pathManager != null)
             pathManager.BeginPatternClock();

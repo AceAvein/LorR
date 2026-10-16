@@ -301,6 +301,7 @@ public class ColorSortRound : MonoBehaviour
         {
             announcedTier = tier;
             LevelVoices.PlayTier(tier);
+            BallDropSky.ApplyCurrent(tier);
         }
 
         setCorrect = 0;

@@ -301,6 +301,7 @@ public class ReactionLightRound : MonoBehaviour
         {
             announcedTier = tier;
             LevelVoices.PlayTier(tier);
+            BallDropSky.ApplyCurrent(tier);
         }
 
         List<Target> pool = new List<Target>(balls);
