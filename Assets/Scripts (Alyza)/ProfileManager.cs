@@ -7,6 +7,8 @@ public class UserProfile
 {
     public string name;
     public string imagePath;
+    public int avatarIndex;
+    public bool nonDominantIsLeft = true;
 }
 
 [Serializable]
@@ -94,9 +96,13 @@ public class ProfileManager : MonoBehaviour
 
     public bool AddProfile(string playerName, string imagePath)
     {
+        return AddProfile(playerName, imagePath, 0, true);
+    }
+
+    public bool AddProfile(string playerName, string imagePath, int avatarIndex, bool nonDominantIsLeft)
+    {
         playerName = playerName.Trim();
 
-        // Prevent duplicate names
         if (ProfileNameExists(playerName))
         {
             Debug.LogWarning(
@@ -109,6 +115,8 @@ public class ProfileManager : MonoBehaviour
 
         profile.name = playerName;
         profile.imagePath = imagePath;
+        profile.avatarIndex = avatarIndex;
+        profile.nonDominantIsLeft = nonDominantIsLeft;
 
         Profiles.Add(profile);
 
