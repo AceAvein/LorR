@@ -119,6 +119,11 @@ public class BallAssignController : MonoBehaviour
 
     public void ShowHandSelect()
     {
+        ScoringChecker.Ensure().TryContinue(ShowHandSelectAfterCheck);
+    }
+
+    void ShowHandSelectAfterCheck()
+    {
         if (objectiveScreen != null)
             objectiveScreen.SetActive(false);
         if (handCanvas != null)
@@ -157,6 +162,14 @@ public class BallAssignController : MonoBehaviour
     }
 
     public void StartGame()
+    {
+        if (countingDown)
+            return;
+
+        ScoringChecker.Ensure().TryContinue(StartGameAfterCheck);
+    }
+
+    void StartGameAfterCheck()
     {
         if (countingDown)
             return;

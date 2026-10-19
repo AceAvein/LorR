@@ -45,6 +45,11 @@ public class PenSelect : MonoBehaviour
 
     public void Open()
     {
+        ScoringChecker.Ensure().TryContinue(OpenAfterCheck);
+    }
+
+    void OpenAfterCheck()
+    {
         if (countdown != null && countdown.objectiveScreen != null)
             countdown.objectiveScreen.SetActive(false);
 

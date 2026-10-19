@@ -169,6 +169,14 @@ public class ReactionLightRound : MonoBehaviour
         if (running || countingDown)
             return;
 
+        ScoringChecker.Ensure().TryContinue(ShowHandSelectAfterCheck);
+    }
+
+    void ShowHandSelectAfterCheck()
+    {
+        if (running || countingDown)
+            return;
+
         if (objectiveScreen != null)
             objectiveScreen.SetActive(false);
         if (selectHand != null)

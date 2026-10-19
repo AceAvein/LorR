@@ -190,6 +190,14 @@ public class ColorSortRound : MonoBehaviour
         if (running || countingDown || choosingHand)
             return;
 
+        ScoringChecker.Ensure().TryContinue(BeginFromStartAfterCheck);
+    }
+
+    void BeginFromStartAfterCheck()
+    {
+        if (running || countingDown || choosingHand)
+            return;
+
         if (objectiveScreen != null)
             objectiveScreen.SetActive(false);
         if (resultsScreen != null)

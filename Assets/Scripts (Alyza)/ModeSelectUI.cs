@@ -5,38 +5,41 @@ public class ModeSelectUI : MonoBehaviour
 {
     public void OnModeSelected(string sceneName)
     {
-        SceneManager.LoadScene(sceneName);
+        OpenChecked(sceneName);
     }
 
-    // Back button papunta sa Main Menu galing sa Mode Select
     public void OnBackClicked()
     {
         SceneManager.LoadScene("Menu");
     }
+
     public void OnTrainingRangeClicked()
     {
         SceneManager.LoadScene("TrainingRange");
     }
 
-    // Training Modes na to
     public void OnPenTraceClicked()
     {
-        SceneManager.LoadScene("PenControlTracing");
+        OpenChecked("PenControlTracing");
     }
 
     public void OnReactionLightClicked()
     {
-        SceneManager.LoadScene("ReactionLight");
+        OpenChecked("ReactionLight");
     }
 
     public void OnBallDropClicked()
     {
-        SceneManager.LoadScene("Ball Drop");
+        OpenChecked("Ball Drop");
     }
 
     public void OnColorSortClicked()
     {
-        SceneManager.LoadScene("ColorSort");
+        OpenChecked("ColorSort");
     }
 
+    void OpenChecked(string sceneName)
+    {
+        ScoringChecker.Ensure().TryOpenModule(sceneName);
+    }
 }
