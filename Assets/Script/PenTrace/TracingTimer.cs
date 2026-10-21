@@ -266,7 +266,6 @@ public class TracingTimer : MonoBehaviour
             timesUpScreen.SetActive(false);
 
         screen.SetActive(true);
-        PlaceInFront(screen, 0.7f);
         ResultsScreen results = screen.GetComponent<ResultsScreen>();
         if (results == null)
             results = screen.AddComponent<ResultsScreen>();
@@ -293,23 +292,6 @@ public class TracingTimer : MonoBehaviour
         }
 
         return null;
-    }
-
-    static void PlaceInFront(GameObject panel, float distance)
-    {
-        Camera headset = Camera.main;
-        if (headset == null || panel == null)
-            return;
-
-        Vector3 forward = headset.transform.forward;
-        forward.y = 0f;
-        if (forward.sqrMagnitude < 0.001f)
-            forward = Vector3.forward;
-        forward.Normalize();
-
-        Vector3 position = headset.transform.position + forward * distance;
-        position.y = headset.transform.position.y;
-        panel.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
     }
 
     public void ShowPatternRating(float accuracy)

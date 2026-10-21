@@ -50,7 +50,11 @@ public class BallDropResults : MonoBehaviour
         built = true;
         HideOldLabel();
 
-        Transform panel = CreatePanel();
+        Transform panel = transform.Find("ResultsPanel");
+        if (panel == null)
+            panel = CreatePanel();
+        panel.gameObject.SetActive(true);
+
         ballsCaught = AddValue(panel, 0.783f);
         nonDominantHand = AddValue(panel, 0.745f);
         accuracy = AddValue(panel, 0.707f);

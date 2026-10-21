@@ -38,6 +38,7 @@ public class ReactionLightResults : MonoBehaviour
         Transform panel = transform.Find("ResultsPanel");
         if (panel == null)
             panel = CreatePanel();
+        panel.gameObject.SetActive(true);
 
         ClearValues(panel);
         AddValue(panel, report.setsCleared + " / " + report.setTotal, 0.800f);

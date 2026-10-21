@@ -288,6 +288,10 @@ public class GamePauseMenu : MonoBehaviour
             return true;
         if (n == "Neon Backdrop" || n == "Neon Floor")
             return true;
+        if (n == "GameManager" || n == "BallDropSystem" || n == "PenTracingArea" || n == "PathManager")
+            return true;
+        if (n == "CountdownScreen")
+            return true;
         if (n.Contains("XR Origin") || n.Contains("XR Rig") || n.Contains("OVR") || n.Contains("Camera Rig"))
             return true;
         if (go.GetComponent("XROrigin") != null)
@@ -295,6 +299,16 @@ public class GamePauseMenu : MonoBehaviour
         if (go.GetComponent<Light>() != null)
             return true;
         if (go.GetComponent<LevelMusic>() != null || n == "LevelMusic")
+            return true;
+        if (go.GetComponent<BallDropSystem>() != null || go.GetComponent<BallDropRound>() != null)
+            return true;
+        if (go.GetComponent<DropBall>() != null)
+            return true;
+        if (go.GetComponent<PathManager>() != null || go.GetComponent<PatternManager>() != null)
+            return true;
+        if (go.GetComponent<TracingTimer>() != null || go.GetComponent<Countdown>() != null)
+            return true;
+        if (go.GetComponent<ColorSortRound>() != null || go.GetComponent<ReactionLightRound>() != null)
             return true;
 
         Camera headset = Camera.main;
@@ -447,7 +461,7 @@ public class GamePauseMenu : MonoBehaviour
         rayBackups.Clear();
     }
 
-    static void PlaceInFront(GameObject panel)
+    public static void PlaceInFront(GameObject panel, float distance = 0.75f)
     {
         Camera headset = Camera.main;
         if (headset == null || panel == null)
@@ -459,7 +473,7 @@ public class GamePauseMenu : MonoBehaviour
             forward = Vector3.forward;
         forward.Normalize();
 
-        Vector3 position = headset.transform.position + forward * 0.75f;
+        Vector3 position = headset.transform.position + forward * distance;
         position.y = headset.transform.position.y;
         panel.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
     }

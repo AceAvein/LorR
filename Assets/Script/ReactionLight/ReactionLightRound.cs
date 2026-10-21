@@ -261,7 +261,7 @@ public class ReactionLightRound : MonoBehaviour
             countdownText.color = Color.white;
         }
 
-        PlaceInFront(countdownScreen, 0.75f);
+        GamePauseMenu.PlaceInFront(countdownScreen);
     }
 
     void StartRound()
@@ -401,7 +401,6 @@ public class ReactionLightRound : MonoBehaviour
             return;
 
         screen.SetActive(true);
-        PlaceInFront(screen, 0.7f);
         ReactionLightResults results = screen.GetComponent<ReactionLightResults>();
         if (results == null)
             results = screen.AddComponent<ReactionLightResults>();
@@ -900,20 +899,4 @@ public class ReactionLightRound : MonoBehaviour
         }
     }
 
-    static void PlaceInFront(GameObject panel, float distance)
-    {
-        Camera headset = Camera.main;
-        if (headset == null || panel == null)
-            return;
-
-        Vector3 forward = headset.transform.forward;
-        forward.y = 0f;
-        if (forward.sqrMagnitude < 0.001f)
-            forward = Vector3.forward;
-        forward.Normalize();
-
-        Vector3 position = headset.transform.position + forward * distance;
-        position.y = headset.transform.position.y;
-        panel.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
-    }
 }

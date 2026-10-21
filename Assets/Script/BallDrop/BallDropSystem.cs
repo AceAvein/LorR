@@ -45,6 +45,17 @@ public class BallDropSystem : MonoBehaviour
         spawning = false;
     }
 
+    void OnDisable()
+    {
+        spawnLoop = null;
+    }
+
+    void OnEnable()
+    {
+        if (spawning && spawnedBalls < BallTotal && spawnLoop == null)
+            spawnLoop = StartCoroutine(SpawnLoop());
+    }
+
     void Start()
     {
         CacheSpawnPoints();

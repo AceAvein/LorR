@@ -84,6 +84,7 @@ public class ResultsScreen : MonoBehaviour
         valueRoot = transform.Find("ResultsPanel");
         if (valueRoot == null)
             valueRoot = transform;
+        valueRoot.gameObject.SetActive(true);
         FitPanel(valueRoot);
 
         patternsCompleted = AddValue("Value_Patterns", 0.785f);

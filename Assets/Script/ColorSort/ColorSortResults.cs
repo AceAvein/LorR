@@ -32,6 +32,7 @@ public class ColorSortResults : MonoBehaviour
         panel = transform.Find("ResultsPanel");
         if (panel == null)
             panel = transform;
+        panel.gameObject.SetActive(true);
 
         ClearValues();
         AddValue(0.795f).text = report.setsCleared + " / " + report.setTotal;

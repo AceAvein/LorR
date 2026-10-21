@@ -79,7 +79,7 @@ public class BallDropRound : MonoBehaviour
         HideWristHud();
         FindNamed("Caught", caughtImages);
         FindNamed("Missed", missedImages);
-        resultsScreen = FindRoot("ResultsScreen");
+        resultsScreen = FindNamedObject("ResultsScreen");
         if (resultsScreen != null)
             resultsScreen.SetActive(false);
 
@@ -287,7 +287,7 @@ public class BallDropRound : MonoBehaviour
             gameCanvas.SetActive(false);
 
         if (resultsScreen == null)
-            resultsScreen = FindRoot("ResultsScreen");
+            resultsScreen = FindNamedObject("ResultsScreen");
 
         if (resultsScreen == null)
             return;
@@ -490,12 +490,12 @@ public class BallDropRound : MonoBehaviour
         return null;
     }
 
-    static GameObject FindRoot(string objectName)
+    static GameObject FindNamedObject(string objectName)
     {
         Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < transforms.Length; i++)
         {
-            if (transforms[i].parent == null && transforms[i].name == objectName)
+            if (transforms[i].name == objectName)
                 return transforms[i].gameObject;
         }
 
