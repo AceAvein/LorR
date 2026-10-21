@@ -19,6 +19,7 @@ public class GamePauseMenu : MonoBehaviour
     TMP_Text countdownText;
     bool countingDown;
     readonly List<XRGrabInteractable> frozenGrabs = new List<XRGrabInteractable>();
+    readonly List<GameObject> hiddenObjects = new List<GameObject>();
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -59,6 +60,8 @@ public class GamePauseMenu : MonoBehaviour
 
         active = this;
         FindPanels();
+        if (settings != null)
+            settings.SetActive(false);
         WireButtons();
 
         menuButton = new InputAction(type: InputActionType.Button);
@@ -107,7 +110,7 @@ public class GamePauseMenu : MonoBehaviour
         IsFrozen = true;
         Time.timeScale = 0f;
         FreezeGrabs();
-        PlaceInFront(settings);
+        HideGameElements();
         settings.SetActive(true);
     }
 
@@ -117,6 +120,7 @@ public class GamePauseMenu : MonoBehaviour
             return;
 
         settings.SetActive(false);
+        RestoreGameElements();
         StartCoroutine(CountdownThenContinue());
     }
 
@@ -166,7 +170,7 @@ public class GamePauseMenu : MonoBehaviour
         Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < transforms.Length; i++)
         {
-            if (settings == null && transforms[i].name == "Settings" && transforms[i].GetComponent<Canvas>() != null)
+            if (settings == null && IsSettingsRoot(transforms[i]))
                 settings = transforms[i].gameObject;
 
             if (countdownScreen == null && transforms[i].name == "CountdownScreen")
@@ -199,11 +203,74 @@ public class GamePauseMenu : MonoBehaviour
         for (int i = 0; i < buttons.Length; i++)
         {
             Button button = buttons[i];
-            if (button.gameObject.name == "Resume")
+            string name = button.gameObject.name;
+            if (name == "Resume" || name == "Continue" || name == "Back")
                 button.onClick.AddListener(Resume);
-            else if (button.gameObject.name == "Menu")
+            else if (name == "Menu" || name == "Exit" || name == "Quit")
                 button.onClick.AddListener(GoToMenu);
         }
+    }
+
+    static bool IsSettingsRoot(Transform t)
+    {
+        if (t.name != "Settings" && t.name != "Settings_Window")
+            return false;
+        return t.GetComponent<Canvas>() != null;
+    }
+
+    void HideGameElements()
+    {
+        hiddenObjects.Clear();
+        GameObject[] roots = gameObject.scene.GetRootGameObjects();
+        for (int i = 0; i < roots.Length; i++)
+        {
+            GameObject go = roots[i];
+            if (!go.activeSelf || ShouldKeep(go))
+                continue;
+
+            hiddenObjects.Add(go);
+            go.SetActive(false);
+        }
+    }
+
+    void RestoreGameElements()
+    {
+        for (int i = 0; i < hiddenObjects.Count; i++)
+        {
+            if (hiddenObjects[i] != null)
+                hiddenObjects[i].SetActive(true);
+        }
+
+        hiddenObjects.Clear();
+    }
+
+    bool ShouldKeep(GameObject go)
+    {
+        if (go == gameObject || go == settings)
+            return true;
+
+        if (settings != null && go.transform.IsChildOf(settings.transform))
+            return true;
+
+        string n = go.name;
+        if (n == "EventSystem" || n == "XR Interaction Manager" || n == "Directional Light")
+            return true;
+        if (n == "Neon Backdrop" || n == "Neon Floor")
+            return true;
+        if (n.Contains("XR Origin") || n.Contains("XR Rig") || n.Contains("OVR") || n.Contains("Camera Rig"))
+            return true;
+        if (go.GetComponent("XROrigin") != null)
+            return true;
+        if (go.GetComponent<Light>() != null)
+            return true;
+        if (go.GetComponent<LevelMusic>() != null || n == "LevelMusic")
+            return true;
+
+        Camera headset = Camera.main;
+        if (headset != null && headset.transform.root == go.transform)
+            return true;
+
+        return false;
     }
 
     void FreezeGrabs()

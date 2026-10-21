@@ -35,6 +35,7 @@ public class LevelMusic : MonoBehaviour
         source.loop = true;
         source.playOnAwake = false;
         source.spatialBlend = 0f;
+        source.ignoreListenerPause = true;
         source.volume = 0.22f;
         easy = Resources.Load<AudioClip>("Music/Easy");
         moderate = Resources.Load<AudioClip>("Music/Moderate");
@@ -65,6 +66,8 @@ public class LevelMusic : MonoBehaviour
         if (pausedByMenu)
         {
             source.UnPause();
+            if (!source.isPlaying)
+                source.Play();
             pausedByMenu = false;
         }
     }
