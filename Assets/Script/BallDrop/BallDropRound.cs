@@ -90,6 +90,12 @@ public class BallDropRound : MonoBehaviour
         RefreshHud();
     }
 
+    void OnDestroy()
+    {
+        if (Instance == this)
+            Instance = null;
+    }
+
     public void SetNonDominantLeft(bool leftHand)
     {
         nonDominantIsLeft = leftHand;

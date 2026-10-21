@@ -33,4 +33,9 @@ public static class ModuleScenes
     {
         return IsPenTrace(name) || IsBallDrop(name) || IsColorSort(name) || IsReactionLight(name);
     }
+
+    public static bool IsGuided(string name)
+    {
+        return !string.IsNullOrEmpty(name) && name.StartsWith("Guided ");
+    }
 }

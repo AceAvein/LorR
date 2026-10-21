@@ -290,7 +290,7 @@ public class GamePauseMenu : MonoBehaviour
             return true;
         if (n == "GameManager" || n == "BallDropSystem" || n == "PenTracingArea" || n == "PathManager")
             return true;
-        if (n == "CountdownScreen")
+        if (n == "CountdownScreen" || n == "GuidedLesson" || n == "GuidedStepCanvas")
             return true;
         if (n.Contains("XR Origin") || n.Contains("XR Rig") || n.Contains("OVR") || n.Contains("Camera Rig"))
             return true;
@@ -301,6 +301,8 @@ public class GamePauseMenu : MonoBehaviour
         if (go.GetComponent<LevelMusic>() != null || n == "LevelMusic")
             return true;
         if (go.GetComponent<BallDropSystem>() != null || go.GetComponent<BallDropRound>() != null)
+            return true;
+        if (go.GetComponent<GuidedBallDropLesson>() != null || go.GetComponent<GuidedLesson>() != null)
             return true;
         if (go.GetComponent<DropBall>() != null)
             return true;

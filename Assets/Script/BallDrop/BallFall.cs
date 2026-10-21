@@ -26,6 +26,8 @@ public class BallFall : MonoBehaviour
             return;
 
         DropBall identity = GetComponent<DropBall>();
+        DropBall.NotifyMiss(identity);
+
         BallDropRound round = BallDropRound.Instance;
         if (round != null && round.running)
             round.Miss(identity);

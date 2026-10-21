@@ -102,12 +102,15 @@ public class BallCollision : MonoBehaviour
             if (BallDropRound.Instance != null)
                 BallDropRound.Instance.WrongGrab(identity);
 
+            DropBall.NotifyGrab(identity, false);
+
             pendingReject = true;
             pendingInteractor = args.interactorObject;
             return;
         }
 
         counted = true;
+        DropBall.NotifyGrab(identity, true);
 
         if (BallDropRound.Instance != null)
             BallDropRound.Instance.Catch(identity);

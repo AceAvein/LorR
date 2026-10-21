@@ -137,7 +137,47 @@ public class BallDropSystem : MonoBehaviour
             spawning = false;
     }
 
-    void SpawnWrapped(GameObject template, bool forLeftHand, int tier, Vector3 position, float fallSpeed)
+    public GameObject SpawnOne(GameObject template, bool forLeftHand, float fallSpeed)
+    {
+        if (template == null)
+            return null;
+
+        CacheSpawnPoints();
+        Vector3 position = PickSpawnPosition();
+        return SpawnWrapped(template, forLeftHand, 0, position, fallSpeed);
+    }
+
+    Vector3 PickSpawnPosition()
+    {
+        if (spawnPoints == null || spawnPoints.Length == 0)
+            return new Vector3(0f, 1.9f, 0.35f);
+
+        Camera view = Camera.main;
+        if (view == null)
+            return spawnPoints[spawnPoints.Length / 2].position;
+
+        Vector3 look = view.transform.position + view.transform.forward * 0.45f;
+        look.y = spawnPoints[0].position.y;
+
+        int best = 0;
+        float bestDist = float.MaxValue;
+        for (int i = 0; i < spawnPoints.Length; i++)
+        {
+            if (spawnPoints[i] == null)
+                continue;
+
+            float dist = Vector3.Distance(spawnPoints[i].position, look);
+            if (dist >= bestDist)
+                continue;
+
+            bestDist = dist;
+            best = i;
+        }
+
+        return spawnPoints[best].position;
+    }
+
+    GameObject SpawnWrapped(GameObject template, bool forLeftHand, int tier, Vector3 position, float fallSpeed)
     {
         GameObject root = new GameObject(template.name);
         root.transform.SetPositionAndRotation(position, Quaternion.identity);
@@ -172,5 +212,6 @@ public class BallDropSystem : MonoBehaviour
         BallFall fall = root.AddComponent<BallFall>();
         fall.fallSpeed = fallSpeed;
         root.AddComponent<BallCollision>();
+        return root;
     }
 }

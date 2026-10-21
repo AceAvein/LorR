@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class BallAssignController : MonoBehaviour
@@ -33,6 +34,14 @@ public class BallAssignController : MonoBehaviour
     {
         ResolveReferences();
         BindTemplates();
+
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+        {
+            ShowObjective();
+            enabled = false;
+            return;
+        }
+
         round = GetComponent<BallDropRound>();
         if (round == null)
             round = gameObject.AddComponent<BallDropRound>();
