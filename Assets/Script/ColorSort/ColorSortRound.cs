@@ -124,6 +124,8 @@ public class ColorSortRound : MonoBehaviour
         WireStart();
         HideWord();
         ShowObjective();
+        if (ProfileManager.TryGetNonDominantLeft(out bool leftHand))
+            nonDominantIsLeft = leftHand;
     }
 
     void Update()

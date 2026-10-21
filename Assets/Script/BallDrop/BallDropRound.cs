@@ -85,6 +85,8 @@ public class BallDropRound : MonoBehaviour
 
         HideFeedback();
         timeRemaining = timeLimit;
+        if (ProfileManager.TryGetNonDominantLeft(out bool leftHand))
+            nonDominantIsLeft = leftHand;
         RefreshHud();
     }
 
