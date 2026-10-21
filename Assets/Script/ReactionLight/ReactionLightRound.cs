@@ -166,34 +166,34 @@ public class ReactionLightRound : MonoBehaviour
 
     public void ShowHandSelect()
     {
-        if (running || countingDown)
-            return;
-
-        ScoringChecker.Ensure().TryContinue(ShowHandSelectAfterCheck);
+        StartFromObjective();
     }
 
-    void ShowHandSelectAfterCheck()
+    public void StartFromObjective()
     {
         if (running || countingDown)
             return;
 
-        if (objectiveScreen != null)
-            objectiveScreen.SetActive(false);
-        if (selectHand != null)
-        {
-            PlaceInFront(selectHand, 0.75f);
-            selectHand.SetActive(true);
-        }
+        ScoringChecker.Ensure().TryContinue(StartFromObjectiveAfterCheck);
+    }
+
+    void StartFromObjectiveAfterCheck()
+    {
+        if (running || countingDown)
+            return;
+
+        ProfileManager.TryGetNonDominantLeft(out bool leftHand);
+        BeginCountdown(!leftHand);
     }
 
     public void ChooseLeftHand()
     {
-        BeginCountdown(false);
+        StartFromObjective();
     }
 
     public void ChooseRightHand()
     {
-        BeginCountdown(true);
+        StartFromObjective();
     }
 
     void BeginCountdown(bool rightHand)
@@ -885,9 +885,7 @@ public class ReactionLightRound : MonoBehaviour
 
     void WireButtons()
     {
-        Wire("Btn_Start", ShowHandSelect);
-        Wire("Left Hand", ChooseLeftHand);
-        Wire("Right Hand", ChooseRightHand);
+        Wire("Btn_Start", StartFromObjective);
     }
 
     static void Wire(string objectName, UnityEngine.Events.UnityAction action)

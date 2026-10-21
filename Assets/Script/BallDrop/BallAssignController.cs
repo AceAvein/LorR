@@ -91,9 +91,7 @@ public class BallAssignController : MonoBehaviour
 
     void WireButtons()
     {
-        Wire(objectiveScreen, "Objective_Panel/Btn_Start", ShowHandSelect);
-        Wire(handCanvas, "Objective_Panel/Left Hand", ChooseLeftHand);
-        Wire(handCanvas, "Objective_Panel/Right Hand", ChooseRightHand);
+        Wire(objectiveScreen, "Objective_Panel/Btn_Start", StartFromObjective);
         Wire(assignCanvas, "Btn_Start", StartGame);
     }
 
@@ -117,35 +115,37 @@ public class BallAssignController : MonoBehaviour
             round.HideWristHud();
     }
 
-    public void ShowHandSelect()
+    public void StartFromObjective()
     {
-        ScoringChecker.Ensure().TryContinue(ShowHandSelectAfterCheck);
+        ScoringChecker.Ensure().TryContinue(StartFromObjectiveAfterCheck);
     }
 
-    void ShowHandSelectAfterCheck()
+    public void ShowHandSelect()
     {
-        if (objectiveScreen != null)
-            objectiveScreen.SetActive(false);
-        if (handCanvas != null)
-            handCanvas.SetActive(true);
-        if (assignCanvas != null)
-            assignCanvas.SetActive(false);
-        if (gameCanvas != null)
-            gameCanvas.SetActive(false);
+        StartFromObjective();
+    }
+
+    void StartFromObjectiveAfterCheck()
+    {
+        ApplyProfileHand();
+        ShowAssign();
     }
 
     public void ChooseLeftHand()
     {
-        if (round != null)
-            round.SetNonDominantLeft(true);
-        ShowAssign();
+        StartFromObjective();
     }
 
     public void ChooseRightHand()
     {
+        StartFromObjective();
+    }
+
+    void ApplyProfileHand()
+    {
+        ProfileManager.TryGetNonDominantLeft(out bool leftHand);
         if (round != null)
-            round.SetNonDominantLeft(false);
-        ShowAssign();
+            round.SetNonDominantLeft(leftHand);
     }
 
     public void ShowAssign()

@@ -54,7 +54,6 @@ public class ColorSortRound : MonoBehaviour
     Material blueMaterial;
     Material yellowMaterial;
     bool countingDown;
-    bool choosingHand;
     bool running;
     bool setOpen;
     bool pendingAdvance;
@@ -189,7 +188,7 @@ public class ColorSortRound : MonoBehaviour
 
     public void BeginFromStart()
     {
-        if (running || countingDown || choosingHand)
+        if (running || countingDown)
             return;
 
         ScoringChecker.Ensure().TryContinue(BeginFromStartAfterCheck);
@@ -197,47 +196,34 @@ public class ColorSortRound : MonoBehaviour
 
     void BeginFromStartAfterCheck()
     {
-        if (running || countingDown || choosingHand)
+        if (running || countingDown)
             return;
 
+        ApplyProfileHand();
         if (objectiveScreen != null)
             objectiveScreen.SetActive(false);
         if (resultsScreen != null)
             resultsScreen.SetActive(false);
         if (selectHand != null)
-        {
-            choosingHand = true;
-            PlaceInFront(selectHand, 0.75f);
-            selectHand.SetActive(true);
-            return;
-        }
+            selectHand.SetActive(false);
 
         StartCoroutine(CountdownThenPlay());
     }
 
     public void ChooseLeftHand()
     {
-        BeginCountdown(true);
+        BeginFromStart();
     }
 
     public void ChooseRightHand()
     {
-        BeginCountdown(false);
+        BeginFromStart();
     }
 
-    void BeginCountdown(bool leftIsNonDominant)
+    void ApplyProfileHand()
     {
-        if (running || countingDown)
-            return;
-
-        nonDominantIsLeft = leftIsNonDominant;
-        choosingHand = false;
-        if (selectHand != null)
-            selectHand.SetActive(false);
-        if (objectiveScreen != null)
-            objectiveScreen.SetActive(false);
-
-        StartCoroutine(CountdownThenPlay());
+        ProfileManager.TryGetNonDominantLeft(out bool leftHand);
+        nonDominantIsLeft = leftHand;
     }
 
     IEnumerator CountdownThenPlay()
@@ -852,10 +838,6 @@ public class ColorSortRound : MonoBehaviour
         {
             if (buttons[i].gameObject.name == "Btn_Start")
                 buttons[i].onClick.AddListener(BeginFromStart);
-            else if (buttons[i].gameObject.name == "Left Hand")
-                buttons[i].onClick.AddListener(ChooseLeftHand);
-            else if (buttons[i].gameObject.name == "Right Hand")
-                buttons[i].onClick.AddListener(ChooseRightHand);
         }
     }
 

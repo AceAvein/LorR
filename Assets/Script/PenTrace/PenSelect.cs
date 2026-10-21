@@ -53,21 +53,26 @@ public class PenSelect : MonoBehaviour
         if (countdown != null && countdown.objectiveScreen != null)
             countdown.objectiveScreen.SetActive(false);
 
-        if (selectPenCanvas != null)
-            selectPenCanvas.SetActive(false);
-
         if (selectHandCanvas != null)
-            selectHandCanvas.SetActive(true);
+            selectHandCanvas.SetActive(false);
+
+        ApplyProfileHand();
+    }
+
+    void ApplyProfileHand()
+    {
+        ProfileManager.TryGetNonDominantLeft(out bool leftHand);
+        ChooseHand(!leftHand);
     }
 
     public void ChooseLeftHand()
     {
-        ChooseHand(false);
+        ApplyProfileHand();
     }
 
     public void ChooseRightHand()
     {
-        ChooseHand(true);
+        ApplyProfileHand();
     }
 
     void ChooseHand(bool rightHand)
