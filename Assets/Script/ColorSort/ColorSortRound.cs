@@ -8,8 +8,20 @@ using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
-public class ColorSortRound : MonoBehaviour
+public interface IColorSortHost
 {
+    bool RetryWrong { get; }
+    bool ScoreDrop(Bounds bounds, int colorIndex, bool leftHand, bool bothHands, out bool correct);
+    void OnPieceResolved(int colorIndex, bool correct);
+}
+
+public class ColorSortRound : MonoBehaviour, IColorSortHost
+{
+    public bool RetryWrong
+    {
+        get { return false; }
+    }
+
     const int SetTotal = 30;
     const float RoundSeconds = 180f;
     const float SetBonus = 2f;
@@ -92,7 +104,7 @@ public class ColorSortRound : MonoBehaviour
 
     static void TryCreate(Scene scene)
     {
-        if (!scene.IsValid() || !ModuleScenes.IsColorSort(scene.name))
+        if (!scene.IsValid() || !ModuleScenes.IsColorSort(scene.name) || ModuleScenes.IsGuided(scene.name))
             return;
 
         if (FindAnyObjectByType<ColorSortRound>() != null)
@@ -105,6 +117,12 @@ public class ColorSortRound : MonoBehaviour
 
     void Awake()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+        {
+            enabled = false;
+            return;
+        }
+
         FindShapes();
         FindShapeArea();
         FindBoxes();
@@ -936,7 +954,7 @@ public class ColorSortPiece : MonoBehaviour
         Yellow
     }
 
-    ColorSortRound round;
+    IColorSortHost host;
     XRGrabInteractable grab;
     Renderer[] renderers;
     Collider body;
@@ -944,11 +962,20 @@ public class ColorSortPiece : MonoBehaviour
     Vector3 homePosition;
     Quaternion homeRotation;
     bool forcing;
+    bool grabWired;
+    bool carriedByBoth;
+    float yellowHintAt;
     public bool resolved { get; private set; }
+    public int ColorIndex { get { return (int)color; } }
+    public bool IsHeld { get { return grab != null && grab.isSelected; } }
+    public System.Action<ColorSortPiece, bool> Grabbed;
+    public System.Action<ColorSortPiece> YellowNeedsBoth;
+    public System.Action<ColorSortPiece> WrongDropped;
+    public System.Action<ColorSortPiece> MissedBox;
 
-    public void Bind(ColorSortRound owner)
+    public void Bind(IColorSortHost owner)
     {
-        round = owner;
+        host = owner;
         renderers = GetComponentsInChildren<Renderer>(true);
         EnsureBody();
     }
@@ -957,6 +984,7 @@ public class ColorSortPiece : MonoBehaviour
     {
         color = (SortColor)colorIndex;
         resolved = false;
+        carriedByBoth = false;
         gameObject.SetActive(true);
 
         if (material != null)
@@ -1094,8 +1122,12 @@ public class ColorSortPiece : MonoBehaviour
         grab.attachEaseInTime = 0f;
         grab.colliders.Clear();
         grab.colliders.Add(body);
-        grab.selectEntered.AddListener(OnGrabbed);
-        grab.selectExited.AddListener(OnReleased);
+        if (!grabWired)
+        {
+            grab.selectEntered.AddListener(OnGrabbed);
+            grab.selectExited.AddListener(OnReleased);
+            grabWired = true;
+        }
     }
 
     void LateUpdate()
@@ -1117,7 +1149,10 @@ public class ColorSortPiece : MonoBehaviour
         }
 
         if (grab.interactorsSelecting.Count == 1)
+        {
+            TellYellowNeedsBoth();
             ReturnHome();
+        }
     }
 
     void OnGrabbed(SelectEnterEventArgs args)
@@ -1131,14 +1166,22 @@ public class ColorSortPiece : MonoBehaviour
             return;
         }
 
+        if (Grabbed != null)
+            Grabbed(this, IsLeft(args.interactorObject));
+
         if (color != SortColor.Yellow)
             return;
 
         bool heldByBoth = grab.interactorsSelecting.Count >= 2;
+        if (heldByBoth)
+            carriedByBoth = true;
         grab.trackPosition = heldByBoth;
         grab.trackRotation = heldByBoth;
         if (!heldByBoth)
+        {
+            TellYellowNeedsBoth();
             ReturnHome();
+        }
     }
 
     void OnReleased(SelectExitEventArgs args)
@@ -1155,7 +1198,7 @@ public class ColorSortPiece : MonoBehaviour
 
         if (color == SortColor.Yellow && grab.interactorsSelecting.Count > 0)
         {
-            bool scored = round != null && round.ScoreDrop(body.bounds, (int)color, false, true, out _);
+            bool scored = host != null && host.ScoreDrop(body.bounds, (int)color, false, YellowBothHands(), out _);
             if (scored)
                 Finish(args);
             else
@@ -1176,10 +1219,21 @@ public class ColorSortPiece : MonoBehaviour
     void Finish(SelectExitEventArgs args)
     {
         bool leftHand = IsLeft(args.interactorObject);
-        bool bothHands = color == SortColor.Yellow;
+        bool bothHands = YellowBothHands();
         bool correct;
-        if (round == null || !round.ScoreDrop(body.bounds, (int)color, leftHand, bothHands, out correct))
+        if (host == null || !host.ScoreDrop(body.bounds, (int)color, leftHand, bothHands, out correct))
         {
+            if (MissedBox != null)
+                MissedBox(this);
+            ReturnHome();
+            return;
+        }
+
+        if (!correct && host.RetryWrong)
+        {
+            BallDropSounds.PlayMiss();
+            if (WrongDropped != null)
+                WrongDropped(this);
             ReturnHome();
             return;
         }
@@ -1191,8 +1245,29 @@ public class ColorSortPiece : MonoBehaviour
         else
             BallDropSounds.PlayMiss();
 
-        round.OnPieceResolved((int)color, correct);
+        host.OnPieceResolved((int)color, correct);
         ForceRelease();
+    }
+
+    bool YellowBothHands()
+    {
+        if (color != SortColor.Yellow)
+            return false;
+
+        if (host != null && host.RetryWrong)
+            return carriedByBoth;
+
+        return true;
+    }
+
+    void TellYellowNeedsBoth()
+    {
+        if (Time.unscaledTime < yellowHintAt)
+            return;
+
+        yellowHintAt = Time.unscaledTime + 1.2f;
+        if (YellowNeedsBoth != null)
+            YellowNeedsBoth(this);
     }
 
     void ReturnHome()

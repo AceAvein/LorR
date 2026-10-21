@@ -18,6 +18,11 @@ public class GuidedPointer : MonoBehaviour
         return Create(target, word, glowSize, false);
     }
 
+    public static GuidedPointer FollowMesh(Transform target, string word)
+    {
+        return Create(target, word, 0.12f, true);
+    }
+
     public static GuidedPointer FollowHand(Transform hand, string word)
     {
         return Create(hand, word, 0.2f, true);

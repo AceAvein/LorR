@@ -292,6 +292,8 @@ public class GamePauseMenu : MonoBehaviour
             return true;
         if (n == "CountdownScreen" || n == "GuidedLesson" || n == "GuidedStepCanvas")
             return true;
+        if (n == "Boxes" || n == "Shapes" || n == "AREA")
+            return true;
         if (n.Contains("XR Origin") || n.Contains("XR Rig") || n.Contains("OVR") || n.Contains("Camera Rig"))
             return true;
         if (go.GetComponent("XROrigin") != null)
@@ -308,6 +310,8 @@ public class GamePauseMenu : MonoBehaviour
             return true;
         if (go.GetComponent<GuidedReactionLightLesson>() != null)
             return true;
+        if (go.GetComponent<GuidedColorSortLesson>() != null)
+            return true;
         if (go.GetComponent<GuidedBallDropVoices>() != null || n == "GuidedBallDropVoices")
             return true;
         if (go.GetComponent<GuidedPenTraceVoices>() != null || n == "GuidedPenTraceVoices")
@@ -322,6 +326,8 @@ public class GamePauseMenu : MonoBehaviour
             return true;
         if (go.GetComponent<ColorSortRound>() != null || go.GetComponent<ReactionLightRound>() != null)
             return true;
+        if (go.GetComponent<ColorSortPiece>() != null)
+            return true;
 
         Camera headset = Camera.main;
         if (headset != null && headset.transform.root == go.transform)
@@ -335,17 +341,23 @@ public class GamePauseMenu : MonoBehaviour
         frozenGrabs.Clear();
         DropBall[] balls = FindObjectsByType<DropBall>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
         for (int i = 0; i < balls.Length; i++)
-        {
-            XRGrabInteractable grab = balls[i].GetComponent<XRGrabInteractable>();
-            if (grab == null || !grab.enabled)
-                continue;
+            FreezeGrab(balls[i].GetComponent<XRGrabInteractable>());
 
-            if (grab.isSelected && grab.interactionManager != null)
-                grab.interactionManager.CancelInteractableSelection((IXRSelectInteractable)grab);
+        ColorSortPiece[] pieces = FindObjectsByType<ColorSortPiece>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        for (int i = 0; i < pieces.Length; i++)
+            FreezeGrab(pieces[i].GetComponent<XRGrabInteractable>());
+    }
 
-            grab.enabled = false;
-            frozenGrabs.Add(grab);
-        }
+    void FreezeGrab(XRGrabInteractable grab)
+    {
+        if (grab == null || !grab.enabled)
+            return;
+
+        if (grab.isSelected && grab.interactionManager != null)
+            grab.interactionManager.CancelInteractableSelection((IXRSelectInteractable)grab);
+
+        grab.enabled = false;
+        frozenGrabs.Add(grab);
     }
 
     void RestoreGrabs()

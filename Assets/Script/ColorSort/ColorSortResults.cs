@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public struct ColorSortReport
@@ -29,6 +30,10 @@ public class ColorSortResults : MonoBehaviour
 
     public void Show(ColorSortReport report)
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
+
         panel = transform.Find("ResultsPanel");
         if (panel == null)
             panel = transform;
