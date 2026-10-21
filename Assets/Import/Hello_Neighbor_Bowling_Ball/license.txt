@@ -1,0 +1,11 @@
+Model Information:
+* title:	Hello Neighbor Bowling Ball
+* source:	https://sketchfab.com/3d-models/hello-neighbor-bowling-ball-a91f22c205de4589b982637df787aa90
+* author:	rydernewman16 (https://sketchfab.com/RYDer567)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Hello Neighbor Bowling Ball" (https://sketchfab.com/3d-models/hello-neighbor-bowling-ball-a91f22c205de4589b982637df787aa90) by rydernewman16 (https://sketchfab.com/RYDer567) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

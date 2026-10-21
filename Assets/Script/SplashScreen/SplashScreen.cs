@@ -5,11 +5,11 @@ public class SplashScreen : MonoBehaviour
 {
     void Start()
     {
-        Invoke("GoToProfileSelect", 3f);
+        Invoke("GoToMenu", 3f);
     }
 
-    void GoToProfileSelect()
+    void GoToMenu()
     {
-        SceneManager.LoadScene("ProfileSelect");
+        SceneManager.LoadScene("Menu");
     }
 }

@@ -1,6 +1,9 @@
-using UnityEngine;
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class PathManager : MonoBehaviour
 {
@@ -12,107 +15,505 @@ public class PathManager : MonoBehaviour
     public PatternManager patternManager;
 
     public float traceDistance = 0.08f;
+    public float followDistance = 0.2f;
+    public float lookAhead = 0.3f;
+    public float guideWorldWidth = 0.012f;
 
-    private float totalTraceTime = 0f;
-    private float correctTraceTime = 0f;
-    private bool patternCompleted = false;
+    const float ScoreSpacing = 0.01f;
+    const float PerfectDistance = 0.007f;
+    const float MissDistance = 0.015f;
+
+    float progress;
+    float totalLength;
+    float roundScoreSum;
+    int roundPatterns;
+    float patternStartTime;
+    bool patternScored;
+    bool patternCompleted;
+    public static event Action PatternReachedEnd;
+
+    LineRenderer coloredPath;
+    readonly List<Vector3> points = new List<Vector3>();
+    readonly List<Vector3> ink = new List<Vector3>();
+    readonly List<FinishedPattern> finished = new List<FinishedPattern>();
+
+    static readonly Color DoneColor = new Color(0.2f, 0.85f, 0.35f);
+    static readonly Color CurrentColor = new Color(1f, 0.92f, 0.25f);
+    static readonly Color RemainingColor = new Color(0.55f, 0.55f, 0.55f);
 
     void Update()
     {
-        if (penTip == null || tracePath == null)
+        if (GamePauseMenu.IsFrozen || patternCompleted || penTip == null || tracePath == null)
             return;
 
-        totalTraceTime += Time.deltaTime;
+        RebuildPath();
+        PaintGuide();
 
-        if (IsPenOnPath())
-        {
-            correctTraceTime += Time.deltaTime;
-        }
+        if (totalLength <= 0.01f)
+            return;
 
-        if (Time.frameCount % 60 == 0)
-        {
-            Debug.Log("Accuracy: " + GetAccuracy().ToString("F1") + "%");
-        }
+        PenTrail trail = PenTrail.Active;
+        if (trail == null || !trail.IsDrawing())
+            return;
 
-        if (!patternCompleted && Vector3.Distance(penTip.position, traceEnd.position) <= 0.08f)
+        RecordInk(penTip.position);
+        TryAdvance(penTip.position);
+        if (patternManager != null)
+            patternManager.CheckStars(penTip.position);
+
+        if (progress >= totalLength - 0.01f)
         {
+            progress = totalLength;
+            PaintGuide();
             patternCompleted = true;
+            PatternReachedEnd?.Invoke();
+            if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+                return;
+
             StartCoroutine(PatternComplete());
         }
     }
 
-    bool IsPenOnPath()
+    void RebuildPath()
     {
-        Vector3 penPosition = penTip.position;
+        points.Clear();
+        totalLength = 0f;
 
-        for (int i = 0; i < tracePath.positionCount - 1; i++)
+        for (int i = 0; i < tracePath.positionCount; i++)
         {
-            Vector3 pointA = tracePath.GetPosition(i);
-            Vector3 pointB = tracePath.GetPosition(i + 1);
-
+            Vector3 point = tracePath.GetPosition(i);
             if (!tracePath.useWorldSpace)
-            {
-                pointA = tracePath.transform.TransformPoint(pointA);
-                pointB = tracePath.transform.TransformPoint(pointB);
-            }
+                point = tracePath.transform.TransformPoint(point);
 
-            Vector3 closestPoint = ClosestPointOnLine(
-                penPosition,
-                pointA,
-                pointB
-            );
+            if (points.Count > 0)
+                totalLength += Vector3.Distance(points[points.Count - 1], point);
 
-            float distance = Vector3.Distance(penPosition, closestPoint);
-
-            if (distance <= traceDistance)
-            {
-                return true;
-            }
+            points.Add(point);
         }
-
-        return false;
     }
 
-    Vector3 ClosestPointOnLine(Vector3 point, Vector3 lineStart, Vector3 lineEnd)
+    void TryAdvance(Vector3 point)
+    {
+        float limit = Mathf.Min(progress + lookAhead, totalLength);
+        float walked = 0f;
+        float bestDistance = float.MaxValue;
+        float bestAlong = progress;
+        bool found = false;
+
+        for (int i = 0; i < points.Count - 1; i++)
+        {
+            Vector3 start = points[i];
+            Vector3 end = points[i + 1];
+            float segmentLength = Vector3.Distance(start, end);
+            float segmentStart = walked;
+            float segmentEnd = walked + segmentLength;
+            float from = Mathf.Max(segmentStart, progress);
+            float to = Mathf.Min(segmentEnd, limit);
+
+            if (segmentLength > 0.0001f && to >= from)
+            {
+                Vector3 windowStart = Vector3.Lerp(start, end, (from - segmentStart) / segmentLength);
+                Vector3 windowEnd = Vector3.Lerp(start, end, (to - segmentStart) / segmentLength);
+                Vector3 closest = ClosestPointOnLine(point, windowStart, windowEnd);
+                float distance = Vector3.Distance(point, closest);
+
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    float along = Vector3.Dot(closest - start, end - start) / (segmentLength * segmentLength);
+                    bestAlong = segmentStart + Mathf.Clamp01(along) * segmentLength;
+                    found = true;
+                }
+            }
+
+            walked = segmentEnd;
+        }
+
+        float allowed = followDistance;
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            allowed = 0.045f;
+
+        if (found && bestDistance <= allowed && bestAlong > progress)
+            progress = bestAlong;
+    }
+
+    void RecordInk(Vector3 point)
+    {
+        Vector3 onBoard = OnBoard(point);
+        if (ink.Count > 0 && Vector3.Distance(ink[ink.Count - 1], onBoard) < 0.004f)
+            return;
+
+        ink.Add(onBoard);
+    }
+
+    public float ScoreCurrentPattern()
+    {
+        if (tracePath != null)
+            RebuildPath();
+
+        return ScoreUpTo(totalLength);
+    }
+
+    float ScoreUpTo(float length)
+    {
+        if (points.Count < 2 || ink.Count == 0 || length <= 0.01f || totalLength <= 0.01f)
+            return 0f;
+
+        float end = Mathf.Min(length, totalLength);
+        float scoreSum = 0f;
+        int samples = 0;
+
+        for (float distance = 0f; distance < end; distance += ScoreSpacing)
+        {
+            scoreSum += Closeness(PointOnGuide(distance));
+            samples++;
+        }
+
+        if (end >= totalLength - 0.0001f)
+        {
+            scoreSum += Closeness(PointOnGuide(totalLength));
+            samples++;
+        }
+
+        if (samples == 0)
+            return 0f;
+
+        return scoreSum / samples * 100f;
+    }
+
+    float Closeness(Vector3 guidePoint)
+    {
+        float error = DistanceToInk(OnBoard(guidePoint));
+        if (error <= PerfectDistance)
+            return 1f;
+
+        return 1f - Mathf.Clamp01((error - PerfectDistance) / (MissDistance - PerfectDistance));
+    }
+
+    Vector3 PointOnGuide(float distance)
+    {
+        float walked = 0f;
+
+        for (int i = 1; i < points.Count; i++)
+        {
+            float segment = Vector3.Distance(points[i - 1], points[i]);
+            if (walked + segment >= distance || i == points.Count - 1)
+            {
+                float t = segment <= 0.0001f ? 0f : (distance - walked) / segment;
+                return Vector3.Lerp(points[i - 1], points[i], Mathf.Clamp01(t));
+            }
+
+            walked += segment;
+        }
+
+        return points[points.Count - 1];
+    }
+
+    float DistanceToInk(Vector3 point)
+    {
+        if (ink.Count == 1)
+            return Vector3.Distance(point, ink[0]);
+
+        float best = float.MaxValue;
+
+        for (int i = 0; i < ink.Count - 1; i++)
+        {
+            Vector3 closest = ClosestPointOnLine(point, ink[i], ink[i + 1]);
+            float distance = Vector3.Distance(point, closest);
+            if (distance < best)
+                best = distance;
+        }
+
+        return best;
+    }
+
+    static Vector3 OnBoard(Vector3 point)
+    {
+        TracingBoardSurface board = TracingBoardSurface.Current;
+        if (board == null)
+            return point;
+
+        Vector3 normal = board.transform.up;
+        float signed = Vector3.Dot(point - board.transform.position, normal);
+        return point - normal * signed;
+    }
+
+    void PaintGuide()
+    {
+        if (tracePath == null || totalLength <= 0f)
+            return;
+
+        if (coloredPath != tracePath)
+        {
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader != null)
+                tracePath.material = new Material(shader);
+
+            coloredPath = tracePath;
+        }
+
+        tracePath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
+        Vector3 lineScale = tracePath.transform.lossyScale;
+        float widthScale = Mathf.Max(lineScale.x, Mathf.Max(lineScale.y, lineScale.z));
+        tracePath.widthMultiplier = guideWorldWidth / Mathf.Max(widthScale, 0.0001f);
+        tracePath.numCapVertices = 8;
+        tracePath.numCornerVertices = 8;
+
+        float covered = Mathf.Clamp01(progress / totalLength);
+        Gradient gradient = new Gradient();
+
+        if (covered >= 0.999f)
+        {
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(DoneColor, 0f),
+                    new GradientColorKey(DoneColor, 1f),
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(1f, 1f),
+                });
+        }
+        else
+        {
+            float edge = Mathf.Clamp(covered, 0.001f, 0.98f);
+            float band = Mathf.Min(edge + 0.02f, 0.99f);
+
+            gradient.SetKeys(
+                new[]
+                {
+                    new GradientColorKey(DoneColor, 0f),
+                    new GradientColorKey(DoneColor, edge),
+                    new GradientColorKey(CurrentColor, band),
+                    new GradientColorKey(RemainingColor, 1f),
+                },
+                new[]
+                {
+                    new GradientAlphaKey(1f, 0f),
+                    new GradientAlphaKey(1f, 1f),
+                });
+        }
+
+        tracePath.colorGradient = gradient;
+    }
+
+    static Vector3 ClosestPointOnLine(Vector3 point, Vector3 lineStart, Vector3 lineEnd)
     {
         Vector3 lineDirection = lineEnd - lineStart;
-
         float lineLengthSquared = lineDirection.sqrMagnitude;
 
         if (lineLengthSquared == 0f)
             return lineStart;
 
         float t = Vector3.Dot(point - lineStart, lineDirection) / lineLengthSquared;
-
         t = Mathf.Clamp01(t);
-
         return lineStart + lineDirection * t;
     }
 
     public float GetAccuracy()
     {
-        if (totalTraceTime <= 0f)
+        float total = roundScoreSum;
+        int count = roundPatterns;
+
+        if (!patternScored && ink.Count > 0)
+        {
+            total += ScoreCurrentPattern();
+            count++;
+        }
+
+        if (count == 0)
             return 0f;
 
-        return (correctTraceTime / totalTraceTime) * 100f;
+        return total / count;
+    }
+
+    public void BeginPatternClock()
+    {
+        patternStartTime = Time.time;
+    }
+
+    public RoundReport BuildReport(float timeUsed, float timeLeft, bool deckCleared)
+    {
+        if (tracePath != null)
+            RebuildPath();
+
+        bool open = !patternScored && totalLength > 0.01f && progress > 0.01f;
+        float coverage = totalLength <= 0.01f ? 0f : Mathf.Clamp01(progress / totalLength);
+        float openAccuracy = open ? ScoreUpTo(progress) : 0f;
+
+        int stars = 0;
+        float accuracySum = 0f;
+        float secondSum = 0f;
+        float total = 0f;
+        int easyDone = 0;
+        int moderateDone = 0;
+        int hardDone = 0;
+        int highest = -1;
+
+        for (int i = 0; i < finished.Count; i++)
+        {
+            FinishedPattern pattern = finished[i];
+            accuracySum += pattern.accuracy;
+            secondSum += pattern.seconds;
+            stars += pattern.starsGot;
+            total += PatternPoints(pattern);
+            highest = Mathf.Max(highest, pattern.tier);
+
+            if (pattern.tier == 0)
+                easyDone++;
+            else if (pattern.tier == 1)
+                moderateDone++;
+            else
+                hardDone++;
+        }
+
+        if (open && patternManager != null)
+        {
+            stars += patternManager.StarsCollected();
+            total += TierPoints(patternManager.CurrentTier()) * coverage * (openAccuracy / 100f);
+        }
+
+        int usedSeconds = Mathf.Max(0, Mathf.RoundToInt(timeUsed));
+        int leftSeconds = Mathf.Max(0, Mathf.RoundToInt(timeLeft));
+        if (deckCleared)
+            total += leftSeconds * 2f;
+
+        int patternTotal = patternManager != null ? patternManager.PatternTotal() : 30;
+        if (patternTotal <= 0)
+            patternTotal = 30;
+
+        RoundReport report = new RoundReport();
+        report.patternsCompleted = finished.Count;
+        report.patternTotal = patternTotal;
+        report.difficulty = TierName(highest);
+        report.accuracy = finished.Count == 0 ? 0f : accuracySum / finished.Count;
+        report.averageSeconds = finished.Count == 0 ? 0f : secondSum / finished.Count;
+        report.stars = stars;
+        report.timeUsed = usedSeconds;
+        report.timeLeft = leftSeconds;
+        report.easyCompleted = easyDone;
+        report.moderateCompleted = moderateDone;
+        report.hardCompleted = hardDone;
+        report.easyTotal = patternManager != null ? patternManager.TierCount(0) : 10;
+        report.moderateTotal = patternManager != null ? patternManager.TierCount(1) : 10;
+        report.hardTotal = patternManager != null ? patternManager.TierCount(2) : 10;
+        report.lastTraced = open ? coverage * 100f : (finished.Count > 0 ? 100f : 0f);
+        report.totalScore = total;
+        return report;
+    }
+
+    static float PatternPoints(FinishedPattern pattern)
+    {
+        float points = TierPoints(pattern.tier) * (pattern.accuracy / 100f);
+        float par = ParSeconds(pattern.tier);
+        float fraction = 0f;
+        if (pattern.seconds < par)
+            fraction = (par - pattern.seconds) / par;
+
+        return points + points * 0.25f * fraction;
+    }
+
+    static int TierPoints(int tier)
+    {
+        if (tier == 0)
+            return 10;
+
+        if (tier == 1)
+            return 20;
+
+        return 30;
+    }
+
+    static float ParSeconds(int tier)
+    {
+        if (tier == 0)
+            return 8f;
+
+        if (tier == 1)
+            return 12f;
+
+        return 18f;
+    }
+
+    static string TierName(int tier)
+    {
+        if (tier < 0)
+            return "None";
+
+        if (tier == 0)
+            return "Easy";
+
+        if (tier == 1)
+            return "Moderate";
+
+        if (tier == 2)
+            return "Hard";
+
+        return "None";
+    }
+
+    void RecordFinished(float accuracy)
+    {
+        if (patternScored || patternManager == null)
+            return;
+
+        FinishedPattern pattern = new FinishedPattern();
+        pattern.tier = patternManager.CurrentTier();
+        pattern.accuracy = accuracy;
+        pattern.seconds = patternStartTime <= 0f ? 0f : Time.time - patternStartTime;
+        pattern.starsGot = patternManager.StarsCollected();
+        pattern.starsOnPattern = patternManager.StarsOnPattern();
+        finished.Add(pattern);
+
+        roundScoreSum += accuracy;
+        roundPatterns++;
+        patternScored = true;
     }
 
     IEnumerator PatternComplete()
     {
-        averageAccuracyText.text = "Average Tracing Accuracy: " + GetAccuracy().ToString("F1") + "%";
+        float patternScore = ScoreCurrentPattern();
+        RecordFinished(patternScore);
+        PenSounds.PlayRating(patternScore);
 
-        finishedScreen.SetActive(true);
+        TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
+        if (timer != null)
+            timer.ShowPatternRating(patternScore);
+
+        if (averageAccuracyText != null)
+            averageAccuracyText.text = "Average Tracing Accuracy: " + patternScore.ToString("F1") + "%";
 
         yield return new WaitForSeconds(1f);
 
-        finishedScreen.SetActive(false);
+        if (timer != null)
+            timer.HideFeedback();
 
         patternManager.NextPattern();
-        Debug.Log("Pattern Complete! Next pattern would start here.");
+    }
+
+    public void ClearRound()
+    {
+        roundScoreSum = 0f;
+        roundPatterns = 0;
+        patternScored = false;
+        finished.Clear();
+        ink.Clear();
     }
 
     public void ResetPattern()
     {
+        progress = 0f;
         patternCompleted = false;
+        patternScored = false;
+        ink.Clear();
+        BeginPatternClock();
+
+        if (PenTrail.Active != null)
+            PenTrail.Active.ClearInk();
+
+        RebuildPath();
+        PaintGuide();
     }
 }

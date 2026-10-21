@@ -1,0 +1,266 @@
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class PenSelect : MonoBehaviour
+{
+    public GameObject selectPenCanvas;
+    public GameObject selectHandCanvas;
+    public Countdown countdown;
+
+    public GameObject pencil;
+    public GameObject ballpen;
+    public GameObject highlighter;
+
+    public Transform penTip;
+    public Vector3 pencilTip = new Vector3(0f, 3.035f, -0.267f);
+    public Vector3 ballpenTip = new Vector3(0.0014f, 1.0702f, 0.0187f);
+    public Vector3 highlighterTip = new Vector3(-1.292f, 0f, 0.04f);
+
+    bool useRightHand;
+
+    public bool WritingWithRightHand
+    {
+        get { return useRightHand; }
+    }
+    Vector3 pencilPosition;
+    Quaternion pencilRotation;
+    Vector3 ballpenPosition;
+    Quaternion ballpenRotation;
+    Vector3 highlighterPosition;
+    Quaternion highlighterRotation;
+
+    void Awake()
+    {
+        if (selectPenCanvas != null)
+            selectPenCanvas.SetActive(false);
+
+        if (selectHandCanvas != null)
+            selectHandCanvas.SetActive(false);
+
+        RememberPose(pencil, ref pencilPosition, ref pencilRotation);
+        RememberPose(ballpen, ref ballpenPosition, ref ballpenRotation);
+        RememberPose(highlighter, ref highlighterPosition, ref highlighterRotation);
+
+        ShowOnly(null);
+    }
+
+    public void Open()
+    {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
+        ScoringChecker.Ensure().TryContinue(OpenAfterCheck);
+    }
+
+    public void EquipGuidedPencil(bool rightHand)
+    {
+        useRightHand = rightHand;
+
+        Transform hand = PlayerHands.WritingController(rightHand);
+        if (hand != null)
+            PlacePen(pencil, pencilPosition, pencilRotation, hand, pencilTip);
+
+        PenTrail trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
+        if (trail != null)
+        {
+            trail.UseRightHand(rightHand);
+            trail.SetInkColor(new Color(0.62f, 0.62f, 0.62f));
+            trail.SetDrawTool(PenSounds.Tool.Pencil);
+        }
+
+        ShowOnly(pencil);
+        PlayerHands.SetWritingHand(rightHand);
+
+        if (penTip != null && pencil != null)
+        {
+            penTip.SetParent(pencil.transform, false);
+            penTip.localPosition = pencilTip;
+            penTip.localRotation = Quaternion.identity;
+            float scale = pencil.transform.localScale.x;
+            if (scale > 0.0001f)
+                penTip.localScale = Vector3.one * (1f / scale);
+        }
+
+        if (selectPenCanvas != null)
+            selectPenCanvas.SetActive(false);
+        if (selectHandCanvas != null)
+            selectHandCanvas.SetActive(false);
+    }
+
+    public void HideGuidedPencil()
+    {
+        ShowOnly(null);
+        PlayerHands.ShowBothHands();
+    }
+
+    void OpenAfterCheck()
+    {
+        if (countdown != null && countdown.objectiveScreen != null)
+            countdown.objectiveScreen.SetActive(false);
+
+        if (selectHandCanvas != null)
+            selectHandCanvas.SetActive(false);
+
+        ApplyProfileHand();
+    }
+
+    void ApplyProfileHand()
+    {
+        ProfileManager.TryGetNonDominantLeft(out bool leftHand);
+        ChooseHand(!leftHand);
+    }
+
+    public void ChooseLeftHand()
+    {
+        ApplyProfileHand();
+    }
+
+    public void ChooseRightHand()
+    {
+        ApplyProfileHand();
+    }
+
+    void ChooseHand(bool rightHand)
+    {
+        useRightHand = rightHand;
+
+        Transform hand = PlayerHands.WritingController(rightHand);
+        if (hand != null)
+        {
+            PlacePen(pencil, pencilPosition, pencilRotation, hand, pencilTip);
+            PlacePen(ballpen, ballpenPosition, ballpenRotation, hand, ballpenTip);
+            PlacePen(highlighter, highlighterPosition, highlighterRotation, hand, highlighterTip);
+        }
+
+        PlayerHands.SetWritingHand(rightHand);
+
+        PenTrail trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
+        if (trail != null)
+            trail.UseRightHand(rightHand);
+
+        if (selectHandCanvas != null)
+            selectHandCanvas.SetActive(false);
+
+        if (selectPenCanvas != null)
+            selectPenCanvas.SetActive(true);
+    }
+
+    public void ChoosePencil()
+    {
+        Choose(pencil, pencilTip);
+        SetInkColor(new Color(0.62f, 0.62f, 0.62f));
+        SetDrawTool(PenSounds.Tool.Pencil);
+    }
+
+    public void ChooseBallpen()
+    {
+        Choose(ballpen, ballpenTip);
+        SetInkColor(new Color(0.15f, 0.45f, 0.95f));
+        SetDrawTool(PenSounds.Tool.Ballpen);
+    }
+
+    public void ChooseHighlighter()
+    {
+        Choose(highlighter, highlighterTip);
+        SetInkColor(new Color(0.62f, 0.28f, 0.86f));
+        SetDrawTool(PenSounds.Tool.Marker);
+    }
+
+    void SetInkColor(Color color)
+    {
+        PenTrail trail = PenTrail.Active;
+        if (trail == null)
+            trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
+
+        if (trail != null)
+            trail.SetInkColor(color);
+    }
+
+    void SetDrawTool(PenSounds.Tool tool)
+    {
+        PenTrail trail = PenTrail.Active;
+        if (trail == null)
+            trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
+
+        if (trail != null)
+            trail.SetDrawTool(tool);
+    }
+
+    void Choose(GameObject pen, Vector3 tip)
+    {
+        ShowOnly(pen);
+
+        if (penTip != null && pen != null)
+        {
+            penTip.SetParent(pen.transform, false);
+            penTip.localPosition = tip;
+            penTip.localRotation = Quaternion.identity;
+
+            float scale = pen.transform.localScale.x;
+            if (scale > 0.0001f)
+                penTip.localScale = Vector3.one * (1f / scale);
+        }
+
+        if (selectPenCanvas != null)
+            selectPenCanvas.SetActive(false);
+
+        if (countdown != null)
+            countdown.StartCountdown();
+    }
+
+    static void RememberPose(GameObject pen, ref Vector3 position, ref Quaternion rotation)
+    {
+        if (pen == null)
+            return;
+
+        position = pen.transform.localPosition;
+        rotation = pen.transform.localRotation;
+    }
+
+    void PlacePen(GameObject pen, Vector3 position, Quaternion rotation, Transform hand, Vector3 tipLocal)
+    {
+        if (pen == null)
+            return;
+
+        Transform penTransform = pen.transform;
+        penTransform.SetParent(hand, false);
+
+        if (!useRightHand)
+        {
+            penTransform.localPosition = position;
+            penTransform.localRotation = rotation;
+            return;
+        }
+
+        Vector3 scale = penTransform.localScale;
+        Vector3 tipOffset = rotation * Vector3.Scale(tipLocal, scale);
+        Vector3 mirroredOffset = new Vector3(-tipOffset.x, tipOffset.y, tipOffset.z);
+
+        if (tipOffset.sqrMagnitude < 0.000001f)
+        {
+            penTransform.localPosition = new Vector3(-position.x, position.y, position.z);
+            penTransform.localRotation = rotation;
+            return;
+        }
+
+        Quaternion rightRotation = Quaternion.FromToRotation(tipOffset, mirroredOffset) * rotation;
+        Vector3 rightOffset = rightRotation * Vector3.Scale(tipLocal, scale);
+        Vector3 leftTip = position + tipOffset;
+        Vector3 rightTip = new Vector3(-leftTip.x, leftTip.y, leftTip.z);
+
+        penTransform.localRotation = rightRotation;
+        penTransform.localPosition = rightTip - rightOffset;
+    }
+
+    void ShowOnly(GameObject active)
+    {
+        if (pencil != null)
+            pencil.SetActive(pencil == active);
+
+        if (ballpen != null)
+            ballpen.SetActive(ballpen == active);
+
+        if (highlighter != null)
+            highlighter.SetActive(highlighter == active);
+    }
+}

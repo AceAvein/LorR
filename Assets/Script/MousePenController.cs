@@ -16,6 +16,7 @@ public class MousePenController : MonoBehaviour
 
     void Update()
     {
+        if (GamePauseMenu.IsFrozen) return;
         if (cam == null || penTip == null || tracingSurface == null) return;
         if (Mouse.current == null) return;
 

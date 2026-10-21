@@ -1,0 +1,11 @@
+Model Information:
+* title:	Golf Ball
+* source:	https://sketchfab.com/3d-models/golf-ball-3073897f8dcb49cc87d4b1ff33cf6982
+* author:	Manoj5577 (https://sketchfab.com/Manoj5577)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Golf Ball" (https://sketchfab.com/3d-models/golf-ball-3073897f8dcb49cc87d4b1ff33cf6982) by Manoj5577 (https://sketchfab.com/Manoj5577) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
