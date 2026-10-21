@@ -91,6 +91,9 @@ public class ReactionLightRound : MonoBehaviour
         if (!scene.IsValid() || !ModuleScenes.IsReactionLight(scene.name))
             return;
 
+        if (ModuleScenes.IsGuided(scene.name))
+            return;
+
         if (Instance != null)
             return;
 
@@ -171,6 +174,9 @@ public class ReactionLightRound : MonoBehaviour
 
     public void StartFromObjective()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         if (running || countingDown)
             return;
 
@@ -396,6 +402,9 @@ public class ReactionLightRound : MonoBehaviour
 
     void ShowResults()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         GameObject screen = FindNamed("ResultsScreen");
         if (screen == null)
             return;

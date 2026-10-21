@@ -13557,7 +13557,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a3f8c2e14b6d47a09e5f1c8d2b7a6e40, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GuidedBallDropVoices
-  intro: {fileID: 0}
+  intro: {fileID: 8300000, guid: 55ab889015df82741922cca31fd24435, type: 3}
   step1: {fileID: 8300000, guid: bbaeb8f4f782f894e8be8bb4029f6719, type: 3}
   step2: {fileID: 8300000, guid: e70b9cac02475154c92eeed9f81f039e, type: 3}
   step3: {fileID: 8300000, guid: bffe7ebf9109f084d8fc486e701e2975, type: 3}

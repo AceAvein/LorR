@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public struct SetRecord
@@ -35,6 +36,9 @@ public class ReactionLightResults : MonoBehaviour
 {
     public void Show(ReactionLightReport report)
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         Transform panel = transform.Find("ResultsPanel");
         if (panel == null)
             panel = CreatePanel();

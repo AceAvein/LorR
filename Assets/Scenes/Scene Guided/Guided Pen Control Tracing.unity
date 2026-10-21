@@ -16404,7 +16404,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d4a7c9e21b8f4d0a9c6e3f5b8a1d2e70, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GuidedPenTraceVoices
-  intro: {fileID: 0}
+  intro: {fileID: 8300000, guid: 221b4386a69ee3547b1eb8fad077f521, type: 3}
   step1: {fileID: 8300000, guid: 58bde23cd795fa54a882931227b781f9, type: 3}
   step2: {fileID: 8300000, guid: 5aca8c602311e1348b90c99e573f29a5, type: 3}
   step3: {fileID: 8300000, guid: 692ff7251ae87054298699aa0ca9823a, type: 3}
