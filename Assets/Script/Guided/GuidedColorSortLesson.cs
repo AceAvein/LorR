@@ -40,6 +40,7 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
     }
 
     GuidedLesson lesson;
+    GuidedColorSortVoices voices;
     GameObject objectiveScreen;
     GameObject resultsScreen;
     GameObject boxesRoot;
@@ -93,6 +94,7 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
         if (lesson == null)
             lesson = gameObject.AddComponent<GuidedLesson>();
 
+        voices = GuidedColorSortVoices.Find();
         objectiveScreen = FindNamed("ObjectiveScreen");
         resultsScreen = FindNamed("ResultsScreen");
         FindShapes();
@@ -112,7 +114,11 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
     {
         HideHud();
         if (!lessonOpen)
+        {
             ShowIntro();
+            if (voices != null)
+                voices.PlayIntro();
+        }
     }
 
     void OnEnable()
@@ -229,6 +235,9 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
             int setNumber = step - TeachSteps;
             lesson.ShowStep(step, StepTotal, "Set " + setNumber + " of " + PracticeSets + ". Grab, then release in the matching box.", "");
         }
+
+        if (voices != null)
+            voices.PlayStep(step);
     }
 
     void BeginStep()
@@ -350,6 +359,8 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
             GuidedPointer.FollowHand(FindHand(!rightHand), "OPEN");
             if (lesson != null)
                 lesson.SetHint("Now open GRAB to release.");
+            if (voices != null)
+                voices.PlayOpen();
             return;
         }
 
@@ -374,6 +385,8 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
             return;
 
         lesson.SetHint(left ? "Use your LEFT controller." : "Use your RIGHT controller.");
+        if (voices != null)
+            voices.PlayUseHand(left);
     }
 
     void Advance()
@@ -403,19 +416,47 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
             return;
 
         if (step == 3 && !leftHand)
+        {
             lesson.SetHint("Use your LEFT hand.");
+            if (voices != null)
+                voices.PlayUseHand(true);
+        }
         else if (step == 4 && leftHand)
+        {
             lesson.SetHint("Use your RIGHT hand.");
+            if (voices != null)
+                voices.PlayUseHand(false);
+        }
         else if (step == 5 && !leftHand)
+        {
             lesson.SetHint("RED uses the LEFT hand.");
+            if (voices != null)
+                voices.PlayUseHand(true);
+        }
         else if (step == 6 && leftHand)
+        {
             lesson.SetHint("BLUE uses the RIGHT hand.");
+            if (voices != null)
+                voices.PlayUseHand(false);
+        }
         else if (piece.ColorIndex == (int)SortColor.Yellow)
+        {
             lesson.SetHint("Yellow needs both hands. Open GRAB together" + (NeedBoxes() ? " over the YELLOW box." : " to release."));
+            if (voices != null)
+                voices.PlayYellowBoth();
+        }
         else if (NeedBoxes())
+        {
             lesson.SetHint("Open GRAB to release over the matching box.");
+            if (voices != null)
+                voices.PlayOverBox();
+        }
         else
+        {
             lesson.SetHint("Open GRAB to release.");
+            if (voices != null)
+                voices.PlayOpen();
+        }
 
         RefreshMarks();
     }
@@ -426,6 +467,8 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
             return;
 
         lesson.SetHint("Yellow will not grab with one hand. Use both hands.");
+        if (voices != null)
+            voices.PlayYellowBoth();
         RefreshMarks();
     }
 
@@ -437,6 +480,7 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
         ShowWord("Wrong");
         if (lesson != null)
             lesson.SetHint(string.IsNullOrEmpty(lastFail) ? "Try again." : lastFail);
+        PlayWrongVoice();
         RefreshMarks();
     }
 
@@ -446,9 +490,17 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
             return;
 
         if (NeedBoxes())
+        {
             lesson.SetHint("Release over the matching box.");
+            if (voices != null)
+                voices.PlayOverBox();
+        }
         else
+        {
             lesson.SetHint("Open GRAB to release.");
+            if (voices != null)
+                voices.PlayOpen();
+        }
 
         RefreshMarks();
     }
@@ -494,6 +546,21 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
         return false;
     }
 
+    void PlayWrongVoice()
+    {
+        if (voices == null)
+            return;
+
+        if (!string.IsNullOrEmpty(lastFail) && lastFail.Contains("LEFT"))
+            voices.PlayUseHand(true);
+        else if (!string.IsNullOrEmpty(lastFail) && lastFail.Contains("RIGHT"))
+            voices.PlayUseHand(false);
+        else if (!string.IsNullOrEmpty(lastFail) && lastFail.Contains("Yellow"))
+            voices.PlayYellowBoth();
+        else
+            voices.PlayWrongBox();
+    }
+
     string TeachFailReason(SortColor color, bool leftHand, bool bothHands)
     {
         if (step == 3 || (step == 5 && color == SortColor.Red))
@@ -526,8 +593,13 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
 
             if (remaining == 0)
                 pendingAdvance = true;
-            else if (lesson != null)
-                lesson.SetHint("Now the other object.");
+            else
+            {
+                if (lesson != null)
+                    lesson.SetHint("Now the other object.");
+                if (voices != null)
+                    voices.PlayOther();
+            }
 
             RefreshMarks();
             return;
@@ -561,6 +633,8 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
             sim.enabled = false;
 
         resultsScreen.SetActive(true);
+        if (voices != null)
+            voices.PlayDone();
         Transform panel = resultsScreen.transform.Find("ResultsPanel");
         if (panel == null)
             return;

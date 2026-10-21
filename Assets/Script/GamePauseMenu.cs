@@ -318,6 +318,8 @@ public class GamePauseMenu : MonoBehaviour
             return true;
         if (go.GetComponent<GuidedReactionLightVoices>() != null || n == "GuidedReactionLightVoices")
             return true;
+        if (go.GetComponent<GuidedColorSortVoices>() != null || n == "GuidedColorSortVoices")
+            return true;
         if (go.GetComponent<DropBall>() != null)
             return true;
         if (go.GetComponent<PathManager>() != null || go.GetComponent<PatternManager>() != null)
