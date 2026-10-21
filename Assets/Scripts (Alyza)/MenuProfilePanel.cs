@@ -46,6 +46,9 @@ public class MenuProfilePanel : MonoBehaviour
     Button[] avatarButtons;
     Image[] avatarFaces;
     Sprite[] avatars;
+    RectTransform avatarViewport;
+    RectTransform avatarRow;
+    float avatarStep;
 
     readonly List<GameObject> spawned = new List<GameObject>();
     UserProfile highlighted;
@@ -108,16 +111,27 @@ public class MenuProfilePanel : MonoBehaviour
         leftPlate = FindDeep("Left").GetComponent<Image>();
         rightPlate = FindDeep("Right").GetComponent<Image>();
 
-        avatarButtons = new Button[4];
-        avatarFaces = new Image[4];
-        for (int i = 0; i < 4; i++)
+        List<Button> buttons = new List<Button>();
+        List<Image> faces = new List<Image>();
+        for (int i = 0; i < 16; i++)
         {
-            Transform slot = FindDeep("Avatar" + i);
-            avatarButtons[i] = slot.GetComponent<Button>();
-            avatarFaces[i] = slot.Find("Face").GetComponent<Image>();
+            Transform slot = FindOptional("Avatar" + i);
+            if (slot == null)
+                break;
+
+            Button button = slot.GetComponent<Button>();
+            Transform face = slot.Find("Face");
+            if (button == null || face == null)
+                continue;
+
+            buttons.Add(button);
+            faces.Add(face.GetComponent<Image>());
         }
 
+        avatarButtons = buttons.ToArray();
+        avatarFaces = faces.ToArray();
         avatars = LoadAvatars();
+        EnsureAvatarScroller();
         labelFont = statusText.font;
         labelMaterial = statusText.fontSharedMaterial;
 
@@ -197,7 +211,8 @@ public class MenuProfilePanel : MonoBehaviour
         Hook("Yes", ConfirmDelete);
         Hook("No", CancelDelete);
         EnsureContinueButton();
-        Hook("Continue", OnContinue);
+        Hook("Select", OnSelect);
+        Hook("Continue", OnSelect);
         WireKeyboard();
 
         if (profileButton != null)
@@ -371,38 +386,38 @@ public class MenuProfilePanel : MonoBehaviour
         RefreshList();
     }
 
-    void OnContinue()
+    void OnSelect()
     {
         UserProfile chosen = highlighted ?? (ProfileManager.Instance != null ? ProfileManager.Instance.CurrentProfile : null);
         if (chosen == null)
             return;
 
         ProfileManager.Instance.SelectProfile(chosen);
+        highlighted = chosen;
         ShowCurrentOnButton();
+        RefreshList();
         Close();
     }
 
     void RefreshAvatars()
     {
-        int count = avatars == null ? 0 : avatars.Length;
+        int count = avatarButtons == null ? 0 : avatarButtons.Length;
         if (count == 0)
             return;
 
-        int start = Mathf.Clamp(selectedAvatar - 1, 0, Mathf.Max(0, count - avatarButtons.Length));
-        for (int i = 0; i < avatarButtons.Length; i++)
-        {
-            int index = start + i;
-            bool visible = index < count;
-            avatarButtons[i].gameObject.SetActive(visible);
-            if (!visible)
-                continue;
+        EnsureAvatarScroller();
 
-            avatarFaces[i].sprite = avatars[index];
-            bool selected = index == selectedAvatar;
+        const int visibleSlots = 4;
+        int maxStart = Mathf.Max(0, count - visibleSlots);
+        int start = Mathf.Clamp(selectedAvatar - 1, 0, maxStart);
+
+        for (int i = 0; i < count; i++)
+        {
+            avatarButtons[i].gameObject.SetActive(true);
+            bool selected = i == selectedAvatar;
             avatarButtons[i].GetComponent<Image>().color = selected ? SelectedPlate : IdlePlate;
-            avatarButtons[i].transform.localScale = Vector3.one;
             avatarButtons[i].onClick.RemoveAllListeners();
-            int captured = index;
+            int captured = i;
             avatarButtons[i].onClick.AddListener(() =>
             {
                 selectedAvatar = captured;
@@ -410,14 +425,176 @@ public class MenuProfilePanel : MonoBehaviour
             });
         }
 
-        avatarNameText.text = AvatarNames[Mathf.Clamp(selectedAvatar, 0, AvatarNames.Length - 1)].ToUpperInvariant();
+        if (avatarRow != null)
+            avatarRow.anchoredPosition = new Vector2(-start * avatarStep, 0f);
+
+        if (avatarNameText != null)
+            avatarNameText.text = AvatarNames[Mathf.Clamp(selectedAvatar, 0, AvatarNames.Length - 1)].ToUpperInvariant();
     }
 
     void NudgeAvatar(int direction)
     {
-        int count = Mathf.Max(1, avatars.Length);
-        selectedAvatar = (selectedAvatar + direction + count) % count;
+        int count = avatarButtons != null && avatarButtons.Length > 0
+            ? avatarButtons.Length
+            : Mathf.Max(1, avatars.Length);
+        selectedAvatar = Mathf.Clamp(selectedAvatar + direction, 0, count - 1);
         RefreshAvatars();
+    }
+
+    void EnsureAvatarScroller()
+    {
+        if (createView == null || avatarButtons == null || avatarButtons.Length == 0)
+            return;
+
+        if (avatarRow != null && avatarButtons[0] != null && avatarButtons[0].transform.parent == avatarRow)
+        {
+            MeasureAvatarStep();
+            return;
+        }
+
+        bool authoredViewport = false;
+        if (avatarViewport == null)
+        {
+            Transform existing = FindOptional("AvatarViewport");
+            avatarViewport = existing as RectTransform;
+            authoredViewport = avatarViewport != null;
+        }
+
+        if (avatarViewport == null)
+        {
+            GameObject viewportObject = new GameObject("AvatarViewport", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(RectMask2D));
+            viewportObject.transform.SetParent(createView.transform, false);
+            avatarViewport = viewportObject.GetComponent<RectTransform>();
+            Image mask = viewportObject.GetComponent<Image>();
+            mask.color = new Color(1f, 1f, 1f, 0f);
+            mask.raycastTarget = false;
+        }
+
+        if (avatarRow == null)
+        {
+            Transform existingRow = avatarViewport.Find("AvatarRow");
+            if (existingRow != null)
+                avatarRow = existingRow as RectTransform;
+        }
+
+        if (avatarRow == null)
+        {
+            GameObject rowObject = new GameObject("AvatarRow", typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(ContentSizeFitter));
+            rowObject.transform.SetParent(avatarViewport, false);
+            avatarRow = rowObject.GetComponent<RectTransform>();
+        }
+
+        if (!authoredViewport)
+            PlaceAvatarViewport();
+
+        avatarRow.anchorMin = new Vector2(0f, 0.5f);
+        avatarRow.anchorMax = new Vector2(0f, 0.5f);
+        avatarRow.pivot = new Vector2(0f, 0.5f);
+        avatarRow.anchoredPosition = Vector2.zero;
+        avatarRow.sizeDelta = new Vector2(0f, avatarButtons[0].GetComponent<RectTransform>().sizeDelta.y);
+
+        HorizontalLayoutGroup layout = avatarRow.GetComponent<HorizontalLayoutGroup>();
+        if (layout == null)
+            layout = avatarRow.gameObject.AddComponent<HorizontalLayoutGroup>();
+        layout.childAlignment = TextAnchor.MiddleLeft;
+        layout.childControlWidth = false;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = false;
+        if (!authoredViewport)
+            layout.spacing = AvatarSpacing();
+
+        ContentSizeFitter fitter = avatarRow.GetComponent<ContentSizeFitter>();
+        if (fitter == null)
+            fitter = avatarRow.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        for (int i = 0; i < avatarButtons.Length; i++)
+        {
+            RectTransform slot = avatarButtons[i].transform as RectTransform;
+            if (slot.parent != avatarRow)
+                slot.SetParent(avatarRow, false);
+            slot.localScale = Vector3.one;
+            slot.localRotation = Quaternion.identity;
+            avatarButtons[i].gameObject.SetActive(true);
+
+            MaskableGraphic plate = avatarButtons[i].GetComponent<MaskableGraphic>();
+            if (plate != null)
+                plate.maskable = true;
+            if (avatarFaces[i] != null)
+                avatarFaces[i].maskable = true;
+        }
+
+        LayoutRebuilder.ForceRebuildLayoutImmediate(avatarRow);
+        MeasureAvatarStep();
+    }
+
+    void MeasureAvatarStep()
+    {
+        if (avatarRow == null || avatarButtons == null || avatarButtons.Length == 0)
+            return;
+
+        HorizontalLayoutGroup layout = avatarRow.GetComponent<HorizontalLayoutGroup>();
+        float spacing = layout != null ? layout.spacing : 2f;
+        avatarStep = avatarButtons[0].GetComponent<RectTransform>().sizeDelta.x + spacing;
+        if (avatarButtons.Length < 2)
+            return;
+
+        float first = (avatarButtons[0].transform as RectTransform).anchoredPosition.x;
+        float second = (avatarButtons[1].transform as RectTransform).anchoredPosition.x;
+        float measured = Mathf.Abs(second - first);
+        if (measured > 0.01f)
+            avatarStep = measured;
+    }
+
+    void PlaceAvatarViewport()
+    {
+        RectTransform prev = FindOptional("Prev") as RectTransform;
+        RectTransform next = FindOptional("Next") as RectTransform;
+        RectTransform first = avatarButtons[0].transform as RectTransform;
+        float height = first != null ? first.sizeDelta.y + 2f : 16f;
+        float y = 28.77f;
+        float left = -26f;
+        float right = 26f;
+
+        if (prev != null)
+        {
+            left = prev.anchoredPosition.x + prev.rect.width * 0.5f + 1.2f;
+            y = prev.anchoredPosition.y;
+        }
+
+        if (next != null)
+            right = next.anchoredPosition.x - next.rect.width * 0.5f - 1.2f;
+
+        if (right <= left)
+        {
+            left = -26f;
+            right = 26f;
+        }
+
+        avatarViewport.SetParent(createView.transform, false);
+        avatarViewport.anchorMin = new Vector2(0.5f, 0.5f);
+        avatarViewport.anchorMax = new Vector2(0.5f, 0.5f);
+        avatarViewport.pivot = new Vector2(0.5f, 0.5f);
+        avatarViewport.anchoredPosition = new Vector2((left + right) * 0.5f, y);
+        avatarViewport.sizeDelta = new Vector2(right - left, height);
+        avatarViewport.SetSiblingIndex(Mathf.Max(0, createView.transform.childCount - 1));
+        if (prev != null)
+            prev.SetAsLastSibling();
+        if (next != null)
+            next.SetAsLastSibling();
+    }
+
+    float AvatarSpacing()
+    {
+        if (avatarButtons.Length < 2)
+            return 2f;
+
+        RectTransform a = avatarButtons[0].transform as RectTransform;
+        RectTransform b = avatarButtons[1].transform as RectTransform;
+        float gap = b.anchoredPosition.x - a.anchoredPosition.x - a.sizeDelta.x;
+        return gap > 0.1f && gap < 8f ? gap : 2f;
     }
 
     void SetHand(bool left)
@@ -592,20 +769,20 @@ public class MenuProfilePanel : MonoBehaviour
     Sprite[] LoadAvatars()
     {
         List<Sprite> found = new List<Sprite>();
-        for (int i = 0; i < AvatarNames.Length; i++)
+        for (int i = 0; i < avatarFaces.Length; i++)
         {
-            Sprite sprite = FindSpriteByName(AvatarNames[i]);
-            if (sprite != null)
-                found.Add(sprite);
+            if (avatarFaces[i] != null && avatarFaces[i].sprite != null)
+                found.Add(avatarFaces[i].sprite);
         }
 
         if (found.Count > 0)
             return found.ToArray();
 
-        for (int i = 0; i < avatarFaces.Length; i++)
+        for (int i = 0; i < AvatarNames.Length; i++)
         {
-            if (avatarFaces[i] != null && avatarFaces[i].sprite != null)
-                found.Add(avatarFaces[i].sprite);
+            Sprite sprite = FindSpriteByName(AvatarNames[i]);
+            if (sprite != null)
+                found.Add(sprite);
         }
 
         return found.ToArray();
@@ -764,7 +941,9 @@ public class MenuProfilePanel : MonoBehaviour
 
     void EnsureContinueButton()
     {
-        Transform existing = FindOptional("Continue");
+        Transform existing = FindOptional("Select");
+        if (existing == null)
+            existing = FindOptional("Continue");
         if (existing != null)
             continueButton = existing.gameObject;
     }
