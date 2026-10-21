@@ -13,15 +13,11 @@ public class MenuProfilePanel : MonoBehaviour
     };
 
     static readonly Color Ink = new Color(0.08f, 0.08f, 0.08f, 1f);
-    static readonly Color TitleInk = new Color(0.95f, 0.97f, 1f, 1f);
-    static readonly Color StatusInk = new Color(0.16f, 0.32f, 0.55f, 1f);
     static readonly Color SelectedPlate = new Color(0.22f, 0.78f, 0.36f, 1f);
     static readonly Color IdlePlate = new Color(0.9f, 0.94f, 0.98f, 1f);
     static readonly Color ActiveCard = new Color(0.78f, 0.93f, 1f, 1f);
     static readonly Color HighlightCard = new Color(0.62f, 0.86f, 1f, 1f);
     static readonly Color IdleCard = Color.white;
-    static readonly Color CreateGreen = new Color(0.2f, 0.72f, 0.38f, 1f);
-    static readonly Color ContinueBlue = new Color(0.18f, 0.48f, 0.86f, 1f);
 
     [SerializeField] GameObject mainMenu;
     [SerializeField] Button profileButton;
@@ -62,7 +58,7 @@ public class MenuProfilePanel : MonoBehaviour
     void Awake()
     {
         Cache();
-        Relayout();
+        PrepareViews();
         Wire();
         EnsureManager();
         ShowCurrentOnButton();
@@ -128,8 +124,25 @@ public class MenuProfilePanel : MonoBehaviour
         Image addImage = FindDeep("Add").GetComponent<Image>();
         cardSprite = addImage.sprite;
         keyboardRoot = FindOptional("Keyboard") != null ? FindOptional("Keyboard").gameObject : null;
+        if (cardTemplate != null)
+            cardTemplate.gameObject.SetActive(false);
         nameInput = BuildNameField(FindDeep("NameField"));
         BindMainMenu();
+    }
+
+    void PrepareViews()
+    {
+        EnsureContinueButton();
+        if (createView != null)
+            createView.SetActive(false);
+        if (confirmRoot != null)
+            confirmRoot.SetActive(false);
+        if (keyboardRoot != null)
+            keyboardRoot.SetActive(false);
+        if (cardTemplate != null)
+            cardTemplate.gameObject.SetActive(false);
+        if (listView != null)
+            listView.SetActive(true);
     }
 
     void BindMainMenu()
@@ -637,10 +650,6 @@ public class MenuProfilePanel : MonoBehaviour
         if (keyboardRoot == null)
             return;
 
-        EnsureKey("Key_Shift", "SHIFT", new Color(0.78f, 0.86f, 0.96f, 1f));
-        EnsureKey("Key_Clear", "CLEAR", new Color(0.95f, 0.62f, 0.28f, 1f));
-        LayoutKeyboard();
-
         Button[] keys = keyboardRoot.GetComponentsInChildren<Button>(true);
         for (int i = 0; i < keys.Length; i++)
         {
@@ -753,257 +762,11 @@ public class MenuProfilePanel : MonoBehaviour
         }
     }
 
-    void Relayout()
-    {
-        RectTransform window = transform as RectTransform;
-        SetRect(window, Vector2.one * 0.5f, Vector2.one * 0.5f, Vector2.one * 0.5f, window.anchoredPosition, new Vector2(80f, 112f));
-        window.localScale = Vector3.one * 0.012f;
-
-        Canvas canvas = GetComponent<Canvas>();
-        if (canvas != null && canvas.worldCamera == null && Camera.main != null)
-            canvas.worldCamera = Camera.main;
-
-        RectTransform board = FindDeep("Board") as RectTransform;
-        Stretch(board, Vector2.zero);
-        board.localScale = Vector3.one;
-        DisableRaycast(board);
-
-        RectTransform inner = FindDeep("Inner") as RectTransform;
-        Stretch(inner, new Vector2(4f, 4f));
-        DisableRaycast(inner);
-
-        SetRect(FindDeep("Title") as RectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -5f), new Vector2(52f, 8f));
-        StyleTitle(windowTitle, "PLAYER PROFILES", 5.4f);
-
-        SetRect(FindDeep("Close") as RectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-5f, -4f), new Vector2(9f, 9f));
-        SetRect(FindDeep("Back") as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(5f, -4f), new Vector2(9f, 9f));
-
-        RectTransform list = listView.transform as RectTransform;
-        Stretch(list, new Vector2(6f, 8f));
-        list.offsetMin = new Vector2(6f, 8f);
-        list.offsetMax = new Vector2(-6f, -14f);
-        list.localScale = Vector3.one;
-
-        SetRect(statusText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -1f), new Vector2(64f, 6f));
-        StyleLabel(statusText, 2.6f, StatusInk);
-
-        SetRect(emptyText.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 6f), new Vector2(56f, 6f));
-
-        RectTransform scroll = FindDeep("Scroll") as RectTransform;
-        SetRect(scroll, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-        scroll.offsetMin = new Vector2(0f, 12f);
-        scroll.offsetMax = new Vector2(0f, -8f);
-        ScrollRect scrollRect = scroll.GetComponent<ScrollRect>();
-        if (scrollRect != null)
-        {
-            scrollRect.scrollSensitivity = 12f;
-            scrollRect.movementType = ScrollRect.MovementType.Elastic;
-        }
-
-        TMP_Text emptyLabel = emptyText.GetComponent<TMP_Text>();
-        if (emptyLabel != null)
-        {
-            emptyLabel.raycastTarget = false;
-            emptyLabel.text = "NO PROFILES YET";
-        }
-
-        RectTransform add = FindDeep("Add") as RectTransform;
-        SetRect(add, new Vector2(0f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(-1.5f, 10f));
-        TMP_Text addLabel = FindDeep("AddLabel").GetComponent<TMP_Text>();
-        addLabel.text = "CREATE NEW PLAYER";
-        addLabel.fontSize = 2.6f;
-        addLabel.enableAutoSizing = true;
-        addLabel.fontSizeMin = 2f;
-        addLabel.fontSizeMax = 2.8f;
-
-        EnsureContinueButton();
-        RectTransform cont = continueButton.transform as RectTransform;
-        SetRect(cont, new Vector2(0.5f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(0f, 0f), new Vector2(-1.5f, 10f));
-
-        RelayoutCreate();
-        RelayoutConfirm();
-        RelayoutCardTemplate();
-        RelayoutKeyboard();
-        createView.SetActive(false);
-        confirmRoot.SetActive(false);
-        if (keyboardRoot != null)
-            keyboardRoot.SetActive(false);
-        if (cardTemplate != null)
-            cardTemplate.gameObject.SetActive(false);
-        listView.SetActive(true);
-    }
-
-    void RelayoutCreate()
-    {
-        RectTransform create = createView.transform as RectTransform;
-        Stretch(create, new Vector2(6f, 8f));
-        create.offsetMin = new Vector2(6f, 8f);
-        create.offsetMax = new Vector2(-6f, -14f);
-        create.localScale = Vector3.one;
-
-        SetRect(FindDeep("Prev") as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -2f), new Vector2(8f, 10f));
-        SetRect(FindDeep("Next") as RectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(0f, -2f), new Vector2(8f, 10f));
-        Image prevImage = FindDeep("Prev").GetComponent<Image>();
-        Image nextImage = FindDeep("Next").GetComponent<Image>();
-        if (prevImage != null) prevImage.color = IdlePlate;
-        if (nextImage != null) nextImage.color = IdlePlate;
-
-        float[] xs = { -18f, -6f, 6f, 18f };
-        for (int i = 0; i < 4; i++)
-            SetRect(FindDeep("Avatar" + i) as RectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(xs[i], -3f), new Vector2(10f, 10f));
-
-        SetRect(avatarNameText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -15f), new Vector2(40f, 5f));
-        SetRect(FindDeep("NameField") as RectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(58f, 10f));
-        SetRect(errorText.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -33f), new Vector2(58f, 5f));
-        SetRect(FindDeep("Left") as RectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(1f, 0f), new Vector2(-2f, 14f), new Vector2(24f, 10f));
-        SetRect(FindDeep("Right") as RectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 0f), new Vector2(2f, 14f), new Vector2(24f, 10f));
-        SetRect(FindDeep("Ok") as RectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 1f), new Vector2(36f, 11f));
-        TMP_Text okLabel = FindOptional("OkLabel") != null ? FindOptional("OkLabel").GetComponent<TMP_Text>() : null;
-        if (okLabel != null)
-            okLabel.text = "SAVE PLAYER";
-    }
-
-    void RelayoutConfirm()
-    {
-        RectTransform confirm = confirmRoot.transform as RectTransform;
-        Stretch(confirm, Vector2.zero);
-        confirm.localScale = Vector3.one;
-        SetRect(FindDeep("ConfirmCard") as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(52f, 28f));
-        SetRect(FindDeep("Question") as RectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -4f), new Vector2(46f, 10f));
-        SetRect(FindDeep("Yes") as RectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(1f, 0f), new Vector2(-2f, 4f), new Vector2(18f, 9f));
-        SetRect(FindDeep("No") as RectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 0f), new Vector2(2f, 4f), new Vector2(18f, 9f));
-        TMP_Text noLabel = FindOptional("NoLabel") != null ? FindOptional("NoLabel").GetComponent<TMP_Text>() : null;
-        TMP_Text yesLabel = FindOptional("YesLabel") != null ? FindOptional("YesLabel").GetComponent<TMP_Text>() : null;
-        if (noLabel != null) noLabel.text = "CANCEL";
-        if (yesLabel != null) yesLabel.text = "DELETE";
-    }
-
-    void RelayoutCardTemplate()
-    {
-        if (cardTemplate == null)
-            return;
-
-        if (cardTemplate.parent != content)
-            cardTemplate.SetParent(content, false);
-
-        RectTransform rect = cardTemplate as RectTransform;
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(1f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.sizeDelta = new Vector2(0f, 16f);
-        rect.anchoredPosition = Vector2.zero;
-        rect.localScale = Vector3.one;
-
-        LayoutElement layout = cardTemplate.GetComponent<LayoutElement>();
-        if (layout == null)
-            layout = cardTemplate.gameObject.AddComponent<LayoutElement>();
-        layout.minHeight = 16f;
-        layout.preferredHeight = 16f;
-        layout.flexibleWidth = 1f;
-
-        SetRect(cardTemplate.Find("CardFace") as RectTransform, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(9f, 0f), new Vector2(11f, 11f));
-        SetRect(cardTemplate.Find("CardName") as RectTransform, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, 0.5f), new Vector2(17f, 2.4f), new Vector2(-34f, 5f));
-        SetRect(cardTemplate.Find("CardHand") as RectTransform, new Vector2(0f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0f, 0.5f), new Vector2(17f, -2.6f), new Vector2(-34f, 4f));
-        SetRect(cardTemplate.Find("CardDelete") as RectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-8f, 0f), new Vector2(8f, 8f));
-    }
-
-    void RelayoutKeyboard()
-    {
-        if (keyboardRoot == null)
-            return;
-
-        RectTransform keyboard = keyboardRoot.transform as RectTransform;
-        SetRect(keyboard, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 1f), new Vector2(0f, -3f), new Vector2(78f, 42f));
-        keyboard.localPosition = new Vector3(keyboard.localPosition.x, keyboard.localPosition.y, -2f);
-        LayoutKeyboard();
-    }
-
-    void LayoutKeyboard()
-    {
-        if (keyboardRoot == null)
-            return;
-
-        PlaceKeyRow(new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" }, 15.5f, 6.8f, 7.2f);
-        PlaceKeyRow(new[] { "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P" }, 8.3f, 6.8f, 7.2f);
-        PlaceKeyRow(new[] { "A", "S", "D", "F", "G", "H", "J", "K", "L" }, 1.1f, 6.8f, 7.2f);
-        PlaceKeyRow(new[] { "Z", "X", "C", "V", "B", "N", "M" }, -6.1f, 6.8f, 7.2f);
-        PlaceNamedKey("Key_Back", 31.2f, -6.1f, 12f, 7.2f);
-        PlaceNamedKey("Key_Shift", -24f, -14.2f, 14f, 7.6f);
-        PlaceNamedKey("Key_Space", 0f, -14.2f, 28f, 7.6f);
-        PlaceNamedKey("Key_Clear", 20f, -14.2f, 10f, 7.6f);
-        PlaceNamedKey("Key_Done", 31.5f, -14.2f, 11f, 7.6f);
-    }
-
-    void PlaceKeyRow(string[] tokens, float y, float width, float height)
-    {
-        float spacing = width + 0.7f;
-        float start = -((tokens.Length - 1) * spacing) * 0.5f;
-        for (int i = 0; i < tokens.Length; i++)
-            PlaceNamedKey("Key_" + tokens[i], start + spacing * i, y, width, height);
-    }
-
-    void PlaceNamedKey(string keyName, float x, float y, float width, float height)
-    {
-        Transform key = FindOptional(keyName);
-        if (key == null)
-            return;
-
-        SetRect(key as RectTransform, Vector2.one * 0.5f, Vector2.one * 0.5f, Vector2.one * 0.5f, new Vector2(x, y), new Vector2(width, height));
-        TMP_Text label = key.GetComponentInChildren<TMP_Text>(true);
-        if (label != null)
-        {
-            label.enableAutoSizing = true;
-            label.fontSizeMin = 1.8f;
-            label.fontSizeMax = 3.2f;
-            label.raycastTarget = false;
-        }
-    }
-
     void EnsureContinueButton()
     {
         Transform existing = FindOptional("Continue");
         if (existing != null)
-        {
             continueButton = existing.gameObject;
-            return;
-        }
-
-        continueButton = CreateTextButton(listView.transform, "Continue", "SELECT / CONTINUE", ContinueBlue);
-    }
-
-    void EnsureKey(string keyName, string label, Color color)
-    {
-        if (FindOptional(keyName) != null)
-            return;
-
-        GameObject key = CreateTextButton(keyboardRoot.transform, keyName, label, color);
-        key.name = keyName;
-    }
-
-    GameObject CreateTextButton(Transform parent, string objectName, string label, Color color)
-    {
-        GameObject plate = new GameObject(objectName, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-        plate.transform.SetParent(parent, false);
-        Image image = plate.GetComponent<Image>();
-        image.sprite = cardSprite;
-        image.type = cardSprite == null ? Image.Type.Simple : Image.Type.Sliced;
-        image.color = color;
-        image.raycastTarget = true;
-        Button button = plate.GetComponent<Button>();
-        button.targetGraphic = image;
-
-        TMP_Text text = CreateLabel(plate.transform, objectName + "Label", Vector2.zero, Vector2.zero, 2.6f, Color.white, FontStyles.Bold);
-        text.text = label;
-        text.alignment = TextAlignmentOptions.Center;
-        text.enableAutoSizing = true;
-        text.fontSizeMin = 2f;
-        text.fontSizeMax = 3f;
-        RectTransform textRect = text.rectTransform;
-        textRect.anchorMin = Vector2.zero;
-        textRect.anchorMax = Vector2.one;
-        textRect.offsetMin = Vector2.zero;
-        textRect.offsetMax = Vector2.zero;
-        return plate;
     }
 
     GameObject CreateCard()
@@ -1090,60 +853,6 @@ public class MenuProfilePanel : MonoBehaviour
         label.enableWordWrapping = false;
         label.overflowMode = TextOverflowModes.Ellipsis;
         return label;
-    }
-
-    static void StyleTitle(TMP_Text title, string text, float size)
-    {
-        if (title == null)
-            return;
-        title.text = text;
-        title.fontSize = size;
-        title.color = TitleInk;
-        title.alignment = TextAlignmentOptions.Center;
-        title.enableWordWrapping = false;
-        title.raycastTarget = false;
-    }
-
-    static void StyleLabel(TMP_Text label, float size, Color color)
-    {
-        if (label == null)
-            return;
-        label.fontSize = size;
-        label.color = color;
-        label.alignment = TextAlignmentOptions.Center;
-        label.raycastTarget = false;
-    }
-
-    static void DisableRaycast(Component target)
-    {
-        Graphic graphic = target.GetComponent<Graphic>();
-        if (graphic != null)
-            graphic.raycastTarget = false;
-    }
-
-    static void Stretch(RectTransform rect, Vector2 padding)
-    {
-        if (rect == null)
-            return;
-        rect.anchorMin = Vector2.zero;
-        rect.anchorMax = Vector2.one;
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.offsetMin = padding;
-        rect.offsetMax = -padding;
-        rect.localScale = Vector3.one;
-    }
-
-    static void SetRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 position, Vector2 size)
-    {
-        if (rect == null)
-            return;
-        rect.anchorMin = anchorMin;
-        rect.anchorMax = anchorMax;
-        rect.pivot = pivot;
-        rect.anchoredPosition = position;
-        rect.sizeDelta = size;
-        rect.localScale = Vector3.one;
-        rect.localRotation = Quaternion.identity;
     }
 }
 
