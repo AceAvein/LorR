@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using TMPro;
 
 public class TracingTimer : MonoBehaviour
@@ -47,6 +48,9 @@ public class TracingTimer : MonoBehaviour
 
     public void StartTimer()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         gameObject.SetActive(true);
         timeRemaining = timeLimit;
         elapsed = 0f;
@@ -239,6 +243,9 @@ public class TracingTimer : MonoBehaviour
 
     public void CompleteGame()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         if (!timerRunning)
             return;
 
@@ -253,6 +260,9 @@ public class TracingTimer : MonoBehaviour
 
     void ShowResults(bool deckCleared)
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         if (pathManager == null)
             return;
 

@@ -1,7 +1,9 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class PathManager : MonoBehaviour
 {
@@ -28,6 +30,8 @@ public class PathManager : MonoBehaviour
     float patternStartTime;
     bool patternScored;
     bool patternCompleted;
+    public static event Action PatternReachedEnd;
+
     LineRenderer coloredPath;
     readonly List<Vector3> points = new List<Vector3>();
     readonly List<Vector3> ink = new List<Vector3>();
@@ -62,6 +66,10 @@ public class PathManager : MonoBehaviour
             progress = totalLength;
             PaintGuide();
             patternCompleted = true;
+            PatternReachedEnd?.Invoke();
+            if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+                return;
+
             StartCoroutine(PatternComplete());
         }
     }
@@ -121,7 +129,11 @@ public class PathManager : MonoBehaviour
             walked = segmentEnd;
         }
 
-        if (found && bestDistance <= followDistance && bestAlong > progress)
+        float allowed = followDistance;
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            allowed = 0.045f;
+
+        if (found && bestDistance <= allowed && bestAlong > progress)
             progress = bestAlong;
     }
 
@@ -134,7 +146,7 @@ public class PathManager : MonoBehaviour
         ink.Add(onBoard);
     }
 
-    float ScoreCurrentPattern()
+    public float ScoreCurrentPattern()
     {
         if (tracePath != null)
             RebuildPath();

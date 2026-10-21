@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class PatternManager : MonoBehaviour
 {
@@ -48,10 +49,60 @@ public class PatternManager : MonoBehaviour
 
     void Start()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         if (generateRandomPatterns)
             ShowGenerated(true);
         else
             ShowPattern(currentPattern);
+    }
+
+    public void ShowGuidedPath()
+    {
+        for (int i = 0; i < patterns.Length; i++)
+            patterns[i].SetActive(false);
+
+        EnsureGeneratedGuide();
+        Recipe recipe = new Recipe
+        {
+            kind = 0,
+            count = 1,
+            amp = 0.1f,
+            span = 0.55f,
+            passes = 1,
+            stars = 3
+        };
+        FillRecipe(recipe);
+
+        generatedPath.gameObject.SetActive(true);
+        generatedPath.positionCount = generatedPoints.Count;
+        generatedPath.SetPositions(generatedPoints.ToArray());
+
+        PlaceLabel(startLabel, 0);
+        PlaceLabel(endLabel, generatedPoints.Count - 1);
+        if (startLabel != null)
+            startLabel.gameObject.SetActive(true);
+        if (endLabel != null)
+            endLabel.gameObject.SetActive(true);
+        PlaceStars(3, true);
+
+        pathManager.guideWorldWidth = LetterThickness(startLabel);
+        pathManager.tracePath = generatedPath;
+        pathManager.traceEnd = endLabel.transform;
+        pathManager.ResetPattern();
+    }
+
+    public void HideGuidedPath()
+    {
+        if (generatedPath != null)
+            generatedPath.gameObject.SetActive(false);
+        if (startLabel != null)
+            startLabel.gameObject.SetActive(false);
+        if (endLabel != null)
+            endLabel.gameObject.SetActive(false);
+        if (generatedPath != null)
+            PlaceStars(0);
     }
 
     public void ShowPattern(int index)
@@ -74,6 +125,9 @@ public class PatternManager : MonoBehaviour
 
     public void NextPattern()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         if (generateRandomPatterns)
         {
             if (deck.Count > 0 && nextRecipe >= deck.Count)
@@ -148,7 +202,7 @@ public class PatternManager : MonoBehaviour
 
         PlaceLabel(startLabel, 0);
         PlaceLabel(endLabel, generatedPoints.Count - 1);
-        PlaceStars(recipe.stars);
+        PlaceStars(recipe.stars, false);
 
         pathManager.guideWorldWidth = LetterThickness(startLabel);
         pathManager.tracePath = generatedPath;
@@ -363,10 +417,10 @@ public class PatternManager : MonoBehaviour
         return height * LetterStroke;
     }
 
-    void PlaceStars(int count)
+    void PlaceStars(int count, bool even = false)
     {
         BuildWorldPath();
-        PickStarDistances(count);
+        PickStarDistances(count, even);
 
         Transform guide = generatedPath.transform;
         Transform area = guide.parent.parent.parent;
@@ -402,7 +456,7 @@ public class PatternManager : MonoBehaviour
             worldPoints.Add(guide.TransformPoint(generatedPoints[i]));
     }
 
-    void PickStarDistances(int count)
+    void PickStarDistances(int count, bool even = false)
     {
         starDistances.Clear();
         float total = PathLength();
@@ -410,6 +464,16 @@ public class PatternManager : MonoBehaviour
             return;
 
         float margin = Mathf.Min(total * 0.15f, 0.08f);
+        if (even)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                float t = (i + 1f) / (count + 1f);
+                starDistances.Add(Mathf.Lerp(margin, total - margin, t));
+            }
+            return;
+        }
+
         float minGap = 0.12f;
         int guard = 0;
 

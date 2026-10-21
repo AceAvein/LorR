@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class PenSelect : MonoBehaviour
 {
@@ -45,7 +46,51 @@ public class PenSelect : MonoBehaviour
 
     public void Open()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         ScoringChecker.Ensure().TryContinue(OpenAfterCheck);
+    }
+
+    public void EquipGuidedPencil(bool rightHand)
+    {
+        useRightHand = rightHand;
+
+        Transform hand = PlayerHands.WritingController(rightHand);
+        if (hand != null)
+            PlacePen(pencil, pencilPosition, pencilRotation, hand, pencilTip);
+
+        PenTrail trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
+        if (trail != null)
+        {
+            trail.UseRightHand(rightHand);
+            trail.SetInkColor(new Color(0.62f, 0.62f, 0.62f));
+            trail.SetDrawTool(PenSounds.Tool.Pencil);
+        }
+
+        ShowOnly(pencil);
+        PlayerHands.SetWritingHand(rightHand);
+
+        if (penTip != null && pencil != null)
+        {
+            penTip.SetParent(pencil.transform, false);
+            penTip.localPosition = pencilTip;
+            penTip.localRotation = Quaternion.identity;
+            float scale = pencil.transform.localScale.x;
+            if (scale > 0.0001f)
+                penTip.localScale = Vector3.one * (1f / scale);
+        }
+
+        if (selectPenCanvas != null)
+            selectPenCanvas.SetActive(false);
+        if (selectHandCanvas != null)
+            selectHandCanvas.SetActive(false);
+    }
+
+    public void HideGuidedPencil()
+    {
+        ShowOnly(null);
+        PlayerHands.ShowBothHands();
     }
 
     void OpenAfterCheck()

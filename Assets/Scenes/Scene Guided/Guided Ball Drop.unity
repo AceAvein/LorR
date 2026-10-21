@@ -13566,7 +13566,7 @@ MonoBehaviour:
   wrongLeft: {fileID: 8300000, guid: 164c8b93cf6de9f468f80411cbb26233, type: 3}
   wrongRight: {fileID: 8300000, guid: 925bd49bc7e44cf40b6c256a8d00fbc2, type: 3}
   miss: {fileID: 8300000, guid: a1807aa8b97f7224b9149ec768128e32, type: 3}
-  done: {fileID: 0}
+  done: {fileID: 8300000, guid: 67108f6ad8f66ec45b858a236cd8e717, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

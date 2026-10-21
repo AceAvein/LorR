@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public struct FinishedPattern
@@ -52,12 +53,21 @@ public class ResultsScreen : MonoBehaviour
 
     void Awake()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+        {
+            gameObject.SetActive(false);
+            return;
+        }
+
         EnsureVisuals();
         gameObject.SetActive(false);
     }
 
     public void Show(RoundReport report)
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         EnsureVisuals();
 
         patternsCompleted.text = report.patternsCompleted + " / " + report.patternTotal;

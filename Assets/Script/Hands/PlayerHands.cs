@@ -134,6 +134,25 @@ public class PlayerHands : MonoBehaviour
         }
     }
 
+    public static void ShowBothHands()
+    {
+        if (instance == null)
+            return;
+
+        Scene scene = SceneManager.GetActiveScene();
+        XROrigin[] origins = FindObjectsByType<XROrigin>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        foreach (XROrigin origin in origins)
+        {
+            if (origin.gameObject.scene != scene)
+                continue;
+
+            Transform leftController = FindNamedChild(origin.transform, "Left Controller");
+            Transform rightController = FindNamedChild(origin.transform, "Right Controller");
+            EnsureHand(leftController, instance.leftHandPrefab, true);
+            EnsureHand(rightController, instance.rightHandPrefab, false);
+        }
+    }
+
     public static Transform WritingController(bool rightHand)
     {
         Scene scene = SceneManager.GetActiveScene();

@@ -1,6 +1,7 @@
 using UnityEngine;
 using TMPro;
 using System.Collections;
+using UnityEngine.SceneManagement;
 
 public class Countdown : MonoBehaviour
 {
@@ -12,6 +13,9 @@ public class Countdown : MonoBehaviour
 
     public void StartCountdown()
     {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
         objectiveScreen.SetActive(false);
 
         PathManager paths = FindFirstObjectByType<PathManager>();
