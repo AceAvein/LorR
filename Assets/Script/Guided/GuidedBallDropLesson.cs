@@ -189,14 +189,13 @@ public class GuidedBallDropLesson : MonoBehaviour
 
     void MarkGrabHand(bool left)
     {
-        Transform hand = FindHand(left);
-        GuidedPointer.Follow(hand, "GRAB", 0.07f, 0.12f);
+        GuidedPointer.FollowHand(FindHand(left), "GRAB");
     }
 
     void MarkCatch(Transform ball, bool forLeft)
     {
-        GuidedPointer.Follow(ball, forLeft ? "LEFT" : "RIGHT", 0.16f, 0.08f);
-        GuidedPointer.Follow(FindHand(forLeft), "", 0.07f, 0.12f);
+        GuidedPointer.Follow(ball, forLeft ? "LEFT" : "RIGHT", 0.16f);
+        GuidedPointer.FollowHand(FindHand(forLeft), "");
     }
 
     void PollSqueeze(bool left)
@@ -301,46 +300,6 @@ public class GuidedBallDropLesson : MonoBehaviour
             return;
 
         resultsScreen.SetActive(true);
-        Transform panel = resultsScreen.transform.Find("ResultsPanel");
-        if (panel != null)
-        {
-            Image sheet = panel.GetComponent<Image>();
-            if (sheet != null)
-            {
-                sheet.enabled = true;
-                sheet.sprite = null;
-                sheet.color = new Color(0.07f, 0.1f, 0.16f, 0.94f);
-            }
-
-            TMP_Text done = FindChildText(panel, "Text_Done");
-            if (done == null)
-                done = CreateDoneLabel(panel);
-            done.text = "You did it!\nThat's how you play.";
-            done.gameObject.SetActive(true);
-        }
-    }
-
-    static TMP_Text CreateDoneLabel(Transform panel)
-    {
-        GameObject go = new GameObject("Text_Done", typeof(RectTransform));
-        go.transform.SetParent(panel, false);
-        RectTransform rect = go.GetComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0.1f, 0.35f);
-        rect.anchorMax = new Vector2(0.9f, 0.8f);
-        rect.offsetMin = Vector2.zero;
-        rect.offsetMax = Vector2.zero;
-
-        TextMeshProUGUI text = go.AddComponent<TextMeshProUGUI>();
-        text.font = TMP_Settings.defaultFontAsset;
-        if (text.font == null)
-            text.font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
-        text.fontSize = 6.5f;
-        text.fontStyle = FontStyles.Bold;
-        text.alignment = TextAlignmentOptions.Center;
-        text.color = Color.white;
-        text.enableWordWrapping = true;
-        text.raycastTarget = false;
-        return text;
     }
 
     void FindTemplates()
@@ -470,14 +429,33 @@ public class GuidedBallDropLesson : MonoBehaviour
     static Transform FindHand(bool left)
     {
         Transform controller = PlayerHands.WritingController(!left);
-        if (controller != null)
-            return controller;
+        if (controller == null)
+            controller = FindNamedTransform(left ? "Left Controller" : "Right Controller");
 
-        Transform named = FindNamedTransform(left ? "Left Controller" : "Right Controller");
+        Transform model = FindHandModel(controller);
+        if (model != null)
+            return model;
+
+        Transform named = FindNamedTransform(left ? "Left Hand Model" : "Right Hand Model");
         if (named != null)
             return named;
 
-        return FindNamedTransform(left ? "Left Hand Model" : "Right Hand Model");
+        return controller;
+    }
+
+    static Transform FindHandModel(Transform controller)
+    {
+        if (controller == null)
+            return null;
+
+        for (int i = 0; i < controller.childCount; i++)
+        {
+            Transform child = controller.GetChild(i);
+            if (child.name.Contains("Hand Model"))
+                return child;
+        }
+
+        return null;
     }
 
     static Transform FindNamedTransform(string objectName)

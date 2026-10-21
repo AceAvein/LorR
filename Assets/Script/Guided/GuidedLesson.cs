@@ -60,9 +60,8 @@ public class GuidedLesson : MonoBehaviour
         if (canvas != null)
             return;
 
-        canvas = GameObject.Find("GuidedStepCanvas");
-        if (canvas == null)
-            canvas = CreateCanvas();
+        Transform found = FindNamed("GuidedStepCanvas");
+        canvas = found != null ? found.gameObject : CreateCanvas();
 
         stepLabel = FindChildText(canvas.transform, "Text_Step");
         instructionLabel = FindChildText(canvas.transform, "Text_Instruction");
