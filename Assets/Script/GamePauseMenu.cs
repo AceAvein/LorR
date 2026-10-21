@@ -5,6 +5,9 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Casters;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 public class GamePauseMenu : MonoBehaviour
@@ -20,6 +23,30 @@ public class GamePauseMenu : MonoBehaviour
     bool countingDown;
     readonly List<XRGrabInteractable> frozenGrabs = new List<XRGrabInteractable>();
     readonly List<GameObject> hiddenObjects = new List<GameObject>();
+    readonly List<RayBackup> rayBackups = new List<RayBackup>();
+
+    struct RayBackup
+    {
+        public NearFarInteractor nearFar;
+        public bool nearCasting;
+        public bool blockUI;
+        public CurveInteractionCaster farCaster;
+        public float castDistance;
+        public int hitType;
+        public CurveVisualController curve;
+        public float restLength;
+        public float maxVisual;
+        public bool extendEmpty;
+        public int dynamicsMode;
+        public XRRayInteractor ray;
+        public float maxRay;
+        public int rayHitType;
+        public XRInteractorLineVisual line;
+        public bool autoAdjust;
+        public float lineLength;
+        public float minLine;
+        public bool stopFirst;
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -81,6 +108,7 @@ public class GamePauseMenu : MonoBehaviour
             menuButton.Dispose();
         }
 
+        RestoreUiRays();
         if (IsFrozen)
         {
             IsFrozen = false;
@@ -111,6 +139,7 @@ public class GamePauseMenu : MonoBehaviour
         Time.timeScale = 0f;
         FreezeGrabs();
         HideGameElements();
+        StretchUiRays();
         settings.SetActive(true);
     }
 
@@ -120,12 +149,14 @@ public class GamePauseMenu : MonoBehaviour
             return;
 
         settings.SetActive(false);
+        RestoreUiRays();
         RestoreGameElements();
         StartCoroutine(CountdownThenContinue());
     }
 
     public void GoToMenu()
     {
+        RestoreUiRays();
         IsFrozen = false;
         Time.timeScale = 1f;
         SceneManager.LoadScene("Menu");
@@ -300,6 +331,120 @@ public class GamePauseMenu : MonoBehaviour
         }
 
         frozenGrabs.Clear();
+    }
+
+    void StretchUiRays()
+    {
+        RestoreUiRays();
+
+        NearFarInteractor[] nearFars = FindObjectsByType<NearFarInteractor>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        for (int i = 0; i < nearFars.Length; i++)
+        {
+            NearFarInteractor nf = nearFars[i];
+            RayBackup backup = new RayBackup();
+            backup.nearFar = nf;
+            backup.nearCasting = nf.enableNearCasting;
+            backup.blockUI = nf.blockUIOnInteractableSelection;
+            nf.enableNearCasting = false;
+            nf.blockUIOnInteractableSelection = false;
+
+            CurveInteractionCaster far = nf.farInteractionCaster as CurveInteractionCaster;
+            if (far != null)
+            {
+                backup.farCaster = far;
+                backup.castDistance = far.castDistance;
+                backup.hitType = (int)far.hitDetectionType;
+                far.castDistance = 30f;
+                far.hitDetectionType = CurveInteractionCaster.HitDetectionType.Raycast;
+            }
+
+            CurveVisualController curve = nf.GetComponentInChildren<CurveVisualController>(true);
+            if (curve != null)
+            {
+                backup.curve = curve;
+                backup.restLength = curve.restingVisualLineLength;
+                backup.maxVisual = curve.maxVisualCurveDistance;
+                backup.extendEmpty = curve.extendLineToEmptyHit;
+                backup.dynamicsMode = (int)curve.lineDynamicsMode;
+                curve.restingVisualLineLength = 10f;
+                curve.maxVisualCurveDistance = 30f;
+                curve.extendLineToEmptyHit = true;
+                curve.lineDynamicsMode = LineDynamicsMode.Traditional;
+            }
+
+            rayBackups.Add(backup);
+        }
+
+        XRRayInteractor[] rays = FindObjectsByType<XRRayInteractor>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        for (int i = 0; i < rays.Length; i++)
+        {
+            XRRayInteractor ray = rays[i];
+            RayBackup backup = new RayBackup();
+            backup.ray = ray;
+            backup.maxRay = ray.maxRaycastDistance;
+            backup.rayHitType = (int)ray.hitDetectionType;
+            ray.maxRaycastDistance = 30f;
+            ray.hitDetectionType = XRRayInteractor.HitDetectionType.Raycast;
+
+            XRInteractorLineVisual line = ray.GetComponent<XRInteractorLineVisual>();
+            if (line != null)
+            {
+                backup.line = line;
+                backup.autoAdjust = line.autoAdjustLineLength;
+                backup.lineLength = line.lineLength;
+                backup.minLine = line.minLineLength;
+                backup.stopFirst = line.stopLineAtFirstRaycastHit;
+                line.autoAdjustLineLength = false;
+                line.lineLength = 10f;
+                line.minLineLength = 10f;
+                line.stopLineAtFirstRaycastHit = false;
+            }
+
+            rayBackups.Add(backup);
+        }
+    }
+
+    void RestoreUiRays()
+    {
+        for (int i = 0; i < rayBackups.Count; i++)
+        {
+            RayBackup backup = rayBackups[i];
+            if (backup.nearFar != null)
+            {
+                backup.nearFar.enableNearCasting = backup.nearCasting;
+                backup.nearFar.blockUIOnInteractableSelection = backup.blockUI;
+            }
+
+            if (backup.farCaster != null)
+            {
+                backup.farCaster.castDistance = backup.castDistance;
+                backup.farCaster.hitDetectionType = (CurveInteractionCaster.HitDetectionType)backup.hitType;
+            }
+
+            if (backup.curve != null)
+            {
+                backup.curve.restingVisualLineLength = backup.restLength;
+                backup.curve.maxVisualCurveDistance = backup.maxVisual;
+                backup.curve.extendLineToEmptyHit = backup.extendEmpty;
+                backup.curve.lineDynamicsMode = (LineDynamicsMode)backup.dynamicsMode;
+            }
+
+            if (backup.ray != null)
+            {
+                backup.ray.maxRaycastDistance = backup.maxRay;
+                backup.ray.hitDetectionType = (XRRayInteractor.HitDetectionType)backup.rayHitType;
+            }
+
+            if (backup.line != null)
+            {
+                backup.line.autoAdjustLineLength = backup.autoAdjust;
+                backup.line.lineLength = backup.lineLength;
+                backup.line.minLineLength = backup.minLine;
+                backup.line.stopLineAtFirstRaycastHit = backup.stopFirst;
+            }
+        }
+
+        rayBackups.Clear();
     }
 
     static void PlaceInFront(GameObject panel)
