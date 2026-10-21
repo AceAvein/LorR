@@ -88,7 +88,7 @@ public class ReactionLightRound : MonoBehaviour
 
     static void TryCreate(Scene scene)
     {
-        if (!scene.IsValid() || scene.name != "ReactionLight")
+        if (!scene.IsValid() || !ModuleScenes.IsReactionLight(scene.name))
             return;
 
         if (Instance != null)

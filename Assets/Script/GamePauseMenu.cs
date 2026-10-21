@@ -66,7 +66,7 @@ public class GamePauseMenu : MonoBehaviour
         if (!scene.IsValid())
             return;
 
-        if (scene.name != "PenControlTracing" && scene.name != "Ball Drop" && scene.name != "BallDrop_HalfwayTest" && scene.name != "ReactionLight" && scene.name != "ColorSort")
+        if (!ModuleScenes.IsPlayModule(scene.name))
             return;
 
         if (active != null)
@@ -172,7 +172,7 @@ public class GamePauseMenu : MonoBehaviour
         if (countdownScreen != null)
         {
             string sceneName = SceneManager.GetActiveScene().name;
-            if (sceneName == "ReactionLight" || sceneName == "ColorSort")
+            if (ModuleScenes.IsReactionLight(sceneName) || ModuleScenes.IsColorSort(sceneName))
                 PlaceInFront(countdownScreen);
             countdownScreen.SetActive(true);
         }

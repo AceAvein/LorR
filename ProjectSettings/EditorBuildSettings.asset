@@ -32,6 +32,18 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Scene Simulation/Reaction Light.unity
     guid: d74e07be3d813bf4896a55f6ff2e0265
+  - enabled: 1
+    path: Assets/Scenes/Scene Guided/Guided Pen Control Tracing.unity
+    guid: fee868cbeb328ea42a3be45b65eb0753
+  - enabled: 1
+    path: Assets/Scenes/Scene Guided/Guided Ball Drop.unity
+    guid: 66c5ce42136a8e84c86ef79a6dabb01e
+  - enabled: 1
+    path: Assets/Scenes/Scene Guided/Guided Color Sort.unity
+    guid: 42807f5f55dd34f4bad870ec34bb52b4
+  - enabled: 1
+    path: Assets/Scenes/Scene Guided/Guided Reaction Light.unity
+    guid: f8af78a8de2d08e468b6837cfacf9caa
   - enabled: 0
     path: Assets/Test_Scenes/Alyza_Test/ReactionLight/09_ReactionLight.unity
     guid: c5465b345ddda8f498edef7b9df94a6b

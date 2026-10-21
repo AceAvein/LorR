@@ -24692,7 +24692,7 @@ GameObject:
   - component: {fileID: 1406657509}
   - component: {fileID: 1406657508}
   m_Layer: 5
-  m_Name: Select Mode
+  m_Name: Select Guided or Simulation
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -24705,7 +24705,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1406657507}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 95c10b63520d47e4db492050130af098, type: 3}
   m_Name: 

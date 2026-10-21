@@ -12,10 +12,17 @@ public class PlayerHands : MonoBehaviour
         "Menu",
         "TrainingRange",
         "PenControlTracing",
+        "Pen Control Tracing",
+        "Guided Pen Control Tracing",
         "Ball Drop",
+        "Guided Ball Drop",
         "BallDrop_HalfwayTest",
         "ColorSort",
+        "Color Sort",
+        "Guided Color Sort",
         "ReactionLight",
+        "Reaction Light",
+        "Guided Reaction Light",
         "09_ReactionLight",
     };
 

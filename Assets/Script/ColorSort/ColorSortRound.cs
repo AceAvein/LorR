@@ -92,7 +92,7 @@ public class ColorSortRound : MonoBehaviour
 
     static void TryCreate(Scene scene)
     {
-        if (!scene.IsValid() || scene.name != "ColorSort")
+        if (!scene.IsValid() || !ModuleScenes.IsColorSort(scene.name))
             return;
 
         if (FindAnyObjectByType<ColorSortRound>() != null)
