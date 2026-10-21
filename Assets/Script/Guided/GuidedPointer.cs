@@ -3,26 +3,26 @@ using UnityEngine;
 
 public class GuidedPointer : MonoBehaviour
 {
+    Transform target;
     Transform glow;
     TextMeshPro label;
-    Vector3 glowBase = Vector3.one * 0.2f;
+    float glowSize = 0.16f;
+    float labelGap = 0.1f;
+    string word;
 
-    public static GuidedPointer Attach(Transform target, string word, Vector3 localOffset)
+    public static GuidedPointer Follow(Transform target, string word, float glowSize, float labelGap)
     {
         if (target == null)
             return null;
 
-        GuidedPointer pointer = target.GetComponentInChildren<GuidedPointer>();
-        if (pointer == null)
-        {
-            GameObject root = new GameObject("GuidedPointer");
-            root.transform.SetParent(target, false);
-            pointer = root.AddComponent<GuidedPointer>();
-            pointer.Build();
-        }
-
-        pointer.transform.localPosition = localOffset;
+        GameObject root = new GameObject("GuidedPointer");
+        GuidedPointer pointer = root.AddComponent<GuidedPointer>();
+        pointer.target = target;
+        pointer.glowSize = glowSize;
+        pointer.labelGap = labelGap;
+        pointer.Build();
         pointer.SetWord(word);
+        pointer.Snap();
         return pointer;
     }
 
@@ -36,9 +36,15 @@ public class GuidedPointer : MonoBehaviour
         }
     }
 
-    public void SetWord(string word)
+    public void SetWord(string nextWord)
     {
-        if (label != null)
+        word = nextWord;
+        if (label == null)
+            return;
+
+        bool show = !string.IsNullOrEmpty(word);
+        label.gameObject.SetActive(show);
+        if (show)
             label.text = word;
     }
 
@@ -48,7 +54,6 @@ public class GuidedPointer : MonoBehaviour
         glowObject.name = "Glow";
         glowObject.transform.SetParent(transform, false);
         glowObject.transform.localPosition = Vector3.zero;
-        glowObject.transform.localScale = glowBase;
         Collider glowCollider = glowObject.GetComponent<Collider>();
         if (glowCollider != null)
             Destroy(glowCollider);
@@ -59,13 +64,13 @@ public class GuidedPointer : MonoBehaviour
             Shader shader = Shader.Find("Sprites/Default");
             if (shader == null)
                 shader = Shader.Find("Universal Render Pipeline/Unlit");
-            if (shader == null)
-                shader = glowRenderer.sharedMaterial != null ? glowRenderer.sharedMaterial.shader : null;
+            if (shader == null && glowRenderer.sharedMaterial != null)
+                shader = glowRenderer.sharedMaterial.shader;
 
             if (shader != null)
             {
                 Material material = new Material(shader);
-                material.color = new Color(1f, 0.85f, 0.15f, 0.45f);
+                material.color = new Color(1f, 0.85f, 0.15f, 0.4f);
                 glowRenderer.material = material;
             }
         }
@@ -74,39 +79,58 @@ public class GuidedPointer : MonoBehaviour
 
         GameObject labelObject = new GameObject("Label");
         labelObject.transform.SetParent(transform, false);
-        labelObject.transform.localPosition = new Vector3(0f, 0.16f, 0f);
         label = labelObject.AddComponent<TextMeshPro>();
         TMP_FontAsset font = TMP_Settings.defaultFontAsset;
         if (font == null)
             font = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
 
         label.font = font;
-        label.fontSize = 2.4f;
+        label.fontSize = 0.14f;
         label.fontStyle = FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
         label.color = Color.white;
-        label.outlineWidth = 0.25f;
+        label.outlineWidth = 0.22f;
         label.outlineColor = Color.black;
         label.enableWordWrapping = false;
         label.overflowMode = TextOverflowModes.Overflow;
-        label.rectTransform.sizeDelta = new Vector2(1.6f, 0.4f);
+        label.rectTransform.sizeDelta = new Vector2(0.55f, 0.16f);
     }
 
     void LateUpdate()
     {
-        if (glow != null)
+        Snap();
+    }
+
+    void Snap()
+    {
+        if (target == null)
         {
-            float pulse = 1f + 0.18f * Mathf.Sin(Time.unscaledTime * 5f);
-            glow.localScale = glowBase * pulse;
+            Destroy(gameObject);
+            return;
         }
 
-        if (label == null)
+        transform.SetPositionAndRotation(target.position, Quaternion.identity);
+        transform.localScale = Vector3.one;
+
+        float pulse = 1f + 0.12f * Mathf.Sin(Time.unscaledTime * 5f);
+        if (glow != null)
+            glow.localScale = Vector3.one * glowSize * pulse;
+
+        if (label == null || !label.gameObject.activeSelf)
             return;
 
         Camera view = Camera.main;
-        if (view == null)
-            return;
+        Vector3 toCam = Vector3.forward;
+        if (view != null)
+        {
+            toCam = view.transform.position - target.position;
+            if (toCam.sqrMagnitude < 0.0001f)
+                toCam = view.transform.forward * -1f;
+            toCam.Normalize();
+        }
 
-        label.transform.rotation = Quaternion.LookRotation(label.transform.position - view.transform.position);
+        label.transform.position = target.position + toCam * labelGap + Vector3.up * (glowSize * 0.35f);
+        if (view != null)
+            label.transform.rotation = Quaternion.LookRotation(label.transform.position - view.transform.position);
     }
 }

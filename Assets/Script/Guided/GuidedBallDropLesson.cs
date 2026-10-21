@@ -2,13 +2,15 @@ using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class GuidedBallDropLesson : MonoBehaviour
 {
-    const int StepTotal = 3;
+    const int StepTotal = 5;
     const float FallSpeed = 0.35f;
+    const float SqueezeAmount = 0.55f;
 
     GuidedLesson lesson;
     BallDropSystem dropSystem;
@@ -17,9 +19,14 @@ public class GuidedBallDropLesson : MonoBehaviour
     GameObject leftTemplate;
     GameObject rightTemplate;
     DropBall currentBall;
+    InputAction leftGrip;
+    InputAction leftTrigger;
+    InputAction rightGrip;
+    InputAction rightTrigger;
     int step;
     bool waiting;
     bool lessonOpen;
+    bool squeezeArmed;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -58,7 +65,7 @@ public class GuidedBallDropLesson : MonoBehaviour
         resultsScreen = FindNamed("ResultsScreen");
         FindTemplates();
         HideHud();
-        SetObjectiveText("HOW TO PLAY:\nCatch the falling ball with the matching hand.");
+        SetObjectiveText("HOW TO PLAY:\nFirst squeeze Grab on each controller, then catch the falling ball with the matching hand.");
         WireStart();
         ShowIntro();
     }
@@ -74,12 +81,25 @@ public class GuidedBallDropLesson : MonoBehaviour
     {
         DropBall.Grabbed += OnGrabbed;
         DropBall.Missed += OnMissed;
+        BindSqueeze();
     }
 
     void OnDisable()
     {
         DropBall.Grabbed -= OnGrabbed;
         DropBall.Missed -= OnMissed;
+        UnbindSqueeze();
+    }
+
+    void Update()
+    {
+        if (!lessonOpen || waiting || GamePauseMenu.IsFrozen)
+            return;
+
+        if (step == 1)
+            PollSqueeze(true);
+        else if (step == 2)
+            PollSqueeze(false);
     }
 
     void ShowIntro()
@@ -112,8 +132,9 @@ public class GuidedBallDropLesson : MonoBehaviour
         HideHud();
         lessonOpen = true;
         step = 1;
+        squeezeArmed = false;
         ShowCurrentStep();
-        SpawnForStep();
+        BeginStep();
     }
 
     void ShowCurrentStep()
@@ -122,11 +143,30 @@ public class GuidedBallDropLesson : MonoBehaviour
             return;
 
         if (step == 1)
-            lesson.ShowStep(1, StepTotal, "Grab this ball with your LEFT hand.", "");
+            lesson.ShowStep(1, StepTotal, "Squeeze GRAB on your LEFT controller.", "");
         else if (step == 2)
-            lesson.ShowStep(2, StepTotal, "Now grab this ball with your RIGHT hand.", "");
+            lesson.ShowStep(2, StepTotal, "Now squeeze GRAB on your RIGHT controller.", "");
+        else if (step == 3)
+            lesson.ShowStep(3, StepTotal, "Catch this ball with your LEFT hand.", "");
+        else if (step == 4)
+            lesson.ShowStep(4, StepTotal, "Catch this ball with your RIGHT hand.", "");
         else
-            lesson.ShowStep(3, StepTotal, "Wrong hand does not count. Use the matching hand.", "");
+            lesson.ShowStep(5, StepTotal, "Wrong hand does not count. Use the matching hand.", "");
+    }
+
+    void BeginStep()
+    {
+        ClearBall();
+        GuidedPointer.ClearAll();
+        squeezeArmed = false;
+
+        if (step <= 2)
+        {
+            MarkGrabHand(step == 1);
+            return;
+        }
+
+        SpawnForStep();
     }
 
     void SpawnForStep()
@@ -134,8 +174,7 @@ public class GuidedBallDropLesson : MonoBehaviour
         if (!lessonOpen || dropSystem == null)
             return;
 
-        ClearBall();
-        bool forLeft = step != 2;
+        bool forLeft = step != 4;
         GameObject template = forLeft ? leftTemplate : rightTemplate;
         if (template == null)
             template = leftTemplate != null ? leftTemplate : rightTemplate;
@@ -145,22 +184,56 @@ public class GuidedBallDropLesson : MonoBehaviour
             return;
 
         currentBall = spawned.GetComponent<DropBall>();
-        MarkTargets(spawned.transform, forLeft);
+        MarkCatch(spawned.transform, forLeft);
     }
 
-    void MarkTargets(Transform ball, bool forLeft)
+    void MarkGrabHand(bool left)
     {
-        GuidedPointer.ClearAll();
-        GuidedPointer.Attach(ball, forLeft ? "LEFT" : "RIGHT", new Vector3(0f, 0.12f, 0f));
+        Transform hand = FindHand(left);
+        GuidedPointer.Follow(hand, "GRAB", 0.07f, 0.12f);
+    }
 
-        Transform hand = FindHand(forLeft);
-        if (hand != null)
-            GuidedPointer.Attach(hand, "THIS HAND", new Vector3(0f, 0.08f, 0f));
+    void MarkCatch(Transform ball, bool forLeft)
+    {
+        GuidedPointer.Follow(ball, forLeft ? "LEFT" : "RIGHT", 0.16f, 0.08f);
+        GuidedPointer.Follow(FindHand(forLeft), "", 0.07f, 0.12f);
+    }
+
+    void PollSqueeze(bool left)
+    {
+        float grip = ReadSqueeze(left ? leftGrip : rightGrip);
+        float trigger = ReadSqueeze(left ? leftTrigger : rightTrigger);
+        bool down = grip >= SqueezeAmount || trigger >= SqueezeAmount;
+        if (!down)
+        {
+            squeezeArmed = true;
+            return;
+        }
+
+        if (!squeezeArmed)
+            return;
+
+        squeezeArmed = false;
+        BallDropSounds.PlayCatch();
+        Advance();
+    }
+
+    void Advance()
+    {
+        if (step < StepTotal)
+        {
+            step++;
+            ShowCurrentStep();
+            BeginStep();
+            return;
+        }
+
+        Finish();
     }
 
     void OnGrabbed(DropBall ball, bool correct)
     {
-        if (!lessonOpen || waiting || ball == null || ball != currentBall)
+        if (!lessonOpen || waiting || step < 3 || ball == null || ball != currentBall)
             return;
 
         if (!correct)
@@ -178,15 +251,7 @@ public class GuidedBallDropLesson : MonoBehaviour
         if (lesson != null)
             lesson.SetHint("");
 
-        if (step < StepTotal)
-        {
-            step++;
-            ShowCurrentStep();
-            SpawnForStep();
-            return;
-        }
-
-        Finish();
+        Advance();
     }
 
     void OnMissed(DropBall ball)
@@ -214,7 +279,7 @@ public class GuidedBallDropLesson : MonoBehaviour
         }
 
         waiting = false;
-        if (lessonOpen && currentBall == null)
+        if (lessonOpen && currentBall == null && step >= 3)
             SpawnForStep();
     }
 
@@ -363,14 +428,56 @@ public class GuidedBallDropLesson : MonoBehaviour
             Destroy(ball.gameObject);
     }
 
+    void BindSqueeze()
+    {
+        UnbindSqueeze();
+        leftGrip = MakeSqueeze("{LeftHand}/grip");
+        leftTrigger = MakeSqueeze("{LeftHand}/trigger");
+        rightGrip = MakeSqueeze("{RightHand}/grip");
+        rightTrigger = MakeSqueeze("{RightHand}/trigger");
+    }
+
+    void UnbindSqueeze()
+    {
+        DisposeSqueeze(ref leftGrip);
+        DisposeSqueeze(ref leftTrigger);
+        DisposeSqueeze(ref rightGrip);
+        DisposeSqueeze(ref rightTrigger);
+    }
+
+    static InputAction MakeSqueeze(string path)
+    {
+        InputAction action = new InputAction(type: InputActionType.Value, binding: "<XRController>" + path);
+        action.Enable();
+        return action;
+    }
+
+    static void DisposeSqueeze(ref InputAction action)
+    {
+        if (action == null)
+            return;
+
+        action.Disable();
+        action.Dispose();
+        action = null;
+    }
+
+    static float ReadSqueeze(InputAction action)
+    {
+        return action != null ? action.ReadValue<float>() : 0f;
+    }
+
     static Transform FindHand(bool left)
     {
-        string key = left ? "Left Hand Model" : "Right Hand Model";
-        Transform named = FindNamedTransform(key);
+        Transform controller = PlayerHands.WritingController(!left);
+        if (controller != null)
+            return controller;
+
+        Transform named = FindNamedTransform(left ? "Left Controller" : "Right Controller");
         if (named != null)
             return named;
 
-        return FindNamedTransform(left ? "Left Controller" : "Right Controller");
+        return FindNamedTransform(left ? "Left Hand Model" : "Right Hand Model");
     }
 
     static Transform FindNamedTransform(string objectName)
