@@ -13,6 +13,7 @@ public class GuidedBallDropLesson : MonoBehaviour
     const float SqueezeAmount = 0.55f;
 
     GuidedLesson lesson;
+    GuidedBallDropVoices voices;
     BallDropSystem dropSystem;
     GameObject objectiveScreen;
     GameObject resultsScreen;
@@ -60,6 +61,7 @@ public class GuidedBallDropLesson : MonoBehaviour
         if (lesson == null)
             lesson = gameObject.AddComponent<GuidedLesson>();
 
+        voices = GuidedBallDropVoices.Find();
         dropSystem = FindFirstObjectByType<BallDropSystem>(FindObjectsInactive.Include);
         objectiveScreen = FindNamed("ObjectiveScreen");
         resultsScreen = FindNamed("ResultsScreen");
@@ -74,7 +76,11 @@ public class GuidedBallDropLesson : MonoBehaviour
     {
         HideHud();
         if (!lessonOpen)
+        {
             ShowIntro();
+            if (voices != null)
+                voices.PlayIntro();
+        }
     }
 
     void OnEnable()
@@ -152,6 +158,9 @@ public class GuidedBallDropLesson : MonoBehaviour
             lesson.ShowStep(4, StepTotal, "Catch this ball with your RIGHT hand.", "");
         else
             lesson.ShowStep(5, StepTotal, "Wrong hand does not count. Use the matching hand.", "");
+
+        if (voices != null)
+            voices.PlayStep(step);
     }
 
     void BeginStep()
@@ -241,6 +250,8 @@ public class GuidedBallDropLesson : MonoBehaviour
             string handWord = ball.forLeftHand ? "LEFT" : "RIGHT";
             if (lesson != null)
                 lesson.SetHint("Wrong hand. Use the " + handWord + " hand.");
+            if (voices != null)
+                voices.PlayWrong(ball.forLeftHand);
             return;
         }
 
@@ -262,6 +273,8 @@ public class GuidedBallDropLesson : MonoBehaviour
         currentBall = null;
         if (lesson != null)
             lesson.SetHint("Catch it before it falls.");
+        if (voices != null)
+            voices.PlayMiss();
 
         StartCoroutine(RespawnSoon());
     }
@@ -300,6 +313,8 @@ public class GuidedBallDropLesson : MonoBehaviour
             return;
 
         resultsScreen.SetActive(true);
+        if (voices != null)
+            voices.PlayDone();
     }
 
     void FindTemplates()
