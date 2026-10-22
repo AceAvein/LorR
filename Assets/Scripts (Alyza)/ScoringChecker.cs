@@ -92,7 +92,7 @@ public class ScoringChecker : MonoBehaviour
 
             if (req.result != UnityWebRequest.Result.Success)
             {
-                sessionState = 0;
+                sessionState = 1;
             }
             else
             {

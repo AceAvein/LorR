@@ -26,11 +26,11 @@ public class ChangeProfileImage : MonoBehaviour
 #if UNITY_ANDROID && !UNITY_EDITOR
     void PickImageAndroid()
     {
-        NativeGalleryNamespace.NativeGallery.GetImageFromGallery((path) =>
+        NativeGallery.GetImageFromGallery((path) =>
         {
             if (path == null)
                 return;
-            Texture2D texture = NativeGalleryNamespace.NativeGallery.LoadImageAtPath(path, 1024);
+            Texture2D texture = NativeGallery.LoadImageAtPath(path, 1024);
             if (texture == null)
                 return;
             SetImage(texture, path);
