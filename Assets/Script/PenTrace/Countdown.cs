@@ -53,6 +53,42 @@ public class Countdown : MonoBehaviour
         if (tracingArea == null)
             return;
 
+        if (!PlaceOnWhiteBoard())
+            PlaceInFrontOfHeadset();
+
+        Transform board = tracingArea.transform.Find("TracingBoard");
+        if (board == null)
+            return;
+
+        TracingBoardSurface surface = board.GetComponent<TracingBoardSurface>();
+        if (surface == null)
+            surface = board.gameObject.AddComponent<TracingBoardSurface>();
+
+        surface.reachDistance = 0.08f;
+    }
+
+    bool PlaceOnWhiteBoard()
+    {
+        Transform whiteBoard = PenTracePortal.WhiteBoardTransform();
+        if (whiteBoard == null)
+            return false;
+
+        Vector3 normal = PenTracePortal.WhiteBoardNormal();
+        if (normal.sqrMagnitude < 0.001f)
+            return false;
+
+        Vector3 center = PenTracePortal.WhiteBoardCenter();
+        Vector3 position = center + normal * 0.02f;
+        Vector3 forward = -normal;
+        if (Mathf.Abs(Vector3.Dot(forward, Vector3.up)) > 0.95f)
+            return false;
+
+        tracingArea.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
+        return true;
+    }
+
+    void PlaceInFrontOfHeadset()
+    {
         Camera headset = Camera.main;
         if (headset == null)
             return;
@@ -66,9 +102,5 @@ public class Countdown : MonoBehaviour
         Vector3 position = headset.transform.position + forward * 0.45f;
         position.y = headset.transform.position.y - 0.3f;
         tracingArea.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
-
-        Transform board = tracingArea.transform.Find("TracingBoard");
-        if (board != null && board.GetComponent<TracingBoardSurface>() == null)
-            board.gameObject.AddComponent<TracingBoardSurface>();
     }
 }

@@ -204,7 +204,22 @@ public class PenSelect : MonoBehaviour
         if (selectPenCanvas != null)
             selectPenCanvas.SetActive(false);
 
-        if (countdown != null)
+        if (countdown == null)
+            return;
+
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+        {
+            countdown.StartCountdown();
+            return;
+        }
+
+        PenTracePortal portal = PenTracePortal.Instance;
+        if (portal == null)
+            portal = FindFirstObjectByType<PenTracePortal>(FindObjectsInactive.Include);
+
+        if (portal != null)
+            portal.ArmForCountdown(countdown);
+        else
             countdown.StartCountdown();
     }
 
