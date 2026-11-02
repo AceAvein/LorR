@@ -12,6 +12,8 @@ public class PenTraceWalk : MonoBehaviour
     [SerializeField] float moveSpeed = 3.5f;
     [SerializeField] float gravity = -9.81f;
     [SerializeField] float stickDeadzone = 0.15f;
+    [SerializeField] float snapTurnDegrees = 45f;
+    [SerializeField] float snapTurnCooldown = 0.35f;
 
     XROrigin xrOrigin;
     CharacterController character;
@@ -19,6 +21,7 @@ public class PenTraceWalk : MonoBehaviour
     InputAction leftStick;
     InputAction rightStick;
     float verticalVelocity;
+    float nextSnapTime;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -89,15 +92,19 @@ public class PenTraceWalk : MonoBehaviour
 
         ResolveRig();
         MuteXriMoveConflicts();
-        MoveFromSticks();
+        TurnFromRightStick();
+        MoveFromLeftStick();
     }
 
-    void MoveFromSticks()
+    void MoveFromLeftStick()
     {
         if (xrOrigin == null)
             return;
 
-        Vector2 input = ReadStick();
+        Vector2 input = ReadStick(leftStick);
+        if (input.sqrMagnitude < 0.0001f && character == null)
+            return;
+
         Transform origin = xrOrigin.Origin != null ? xrOrigin.Origin.transform : xrOrigin.transform;
 
         Vector3 forward = head != null ? head.forward : origin.forward;
@@ -128,11 +135,31 @@ public class PenTraceWalk : MonoBehaviour
         origin.position += new Vector3(wish.x, 0f, wish.z) * Time.deltaTime;
     }
 
-    Vector2 ReadStick()
+    void TurnFromRightStick()
     {
-        Vector2 left = leftStick != null ? leftStick.ReadValue<Vector2>() : Vector2.zero;
-        Vector2 right = rightStick != null ? rightStick.ReadValue<Vector2>() : Vector2.zero;
-        Vector2 input = left.sqrMagnitude >= right.sqrMagnitude ? left : right;
+        if (xrOrigin == null || Time.time < nextSnapTime)
+            return;
+
+        Vector2 input = ReadStick(rightStick);
+        if (Mathf.Abs(input.x) < 0.6f)
+            return;
+
+        float angle = input.x > 0f ? snapTurnDegrees : -snapTurnDegrees;
+        if (!xrOrigin.RotateAroundCameraUsingOriginUp(angle))
+        {
+            Transform origin = xrOrigin.Origin != null ? xrOrigin.Origin.transform : xrOrigin.transform;
+            origin.Rotate(0f, angle, 0f, Space.World);
+        }
+
+        nextSnapTime = Time.time + snapTurnCooldown;
+    }
+
+    Vector2 ReadStick(InputAction stick)
+    {
+        if (stick == null)
+            return Vector2.zero;
+
+        Vector2 input = stick.ReadValue<Vector2>();
         if (input.magnitude < stickDeadzone)
             return Vector2.zero;
         return Vector2.ClampMagnitude(input, 1f);
@@ -169,15 +196,12 @@ public class PenTraceWalk : MonoBehaviour
         {
             leftStick = new InputAction(type: InputActionType.Value, binding: "<XRController>{LeftHand}/{Primary2DAxis}");
             leftStick.AddBinding("<XRController>{LeftHand}/thumbstick");
-            leftStick.AddBinding("<Gamepad>/leftStick");
-            leftStick.AddBinding("<Joystick>/stick");
         }
 
         if (rightStick == null)
         {
             rightStick = new InputAction(type: InputActionType.Value, binding: "<XRController>{RightHand}/{Primary2DAxis}");
             rightStick.AddBinding("<XRController>{RightHand}/thumbstick");
-            rightStick.AddBinding("<Gamepad>/rightStick");
         }
     }
 
@@ -186,11 +210,7 @@ public class PenTraceWalk : MonoBehaviour
         ControllerInputActionManager[] managers = FindObjectsByType<ControllerInputActionManager>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < managers.Length; i++)
         {
-            if (managers[i] == null)
-                continue;
-
-            managers[i].smoothMotionEnabled = true;
-            if (managers[i].enabled)
+            if (managers[i] != null && managers[i].enabled)
                 managers[i].enabled = false;
         }
 
