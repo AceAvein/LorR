@@ -27,6 +27,11 @@ public class PenTracePortal : MonoBehaviour
     Vector3 lockedPosition;
     Quaternion lockedRotation;
 
+    public bool IsLocked
+    {
+        get { return locked; }
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
     {
@@ -68,6 +73,25 @@ public class PenTracePortal : MonoBehaviour
         ResolveRefs();
         PreparePortalCollider();
         CacheLocomotion();
+        EnsureLocomotionEnabled();
+    }
+
+    void EnsureLocomotionEnabled()
+    {
+        if (locked)
+            return;
+
+        if (locomotion == null)
+            CacheLocomotion();
+
+        if (locomotion == null)
+            return;
+
+        for (int i = 0; i < locomotion.Length; i++)
+        {
+            if (locomotion[i] != null)
+                locomotion[i].enabled = true;
+        }
     }
 
     void OnDestroy()

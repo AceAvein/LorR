@@ -52777,8 +52777,9 @@ GameObject:
   - component: {fileID: 1988839955}
   - component: {fileID: 1988839957}
   - component: {fileID: 1988839956}
+  - component: {fileID: 1988839958}
   m_Layer: 0
-  m_Name: pCube4_aiStandardSurface21_0 (1)
+  m_Name: FLOOR
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -52855,6 +52856,27 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1988839954}
   m_Mesh: {fileID: 4300000, guid: eb54100a08ac0314ab89d4678805ae71, type: 2}
+--- !u!65 &1988839958
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1988839954}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.0000004, y: 1.0000005, z: 0.93660337}
+  m_Center: {x: 0.00000035786405, y: -0.0000004768372, z: -0.031698693}
 --- !u!1 &1989714788
 GameObject:
   m_ObjectHideFlags: 0
@@ -53665,8 +53687,9 @@ GameObject:
   - component: {fileID: 2021655516}
   - component: {fileID: 2021655518}
   - component: {fileID: 2021655517}
+  - component: {fileID: 2021655519}
   m_Layer: 0
-  m_Name: pCube4_aiStandardSurface21_0
+  m_Name: FLOOR
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -53743,6 +53766,27 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2021655515}
   m_Mesh: {fileID: 4300000, guid: eb54100a08ac0314ab89d4678805ae71, type: 2}
+--- !u!65 &2021655519
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2021655515}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.0000004, y: 1.0000005, z: 0.93660337}
+  m_Center: {x: 0.00000011944546, y: -0.0000004768372, z: -0.031698678}
 --- !u!1 &2029246689
 GameObject:
   m_ObjectHideFlags: 0
@@ -55423,7 +55467,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -0
+      value: 0.966
       objectReference: {fileID: 0}
     - target: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: m_LocalPosition.z

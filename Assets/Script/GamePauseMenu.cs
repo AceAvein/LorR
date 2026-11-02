@@ -286,7 +286,7 @@ public class GamePauseMenu : MonoBehaviour
         string n = go.name;
         if (n == "EventSystem" || n == "XR Interaction Manager" || n == "Directional Light")
             return true;
-        if (n == "Neon Backdrop" || n == "Neon Floor")
+        if (n == "Neon Backdrop" || n == "Neon Floor" || n == "FLOOR")
             return true;
         if (n == "GameManager" || n == "BallDropSystem" || n == "PenTracingArea" || n == "PathManager")
             return true;
