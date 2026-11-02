@@ -74,6 +74,7 @@ public class PenTracePortal : MonoBehaviour
         PreparePortalCollider();
         CacheLocomotion();
         EnsureLocomotionEnabled();
+        SetPortalVisible(false);
     }
 
     void EnsureLocomotionEnabled()
@@ -110,6 +111,14 @@ public class PenTracePortal : MonoBehaviour
         starting = false;
         insideSeconds = 0f;
         ResolveRefs();
+        SetPortalVisible(true);
+    }
+
+    public void SetPortalVisible(bool visible)
+    {
+        ResolveRefs();
+        if (portal != null)
+            portal.gameObject.SetActive(visible);
     }
 
     void Update()

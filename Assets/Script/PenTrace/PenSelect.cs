@@ -17,11 +17,20 @@ public class PenSelect : MonoBehaviour
     public Vector3 highlighterTip = new Vector3(-1.292f, 0f, 0.04f);
 
     bool useRightHand;
+    bool hasPen;
+    PenGrabKind equippedKind;
+    PenGrabChoice[] grabs;
 
     public bool WritingWithRightHand
     {
         get { return useRightHand; }
     }
+
+    public bool HasPen
+    {
+        get { return hasPen; }
+    }
+
     Vector3 pencilPosition;
     Quaternion pencilRotation;
     Vector3 ballpenPosition;
@@ -42,6 +51,11 @@ public class PenSelect : MonoBehaviour
         RememberPose(highlighter, ref highlighterPosition, ref highlighterRotation);
 
         ShowOnly(null);
+        ResolveGrabs();
+        SetGrabsVisible(false);
+
+        if (!ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            SetPortalVisible(false);
     }
 
     public void Open()
@@ -60,16 +74,11 @@ public class PenSelect : MonoBehaviour
         if (hand != null)
             PlacePen(pencil, pencilPosition, pencilRotation, hand, pencilTip);
 
-        PenTrail trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
-        if (trail != null)
-        {
-            trail.UseRightHand(rightHand);
-            trail.SetInkColor(new Color(0.62f, 0.62f, 0.62f));
-            trail.SetDrawTool(PenSounds.Tool.Pencil);
-        }
-
         ShowOnly(pencil);
         PlayerHands.SetWritingHand(rightHand);
+        hasPen = true;
+        equippedKind = PenGrabKind.Pencil;
+        ApplyTrailHand(rightHand, PenGrabKind.Pencil);
 
         if (penTip != null && pencil != null)
         {
@@ -90,6 +99,7 @@ public class PenSelect : MonoBehaviour
     public void HideGuidedPencil()
     {
         ShowOnly(null);
+        hasPen = false;
         PlayerHands.ShowBothHands();
     }
 
@@ -100,118 +110,98 @@ public class PenSelect : MonoBehaviour
 
         if (selectHandCanvas != null)
             selectHandCanvas.SetActive(false);
+        if (selectPenCanvas != null)
+            selectPenCanvas.SetActive(false);
 
-        ApplyProfileHand();
+        hasPen = false;
+        ShowOnly(null);
+        PlayerHands.ShowBothHands();
+        ResolveGrabs();
+        for (int i = 0; i < grabs.Length; i++)
+        {
+            if (grabs[i] != null)
+                grabs[i].ReturnHome();
+        }
+
+        SetPortalVisible(false);
     }
 
-    void ApplyProfileHand()
+    public bool TryEquipFromGrab(PenGrabKind kind, bool rightHand)
     {
-        ProfileManager.TryGetNonDominantLeft(out bool leftHand);
-        ChooseHand(!leftHand);
-    }
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return false;
 
-    public void ChooseLeftHand()
-    {
-        ApplyProfileHand();
-    }
+        // Switching pens must use the other hand.
+        if (hasPen && useRightHand == rightHand)
+            return false;
 
-    public void ChooseRightHand()
-    {
-        ApplyProfileHand();
-    }
+        if (hasPen && equippedKind != kind)
+            ReturnGrabToTable(equippedKind);
 
-    void ChooseHand(bool rightHand)
-    {
         useRightHand = rightHand;
+        equippedKind = kind;
+        hasPen = true;
+
+        GameObject pen = PenFor(kind);
+        Vector3 tip = TipFor(kind);
+        Vector3 localPos;
+        Quaternion localRot;
+        PoseFor(kind, out localPos, out localRot);
 
         Transform hand = PlayerHands.WritingController(rightHand);
         if (hand != null)
-        {
-            PlacePen(pencil, pencilPosition, pencilRotation, hand, pencilTip);
-            PlacePen(ballpen, ballpenPosition, ballpenRotation, hand, ballpenTip);
-            PlacePen(highlighter, highlighterPosition, highlighterRotation, hand, highlighterTip);
-        }
+            PlacePen(pen, localPos, localRot, hand, tip);
 
-        PlayerHands.SetWritingHand(rightHand);
-
-        PenTrail trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
-        if (trail != null)
-            trail.UseRightHand(rightHand);
-
-        if (selectHandCanvas != null)
-            selectHandCanvas.SetActive(false);
-
-        if (selectPenCanvas != null)
-            selectPenCanvas.SetActive(true);
-    }
-
-    public void ChoosePencil()
-    {
-        Choose(pencil, pencilTip);
-        SetInkColor(new Color(0.62f, 0.62f, 0.62f));
-        SetDrawTool(PenSounds.Tool.Pencil);
-    }
-
-    public void ChooseBallpen()
-    {
-        Choose(ballpen, ballpenTip);
-        SetInkColor(new Color(0.15f, 0.45f, 0.95f));
-        SetDrawTool(PenSounds.Tool.Ballpen);
-    }
-
-    public void ChooseHighlighter()
-    {
-        Choose(highlighter, highlighterTip);
-        SetInkColor(new Color(0.62f, 0.28f, 0.86f));
-        SetDrawTool(PenSounds.Tool.Marker);
-    }
-
-    void SetInkColor(Color color)
-    {
-        PenTrail trail = PenTrail.Active;
-        if (trail == null)
-            trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
-
-        if (trail != null)
-            trail.SetInkColor(color);
-    }
-
-    void SetDrawTool(PenSounds.Tool tool)
-    {
-        PenTrail trail = PenTrail.Active;
-        if (trail == null)
-            trail = FindAnyObjectByType<PenTrail>(FindObjectsInactive.Include);
-
-        if (trail != null)
-            trail.SetDrawTool(tool);
-    }
-
-    void Choose(GameObject pen, Vector3 tip)
-    {
         ShowOnly(pen);
+        PlayerHands.SetWritingHand(rightHand);
 
         if (penTip != null && pen != null)
         {
             penTip.SetParent(pen.transform, false);
             penTip.localPosition = tip;
             penTip.localRotation = Quaternion.identity;
-
             float scale = pen.transform.localScale.x;
             if (scale > 0.0001f)
                 penTip.localScale = Vector3.one * (1f / scale);
         }
 
-        if (selectPenCanvas != null)
-            selectPenCanvas.SetActive(false);
+        ApplyTrailHand(rightHand, kind);
+
+        HideGrab(kind);
+        RevealPortalAndArm();
+        return true;
+    }
+
+    void ApplyTrailHand(bool rightHand, PenGrabKind kind)
+    {
+        Color color = ColorFor(kind);
+        PenSounds.Tool tool = ToolFor(kind);
+
+        PenTrail[] trails = FindObjectsByType<PenTrail>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < trails.Length; i++)
+        {
+            if (trails[i] == null)
+                continue;
+
+            trails[i].UseRightHand(rightHand);
+            trails[i].SetInkColor(color);
+            trails[i].SetDrawTool(tool);
+        }
+    }
+
+    // Kept for scene UI hooks / guided leftovers — no longer used in play flow.
+    public void ChooseLeftHand() { }
+    public void ChooseRightHand() { }
+    public void ChoosePencil() { }
+    public void ChooseBallpen() { }
+    public void ChooseHighlighter() { }
+
+    void RevealPortalAndArm()
+    {
+        SetPortalVisible(true);
 
         if (countdown == null)
             return;
-
-        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
-        {
-            countdown.StartCountdown();
-            return;
-        }
 
         PenTracePortal portal = PenTracePortal.Instance;
         if (portal == null)
@@ -221,6 +211,145 @@ public class PenSelect : MonoBehaviour
             portal.ArmForCountdown(countdown);
         else
             countdown.StartCountdown();
+    }
+
+    void ReturnGrabToTable(PenGrabKind kind)
+    {
+        ResolveGrabs();
+        for (int i = 0; i < grabs.Length; i++)
+        {
+            if (grabs[i] != null && grabs[i].Kind == kind)
+                grabs[i].ReturnHome();
+        }
+    }
+
+    void HideGrab(PenGrabKind kind)
+    {
+        ResolveGrabs();
+        for (int i = 0; i < grabs.Length; i++)
+        {
+            if (grabs[i] != null && grabs[i].Kind == kind)
+                grabs[i].HideOnTable();
+        }
+    }
+
+    void ResolveGrabs()
+    {
+        if (grabs != null && grabs.Length > 0)
+            return;
+
+        grabs = FindObjectsByType<PenGrabChoice>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        if (grabs != null && grabs.Length > 0)
+            return;
+
+        EnsureGrab("PencilGrab", PenGrabKind.Pencil);
+        EnsureGrab("BallpenGrab", PenGrabKind.Ballpen);
+        EnsureGrab("HighlighterGrab", PenGrabKind.Highlighter);
+        grabs = FindObjectsByType<PenGrabChoice>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+    }
+
+    static void EnsureGrab(string objectName, PenGrabKind kind)
+    {
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (transforms[i].name != objectName)
+                continue;
+
+            PenGrabChoice choice = transforms[i].GetComponent<PenGrabChoice>();
+            if (choice == null)
+                choice = transforms[i].gameObject.AddComponent<PenGrabChoice>();
+            choice.kind = kind;
+            return;
+        }
+    }
+
+    void SetGrabsVisible(bool visible)
+    {
+        ResolveGrabs();
+        for (int i = 0; i < grabs.Length; i++)
+        {
+            if (grabs[i] == null)
+                continue;
+
+            if (visible)
+                grabs[i].ReturnHome();
+            else
+                grabs[i].HideOnTable();
+        }
+    }
+
+    static void SetPortalVisible(bool visible)
+    {
+        PenTracePortal portal = PenTracePortal.Instance;
+        if (portal != null)
+        {
+            portal.SetPortalVisible(visible);
+            return;
+        }
+
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (transforms[i].name == "PORTAL")
+                transforms[i].gameObject.SetActive(visible);
+        }
+    }
+
+    GameObject PenFor(PenGrabKind kind)
+    {
+        if (kind == PenGrabKind.Ballpen)
+            return ballpen;
+        if (kind == PenGrabKind.Highlighter)
+            return highlighter;
+        return pencil;
+    }
+
+    Vector3 TipFor(PenGrabKind kind)
+    {
+        if (kind == PenGrabKind.Ballpen)
+            return ballpenTip;
+        if (kind == PenGrabKind.Highlighter)
+            return highlighterTip;
+        return pencilTip;
+    }
+
+    void PoseFor(PenGrabKind kind, out Vector3 position, out Quaternion rotation)
+    {
+        if (kind == PenGrabKind.Ballpen)
+        {
+            position = ballpenPosition;
+            rotation = ballpenRotation;
+            return;
+        }
+
+        if (kind == PenGrabKind.Highlighter)
+        {
+            position = highlighterPosition;
+            rotation = highlighterRotation;
+            return;
+        }
+
+        position = pencilPosition;
+        rotation = pencilRotation;
+    }
+
+    static Color ColorFor(PenGrabKind kind)
+    {
+        if (kind == PenGrabKind.Ballpen)
+            return new Color(0.15f, 0.45f, 0.95f);
+        if (kind == PenGrabKind.Highlighter)
+            return new Color(0.62f, 0.28f, 0.86f);
+        return new Color(0.62f, 0.62f, 0.62f);
+    }
+
+    static PenSounds.Tool ToolFor(PenGrabKind kind)
+    {
+        if (kind == PenGrabKind.Ballpen)
+            return PenSounds.Tool.Ballpen;
+        if (kind == PenGrabKind.Highlighter)
+            return PenSounds.Tool.Marker;
+        return PenSounds.Tool.Pencil;
     }
 
     static void RememberPose(GameObject pen, ref Vector3 position, ref Quaternion rotation)

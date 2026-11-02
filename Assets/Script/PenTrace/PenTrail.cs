@@ -13,6 +13,7 @@ public class PenTrail : MonoBehaviour
     public static PenTrail Active { get; private set; }
 
     InputAction drawAction;
+    bool ownsDrawAction;
     bool useRightHand;
     bool wasPressed;
     bool strokeOpen;
@@ -99,16 +100,36 @@ public class PenTrail : MonoBehaviour
 
     void BindDrawTrigger()
     {
-        drawAction?.Dispose();
+        if (ownsDrawAction && drawAction != null)
+            drawAction.Dispose();
+
+        ownsDrawAction = false;
+        drawAction = null;
+
+        InputActionReference preferred = useRightHand ? rightIndexButton : indexButton;
+        if (preferred != null && preferred.action != null)
+        {
+            drawAction = preferred.action;
+            if (!drawAction.enabled)
+                drawAction.Enable();
+            return;
+        }
 
         string hand = useRightHand ? "{RightHand}" : "{LeftHand}";
-        drawAction = new InputAction(type: InputActionType.Button, binding: "<XRController>" + hand + "/{TriggerButton}");
+        drawAction = new InputAction(type: InputActionType.Button);
+        drawAction.AddBinding("<XRController>" + hand + "/{TriggerButton}");
+        drawAction.AddBinding("<XRController>" + hand + "/triggerPressed");
+        drawAction.AddBinding("<XRController>" + hand + "/trigger");
         drawAction.Enable();
+        ownsDrawAction = true;
     }
 
     void OnDestroy()
     {
-        drawAction?.Dispose();
+        if (ownsDrawAction && drawAction != null)
+            drawAction.Dispose();
+        drawAction = null;
+        ownsDrawAction = false;
     }
 
     void Update()
