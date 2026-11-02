@@ -135,6 +135,17 @@ public class PenTraceFloor : MonoBehaviour
             controller.enabled = true;
     }
 
+    public static float GetFloorSurfaceY()
+    {
+        Transform floor = FindNamed(FloorName);
+        if (floor == null)
+            floor = FindNamed(NeonFloorName);
+        if (floor == null)
+            return 0f;
+
+        return FloorSurfaceY(floor);
+    }
+
     static float FloorSurfaceY(Transform floor)
     {
         Renderer renderer = floor.GetComponent<Renderer>();
@@ -148,7 +159,7 @@ public class PenTraceFloor : MonoBehaviour
         return floor.position.y;
     }
 
-    static Transform FindNamed(string objectName)
+    public static Transform FindNamed(string objectName)
     {
         Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < transforms.Length; i++)

@@ -171,8 +171,16 @@ public class PenTracePortal : MonoBehaviour
         if (headset == null)
             return;
 
+        UnsinkToFloor();
+
+        // Keep drawing fixed on WHITE BOARD; raise/lower the player so eyes sit just above draw height.
+        const float GuideLocalY = 0.63f;
+        const float EyesAboveDraw = -0.4f;
+        float drawY = WhiteBoardCenter().y + GuideLocalY;
+        float targetHeadsetY = drawY + EyesAboveDraw;
+
         Vector3 stand = portal.position;
-        stand.y = headset.transform.position.y;
+        stand.y = targetHeadsetY;
         xrOrigin.MoveCameraToWorldLocation(stand);
 
         Vector3 face = FaceDirectionFromPortal();
@@ -183,6 +191,27 @@ public class PenTracePortal : MonoBehaviour
         lockedPosition = originTransform.position;
         lockedRotation = originTransform.rotation;
         locked = true;
+    }
+
+    void UnsinkToFloor()
+    {
+        if (xrOrigin == null)
+            return;
+
+        Transform originTransform = xrOrigin.Origin != null ? xrOrigin.Origin.transform : xrOrigin.transform;
+        float floorY = PenTraceFloor.GetFloorSurfaceY();
+        Vector3 position = originTransform.position;
+        if (position.y < floorY)
+        {
+            position.y = floorY;
+            originTransform.position = position;
+        }
+
+        CharacterController controller = originTransform.GetComponent<CharacterController>();
+        if (controller == null)
+            controller = xrOrigin.GetComponentInChildren<CharacterController>();
+        if (controller != null && !controller.enabled)
+            controller.enabled = true;
     }
 
     Vector3 FaceDirectionFromPortal()
@@ -316,6 +345,21 @@ public class PenTracePortal : MonoBehaviour
             return renderer.bounds.center;
 
         return board.position;
+    }
+
+    public static bool TryGetWhiteBoardBounds(out Bounds bounds)
+    {
+        bounds = new Bounds();
+        Transform board = WhiteBoardTransform();
+        if (board == null)
+            return false;
+
+        Renderer renderer = board.GetComponent<Renderer>();
+        if (renderer == null)
+            return false;
+
+        bounds = renderer.bounds;
+        return true;
     }
 
     public static Vector3 WhiteBoardNormal()
