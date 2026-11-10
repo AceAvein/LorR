@@ -52547,6 +52547,267 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1874374060}
   m_Mesh: {fileID: 4300000, guid: 7c3d2f836fbd9f6488102775120e514f, type: 2}
+--- !u!1001 &1875995212
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 332144091972180858, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 966175247479104517, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 967850211618040945, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 1754860705265967830, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 1897811398792977352, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 1954447001358088497, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 2004023293426504200, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 2053301898095459013, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 2136544512407975031, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_fontColor.b
+      value: 0.54901963
+      objectReference: {fileID: 0}
+    - target: {fileID: 2136544512407975031, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_fontColor.g
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2136544512407975031, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_fontColor.r
+      value: 0.4509804
+      objectReference: {fileID: 0}
+    - target: {fileID: 2136544512407975031, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4287430515
+      objectReference: {fileID: 0}
+    - target: {fileID: 2136544512407975031, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 2161174336640907558, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 2597934420115593920, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_Name
+      value: PenTracingClassroom
+      objectReference: {fileID: 0}
+    - target: {fileID: 2634904446654723039, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 3076240315487065639, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 2.4231
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 2.4231
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 2.4231
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -0.009
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.127
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0.279
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9999785
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.006561225
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3435260542437031373, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0.752
+      objectReference: {fileID: 0}
+    - target: {fileID: 3460426991478036413, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4294960793
+      objectReference: {fileID: 0}
+    - target: {fileID: 3460426991478036413, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 3776399402113958898, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 4123100281685941051, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 4144919350778004064, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 4488588409672545775, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 4980580651309787784, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 4993661049717983502, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 5418261653302686199, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 5587393638678847735, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 5862194006530206433, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 5953681221994435754, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4294960793
+      objectReference: {fileID: 0}
+    - target: {fileID: 5953681221994435754, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 6127998444489029357, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 6130335887681979184, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 6265162293414350417, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 6674089882598865608, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 7224169631229176942, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0.42817318
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.537
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 4.754035
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9997746
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0.021233704
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 2.433
+      objectReference: {fileID: 0}
+    - target: {fileID: 7326374666291454180, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8199002681380347234, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 8307692854358968383, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 8368891071371850782, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 8567302172347793489, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 9107150581850762788, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9140819600268499983, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 43ae843a73233314fb8f19b6461946ad, type: 3}
 --- !u!1 &1876939119
 GameObject:
   m_ObjectHideFlags: 0
@@ -66026,3 +66287,4 @@ SceneRoots:
   - {fileID: 1803387876}
   - {fileID: 863010002}
   - {fileID: 1197785162}
+  - {fileID: 1875995212}
