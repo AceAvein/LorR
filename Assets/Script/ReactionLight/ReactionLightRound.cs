@@ -613,6 +613,15 @@ public class ReactionLightRound : MonoBehaviour
         if (balls.Count == 0)
             return;
 
+        // Storyboard console: lights are already seated in the 12-slot board.
+        ReactionLightBoard board = FindFirstObjectByType<ReactionLightBoard>();
+        if (board != null && board.HasValidSlots())
+        {
+            for (int i = 0; i < balls.Count; i++)
+                balls[i].radius = balls[i].transform.lossyScale.x * 0.5f;
+            return;
+        }
+
         Camera headset = Camera.main;
         Vector3 forward = Vector3.forward;
         Vector3 eye = new Vector3(0f, 1.5f, 0f);
@@ -725,6 +734,10 @@ public class ReactionLightRound : MonoBehaviour
         SetTexts(levelValues, TierName(tier));
         SetTexts(timerValues, seconds.ToString());
         SetTexts(setValues, shownSet + "/" + SetTotal);
+
+        ReactionLightBoard boardHud = FindFirstObjectByType<ReactionLightBoard>();
+        if (boardHud != null)
+            boardHud.SetTimeSeconds(timeRemaining);
     }
 
     void HideWristHud()

@@ -1,0 +1,33 @@
+---
+description: Align LorR-VR work to the final bible and storyboard docs; correct conflicts
+alwaysApply: true
+---
+
+# LorR-VR Alignment Sources
+
+When implementing, reviewing, or advising on LorR-VR training modules, scenes, UI, progression, metrics, or NPC/story flow, always base decisions on these two docs:
+
+1. **Bible (training truth):** `Docs/LorR_VR_Comprehensive_Project_Reference_Summary.md`
+   - phases, sessions, controls, metrics, unlock/progression rules
+2. **Storyboard (scene/flow):** `Docs/LorR_VR_Storyboard_Layout_Instructions.md`
+   - environments, layouts, cutscenes, set progression, fade-to-UI endings
+
+Older summaries (`Architecture`, `Storyline Dialogue`) are secondary reference only and must not override the two docs above.
+
+## Conflict handling
+
+- **Training rules / metrics / unlocks** → bible wins
+- **Layout / cutscene / room flow / set presentation** → storyboard wins
+- If the user's request conflicts with either doc, **stop and correct immediately**:
+  1. Say what is wrong
+  2. Quote the relevant doc expectation
+  3. Ask which override they want only if they insist on changing the docs
+
+## Working behavior
+
+- Before building module features, check the relevant sections in both docs
+- Prefer Phase + Session language over Easy/Moderate/Hard
+- Ball Drop Phase I is not required formal training (bible)
+- Map finger rules to Trigger/Grip/Joystick controller inputs (bible)
+- End sims with fade to black + results UI (storyboard + bible)
+- Do not invent dialogue as canon unless matching Dialogue Blueprint; storyboard prompts are flow cues only
