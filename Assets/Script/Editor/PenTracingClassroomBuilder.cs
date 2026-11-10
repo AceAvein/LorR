@@ -5,8 +5,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Builds storyboard Pen Tracing classroom props:
-/// pen select table at front, then 3 desks with paper, entrance bell, table-mounted screen.
+/// Builds Pen Tracing classroom props:
+/// pen select table at front + 1 tracing desk with paper, bell, table-mounted screen.
 /// Menu: LorR / Pen Tracing / Build Classroom Prefab
 /// </summary>
 public static class PenTracingClassroomBuilder
@@ -52,33 +52,24 @@ public static class PenTracingClassroomBuilder
         GameObject root = new GameObject("PenTracingClassroom");
         PenTracingClassroom marker = root.AddComponent<PenTracingClassroom>();
 
-        // 1) Pen table FIRST / at the front (bungad / unahan)
+        // Flow: approach from -Z → pen table → desk → NPC
+        // All fronts / screens face the player (toward -Z).
         marker.penSelectStation = BuildPenSelectStation(
             root.transform, wood, woodDark, woodLight, metal, metalDark, pencil, ballpen, highlighter, accent);
 
-        // Shared entrance bell at bungad (near pen station)
         Transform entranceBell = BuildBell(root.transform, "EntranceBell", new Vector3(0.55f, 0.84f, -0.05f), brass, metalDark, metal);
-        // Keep first bell slot as entrance bell for wiring convenience
         marker.bells[0] = entranceBell;
 
-        // 2) Three tracing desks deeper in the room (no chairs)
-        float[] deskX = { -1.35f, 0f, 1.35f };
-        for (int i = 0; i < 3; i++)
-        {
-            Transform desk = BuildTraceDesk(
-                root.transform,
-                i + 1,
-                new Vector3(deskX[i], 0f, 1.15f),
-                wood, woodDark, woodLight, metal, metalDark, paper, paperLine, brass, screen, accent,
-                out Transform board, out Transform deskBell, out TMP_Text monitor);
+        Transform desk = BuildTraceDesk(
+            root.transform,
+            new Vector3(0f, 0f, 1.15f),
+            wood, woodDark, woodLight, metal, metalDark, paper, paperLine, brass, screen, accent,
+            out Transform board, out Transform deskBell, out TMP_Text monitor);
 
-            marker.desks[i] = desk;
-            marker.tracingBoards[i] = board;
-            // desks still expose a small desk bell; entrance bell remains primary "bungad"
-            if (i > 0)
-                marker.bells[i] = deskBell;
-            marker.deskMonitors[i] = monitor;
-        }
+        marker.desks[0] = desk;
+        marker.tracingBoards[0] = board;
+        marker.deskMonitors[0] = monitor;
+        marker.bells[1] = deskBell;
 
         Prim(root.transform, PrimitiveType.Cylinder, "NpcStandMarker", new Vector3(0f, 0.015f, 2.35f), new Vector3(0.45f, 0.02f, 0.45f), metalDark);
 
@@ -90,7 +81,7 @@ public static class PenTracingClassroomBuilder
         EditorUtility.DisplayDialog(
             "Pen Tracing Classroom",
             "Rebuilt:\n" + PrefabPath +
-            "\n\n• Pen table at front\n• Entrance bell at bungad\n• Screens mounted on desks\n• No chairs\n\nRe-drag into Pen Control Tracing.unity",
+            "\n\n• Fronts / screen face the player\n• 1 tracing desk\n• Floating labels removed (screen text kept)\n\nRe-drag into Pen Control Tracing.unity",
             "OK");
 
         Object prefab = AssetDatabase.LoadAssetAtPath<Object>(PrefabPath);
@@ -124,23 +115,19 @@ public static class PenTracingClassroomBuilder
     {
         GameObject station = new GameObject("PenSelectStation");
         station.transform.SetParent(parent, false);
-        // Front / first in flow
         station.transform.localPosition = new Vector3(0f, 0f, 0.05f);
 
-        // Nicer table: thicker top + edge trim + shelf
         Prim(station.transform, PrimitiveType.Cube, "TableTop", new Vector3(0f, 0.78f, 0f), new Vector3(1.35f, 0.07f, 0.62f), wood);
         Prim(station.transform, PrimitiveType.Cube, "TableEdge", new Vector3(0f, 0.74f, 0f), new Vector3(1.38f, 0.025f, 0.65f), woodDark);
         Prim(station.transform, PrimitiveType.Cube, "UnderShelf", new Vector3(0f, 0.45f, 0f), new Vector3(1.15f, 0.03f, 0.45f), woodLight);
         BuildTableLegs(station.transform, woodDark, metalDark, 1.15f, 0.48f);
 
-        // Accent runner strip
+        // Front edge toward player approach (-Z)
         Prim(station.transform, PrimitiveType.Cube, "AccentStrip", new Vector3(0f, 0.82f, -0.28f), new Vector3(1.2f, 0.015f, 0.04f), accent);
 
-        AddWorldText(station.transform, "SelectPenLabel", "SELECT PEN", new Vector3(0f, 1.12f, -0.05f), 44, Color.white, 0.0013f, new Vector2(460f, 90f));
-
-        BuildPenSlot(station.transform, "Pencil", new Vector3(-0.4f, 0.86f, 0.05f), pencil, metal, metalDark, new Vector3(0.022f, 0.19f, 0.022f));
-        BuildPenSlot(station.transform, "Ballpen", new Vector3(0f, 0.86f, 0.05f), ballpen, metal, metalDark, new Vector3(0.02f, 0.18f, 0.02f));
-        BuildPenSlot(station.transform, "Highlighter", new Vector3(0.4f, 0.86f, 0.05f), highlighter, metal, metalDark, new Vector3(0.03f, 0.15f, 0.03f));
+        BuildPenSlot(station.transform, "Pencil", new Vector3(-0.4f, 0.86f, 0f), pencil, metal, metalDark, new Vector3(0.022f, 0.19f, 0.022f));
+        BuildPenSlot(station.transform, "Ballpen", new Vector3(0f, 0.86f, 0f), ballpen, metal, metalDark, new Vector3(0.02f, 0.18f, 0.02f));
+        BuildPenSlot(station.transform, "Highlighter", new Vector3(0.4f, 0.86f, 0f), highlighter, metal, metalDark, new Vector3(0.03f, 0.15f, 0.03f));
 
         return station.transform;
     }
@@ -158,13 +145,10 @@ public static class PenTracingClassroomBuilder
         pen.transform.localRotation = Quaternion.Euler(12f, 0f, 18f);
         Prim(pen.transform, PrimitiveType.Sphere, "Tip", new Vector3(0f, -0.55f, 0f), new Vector3(0.85f, 0.4f, 0.85f), baseMat);
         Prim(pen.transform, PrimitiveType.Cylinder, "Cap", new Vector3(0f, 0.45f, 0f), new Vector3(1.05f, 0.12f, 1.05f), standMat);
-
-        AddWorldText(slot.transform, "Label", penName.ToUpperInvariant(), new Vector3(0f, 0.32f, 0.14f), 22, Color.white, 0.001f, new Vector2(210f, 48f));
     }
 
     static Transform BuildTraceDesk(
         Transform parent,
-        int index,
         Vector3 localPos,
         Material wood,
         Material woodDark,
@@ -180,7 +164,7 @@ public static class PenTracingClassroomBuilder
         out Transform bell,
         out TMP_Text monitorText)
     {
-        GameObject desk = new GameObject("TraceDesk_0" + index);
+        GameObject desk = new GameObject("TraceDesk");
         desk.transform.SetParent(parent, false);
         desk.transform.localPosition = localPos;
 
@@ -188,27 +172,26 @@ public static class PenTracingClassroomBuilder
         Prim(desk.transform, PrimitiveType.Cube, "DeskEdge", new Vector3(0f, 0.72f, 0f), new Vector3(1.08f, 0.025f, 0.71f), woodDark);
         Prim(desk.transform, PrimitiveType.Cube, "DeskShelf", new Vector3(0f, 0.42f, 0f), new Vector3(0.9f, 0.03f, 0.5f), woodLight);
         BuildTableLegs(desk.transform, woodDark, metalDark, 0.9f, 0.52f);
+
+        // Front edge toward player (-Z, approaching from pen table)
         Prim(desk.transform, PrimitiveType.Cube, "AccentStrip", new Vector3(0f, 0.805f, -0.3f), new Vector3(0.95f, 0.012f, 0.035f), accent);
 
-        // Tracing paper board
-        GameObject boardGo = Prim(desk.transform, PrimitiveType.Cube, "TracingBoard", new Vector3(-0.05f, 0.81f, 0.08f), new Vector3(0.58f, 0.012f, 0.42f), paper);
+        GameObject boardGo = Prim(desk.transform, PrimitiveType.Cube, "TracingBoard", new Vector3(-0.05f, 0.81f, -0.02f), new Vector3(0.58f, 0.012f, 0.42f), paper);
         board = boardGo.transform;
         Prim(boardGo.transform, PrimitiveType.Cube, "GuideLineA", new Vector3(0f, 0.7f, -0.2f), new Vector3(0.88f, 0.15f, 0.02f), paperLine);
         Prim(boardGo.transform, PrimitiveType.Cube, "GuideLineB", new Vector3(0f, 0.7f, 0f), new Vector3(0.88f, 0.15f, 0.02f), paperLine);
         Prim(boardGo.transform, PrimitiveType.Cube, "GuideLineC", new Vector3(0f, 0.7f, 0.2f), new Vector3(0.88f, 0.15f, 0.02f), paperLine);
         Prim(boardGo.transform, PrimitiveType.Cube, "PaperClip", new Vector3(0f, 0.9f, 0.48f), new Vector3(0.2f, 0.4f, 0.08f), metal);
 
-        // Finished paper tray
-        Prim(desk.transform, PrimitiveType.Cube, "PaperTray", new Vector3(0.38f, 0.8f, 0.18f), new Vector3(0.2f, 0.025f, 0.24f), woodDark);
-        Prim(desk.transform, PrimitiveType.Cube, "FinishedPaper", new Vector3(0.38f, 0.82f, 0.18f), new Vector3(0.16f, 0.006f, 0.2f), paper);
+        Prim(desk.transform, PrimitiveType.Cube, "PaperTray", new Vector3(0.38f, 0.8f, 0.1f), new Vector3(0.2f, 0.025f, 0.24f), woodDark);
+        Prim(desk.transform, PrimitiveType.Cube, "FinishedPaper", new Vector3(0.38f, 0.82f, 0.1f), new Vector3(0.16f, 0.006f, 0.2f), paper);
 
-        // Small desk bell (secondary); entrance bell is primary at bungad
         bell = BuildBell(desk.transform, "DeskBell", new Vector3(-0.38f, 0.82f, -0.22f), brass, metalDark, metal);
 
-        // Screen STUCK to table (rear edge, flush / slightly tilted)
+        // Monitor on far (+Z) edge, screen facing player (-Z)
         GameObject monitor = new GameObject("DeskMonitor");
         monitor.transform.SetParent(desk.transform, false);
-        monitor.transform.localPosition = new Vector3(0.28f, 0.95f, -0.28f);
+        monitor.transform.localPosition = new Vector3(0.28f, 0.95f, 0.28f);
         monitor.transform.localRotation = Quaternion.Euler(-8f, 0f, 0f);
         Prim(monitor.transform, PrimitiveType.Cube, "MonitorBase", new Vector3(0f, -0.12f, 0.04f), new Vector3(0.28f, 0.03f, 0.12f), metalDark);
         Prim(monitor.transform, PrimitiveType.Cube, "MonitorFrame", Vector3.zero, new Vector3(0.36f, 0.24f, 0.04f), metalDark);
@@ -218,22 +201,22 @@ public static class PenTracingClassroomBuilder
         GameObject canvasGo = new GameObject("MonitorCanvas");
         canvasGo.transform.SetParent(monitor.transform, false);
         canvasGo.transform.localPosition = new Vector3(0f, 0f, -0.035f);
+        canvasGo.transform.localRotation = Quaternion.identity;
         canvasGo.transform.localScale = Vector3.one * 0.001f;
         Canvas canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.WorldSpace;
         canvasGo.AddComponent<CanvasScaler>();
         canvasGo.GetComponent<RectTransform>().sizeDelta = new Vector2(280f, 160f);
+
         GameObject textGo = new GameObject("MetricsLabel");
         textGo.transform.SetParent(canvasGo.transform, false);
         TextMeshProUGUI tmp = textGo.AddComponent<TextMeshProUGUI>();
-        tmp.text = "DESK " + index + "\nREADY";
+        tmp.text = "READY";
         tmp.fontSize = 34;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.color = new Color(0.55f, 0.9f, 1f);
         tmp.rectTransform.sizeDelta = new Vector2(260f, 140f);
         monitorText = tmp;
-
-        AddWorldText(desk.transform, "DeskLabel", "DESK " + index, new Vector3(0f, 1.28f, 0f), 30, Color.white, 0.00115f, new Vector2(220f, 55f));
 
         return desk.transform;
     }
@@ -267,27 +250,6 @@ public static class PenTracingClassroomBuilder
             Prim(parent, PrimitiveType.Cube, names[i], corners[i], new Vector3(0.055f, h, 0.055f), woodMat);
             Prim(parent, PrimitiveType.Cube, names[i] + "Foot", corners[i] + new Vector3(0f, -h * 0.5f - 0.01f, 0f), new Vector3(0.1f, 0.025f, 0.1f), footMat);
         }
-    }
-
-    static void AddWorldText(Transform parent, string name, string value, Vector3 localPos, float fontSize, Color color, float scale, Vector2 size)
-    {
-        GameObject go = new GameObject(name);
-        go.transform.SetParent(parent, false);
-        go.transform.localPosition = localPos;
-        go.transform.localScale = Vector3.one * scale;
-        Canvas canvas = go.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        go.AddComponent<CanvasScaler>();
-        go.GetComponent<RectTransform>().sizeDelta = size;
-
-        GameObject textGo = new GameObject("Text");
-        textGo.transform.SetParent(go.transform, false);
-        TextMeshProUGUI tmp = textGo.AddComponent<TextMeshProUGUI>();
-        tmp.text = value;
-        tmp.fontSize = fontSize;
-        tmp.alignment = TextAlignmentOptions.Center;
-        tmp.color = color;
-        tmp.rectTransform.sizeDelta = size;
     }
 
     static GameObject Prim(Transform parent, PrimitiveType type, string name, Vector3 localPos, Vector3 localScale, Material mat)
