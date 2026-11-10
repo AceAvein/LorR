@@ -14,8 +14,8 @@ Overwrites:
 
 | Piece | Detail |
 |---|---|
-| **SupplyCrate (left)** | Cardboard crate on pallet + metal exit chute — groceries come out here (`GrocerySpawnPoint`) |
-| **Factory conveyor** | Steel chassis, rubber belt, side rails, warning stripes, rollers, motor, **4 legs with foot plates + bolts**, cross braces |
+| **ExitTunnel (left, part of conveyor)** | Airport/factory covered mouth — groceries come out onto the belt (`GrocerySpawnPoint` at mouth) |
+| **Factory conveyor** | Steel chassis, rubber belt, rails, rollers, motor, **legs with foot plates**, braces under open run + tunnel |
 | **Sort bins A/B/C** | `Red Box` / `Blue Box` / `Yellow Box` with rim + **bin feet**, letter labels |
 | **Start button** | Heavy pedestal with foot plate + green button + `PRESS START!` |
 | **Set screen** | Industrial monitor on post (`SCREEN SET 1`) |
@@ -30,6 +30,6 @@ Overwrites:
 
 ## Alignment
 
-- Storyboard: side supply box → sort into A/B/C → start button near side
+- Storyboard: side delivery onto belt → sort into A/B/C → start button near side
 - Bible: Red/Blue/Yellow box names unchanged for `ColorSortRound`
-- `GrocerySpawnPoint` ready for later grocery spawn logic
+- Tunnel mouth = factory/airport infeed; `GrocerySpawnPoint` ready for grocery spawn logic

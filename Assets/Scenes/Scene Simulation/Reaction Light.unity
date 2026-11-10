@@ -1670,6 +1670,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 51491245500971844, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
     - target: {fileID: 300194148480957642, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
       propertyPath: m_AdditionalShaderChannelsFlag
       value: 25
@@ -1726,11 +1730,35 @@ PrefabInstance:
       propertyPath: m_AdditionalShaderChannelsFlag
       value: 25
       objectReference: {fileID: 0}
+    - target: {fileID: 1744359744391371838, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 1919338730386792565, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
     - target: {fileID: 3184898064755122090, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
       propertyPath: m_Name
       value: ObjectPlacementStation
       objectReference: {fileID: 0}
+    - target: {fileID: 3698573865360004544, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 3727992820137645922, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
     - target: {fileID: 4177398527496511366, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 4199808082832165945, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 5592914363127877310, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
       propertyPath: m_AdditionalShaderChannelsFlag
       value: 25
       objectReference: {fileID: 0}
@@ -1738,6 +1766,10 @@ PrefabInstance:
       propertyPath: m_AdditionalShaderChannelsFlag
       value: 25
       objectReference: {fileID: 0}
+    - target: {fileID: 6878238059494857898, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
     - target: {fileID: 7013133709930412572, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
       propertyPath: m_fontColor32.rgba
       value: 4278190080
@@ -1746,6 +1778,14 @@ PrefabInstance:
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
+    - target: {fileID: 7707737812672767016, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_AdditionalShaderChannelsFlag
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 7980569532636856525, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8567278283947671488, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
       propertyPath: m_fontColor32.rgba
       value: 4278190080
@@ -1753,6 +1793,10 @@ PrefabInstance:
     - target: {fileID: 8567278283947671488, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 8972524723035840075, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 9051204511037382358, guid: 09ce6e45bbd65d942a4bdbbc562d7c89, type: 3}
       propertyPath: m_fontColor32.rgba
