@@ -1,6 +1,8 @@
 #if UNITY_EDITOR
+using TMPro;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.UI;
 
 /// <summary>
 /// Builds a Catch-the-Stick style overhead arc for Ball Drop.
@@ -17,10 +19,15 @@ public static class BallDropArcBuilder
     const float ArcRadius = 0.55f;
     const float ArcHeight = 2.15f;
 
+    // Arc opens toward -Z (player/front); closed back connects into the pole
+    const float ArcStartDeg = 200f;
+    const float ArcEndDeg = 340f;
+
     static readonly Color FrameWhite = new Color(0.92f, 0.93f, 0.95f);
     static readonly Color AccentDark = new Color(0.12f, 0.12f, 0.14f);
     static readonly Color RimBlue = new Color(0.25f, 0.55f, 0.95f);
     static readonly Color ButtonRed = new Color(0.85f, 0.12f, 0.12f);
+    static readonly Color ScreenGlow = new Color(0.15f, 0.75f, 0.95f);
 
     [MenuItem("LorR/Ball Drop/Build Overhead Arc Prefab")]
     public static void BuildPrefab()
@@ -31,18 +38,19 @@ public static class BallDropArcBuilder
         Material darkMat = GetOrCreateMaterial("BD_ArcDark", AccentDark, 0.2f, 0.4f, false);
         Material rimMat = GetOrCreateMaterial("BD_ArcRim", RimBlue, 0.1f, 0.7f, true, RimBlue * 0.45f);
         Material buttonMat = GetOrCreateMaterial("BD_ArcButton", ButtonRed, 0.05f, 0.6f, true, ButtonRed * 0.25f);
+        Material screenMat = GetOrCreateMaterial("BD_PoleScreen", AccentDark, 0.05f, 0.25f, true, ScreenGlow * 0.35f);
 
         GameObject root = new GameObject("BallDropOverheadArc");
         BallDropOverheadArc marker = root.AddComponent<BallDropOverheadArc>();
 
         BuildBase(root.transform, frameMat);
-        BuildPillar(root.transform, frameMat, darkMat, buttonMat);
+        BuildPillar(root.transform, frameMat, darkMat, buttonMat, screenMat);
         Transform arc = BuildArc(root.transform, frameMat, rimMat);
+        BuildArcToPoleConnection(root.transform, frameMat, darkMat);
         Transform spawnRoot = BuildSpawnPoints(root.transform, arc, darkMat);
         marker.spawnRoot = spawnRoot;
         marker.RefreshSpawnPointCache();
 
-        // Convenient default height for half-court play zone
         root.transform.position = new Vector3(0f, 0f, 0.6f);
 
         PrefabUtility.SaveAsPrefabAsset(root, PrefabPath);
@@ -52,10 +60,10 @@ public static class BallDropArcBuilder
         AssetDatabase.Refresh();
         EditorUtility.DisplayDialog(
             "Ball Drop Overhead Arc",
-            "Built prefab:\n" + PrefabPath +
-            "\n\n1) Drag into Ball Drop.unity\n" +
-            "2) On BallDropSystem, set Transform Above = child Transform_Above\n" +
-            "3) You can keep using your existing ball templates.",
+            "Rebuilt:\n" + PrefabPath +
+            "\n\n• Arc connected to pole (hub + arms)\n" +
+            "• Screen facing user above pole buttons\n\n" +
+            "Re-drag into Ball Drop.unity and set Transform Above.",
             "OK");
 
         Object prefab = AssetDatabase.LoadAssetAtPath<Object>(PrefabPath);
@@ -94,49 +102,167 @@ public static class BallDropArcBuilder
         Object.DestroyImmediate(baseInner.GetComponent<Collider>());
     }
 
-    static void BuildPillar(Transform parent, Material frameMat, Material darkMat, Material buttonMat)
+    static void BuildPillar(Transform parent, Material frameMat, Material darkMat, Material buttonMat, Material screenMat)
     {
         GameObject pillar = GameObject.CreatePrimitive(PrimitiveType.Cube);
         pillar.name = "Pillar";
         pillar.transform.SetParent(parent, false);
         pillar.transform.localPosition = new Vector3(0f, 1.05f, 0f);
-        pillar.transform.localScale = new Vector3(0.16f, 2.1f, 0.16f);
+        pillar.transform.localScale = new Vector3(0.18f, 2.1f, 0.18f);
         ApplyMat(pillar, frameMat);
         Object.DestroyImmediate(pillar.GetComponent<Collider>());
 
-        GameObject sensor = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        sensor.name = "Sensor";
-        sensor.transform.SetParent(parent, false);
-        sensor.transform.localPosition = new Vector3(0f, 1.55f, -0.09f);
-        sensor.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-        sensor.transform.localScale = new Vector3(0.08f, 0.02f, 0.08f);
-        ApplyMat(sensor, darkMat);
-        Object.DestroyImmediate(sensor.GetComponent<Collider>());
+        // Control face toward player (-Z = "tapat")
+        GameObject panel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        panel.name = "ControlPanel";
+        panel.transform.SetParent(parent, false);
+        panel.transform.localPosition = new Vector3(0f, 1.05f, -0.11f);
+        panel.transform.localScale = new Vector3(0.14f, 0.55f, 0.03f);
+        ApplyMat(panel, darkMat);
+        Object.DestroyImmediate(panel.GetComponent<Collider>());
 
-        GameObject display = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        display.name = "Display";
-        display.transform.SetParent(parent, false);
-        display.transform.localPosition = new Vector3(0f, 1.35f, -0.09f);
-        display.transform.localScale = new Vector3(0.1f, 0.06f, 0.02f);
-        ApplyMat(display, darkMat);
-        Object.DestroyImmediate(display.GetComponent<Collider>());
+        // Screen ABOVE buttons, facing user
+        GameObject screenRoot = new GameObject("PoleScreen");
+        screenRoot.transform.SetParent(parent, false);
+        screenRoot.transform.localPosition = new Vector3(0f, 1.42f, -0.13f);
+        screenRoot.transform.localRotation = Quaternion.Euler(-8f, 0f, 0f);
 
-        GameObject button = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        button.name = "StartButton";
-        button.transform.SetParent(parent, false);
-        button.transform.localPosition = new Vector3(0f, 1.12f, -0.1f);
-        button.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-        button.transform.localScale = new Vector3(0.1f, 0.025f, 0.1f);
-        ApplyMat(button, buttonMat);
-        Object.DestroyImmediate(button.GetComponent<Collider>());
+        GameObject screenFrame = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        screenFrame.name = "ScreenFrame";
+        screenFrame.transform.SetParent(screenRoot.transform, false);
+        screenFrame.transform.localScale = new Vector3(0.2f, 0.14f, 0.03f);
+        ApplyMat(screenFrame, darkMat);
+        Object.DestroyImmediate(screenFrame.GetComponent<Collider>());
+
+        GameObject screenPanel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        screenPanel.name = "ScreenPanel";
+        screenPanel.transform.SetParent(screenRoot.transform, false);
+        screenPanel.transform.localPosition = new Vector3(0f, 0f, -0.012f);
+        screenPanel.transform.localScale = new Vector3(0.17f, 0.11f, 0.015f);
+        ApplyMat(screenPanel, screenMat);
+        Object.DestroyImmediate(screenPanel.GetComponent<Collider>());
+
+        GameObject canvasGo = new GameObject("ScreenCanvas");
+        canvasGo.transform.SetParent(screenRoot.transform, false);
+        canvasGo.transform.localPosition = new Vector3(0f, 0f, -0.022f);
+        canvasGo.transform.localScale = Vector3.one * 0.001f;
+        Canvas canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.WorldSpace;
+        canvasGo.AddComponent<CanvasScaler>();
+        canvasGo.GetComponent<RectTransform>().sizeDelta = new Vector2(160f, 100f);
+
+        GameObject textGo = new GameObject("ScreenLabel");
+        textGo.transform.SetParent(canvasGo.transform, false);
+        TextMeshProUGUI tmp = textGo.AddComponent<TextMeshProUGUI>();
+        tmp.text = "READY";
+        tmp.fontSize = 36;
+        tmp.alignment = TextAlignmentOptions.Center;
+        tmp.color = ScreenGlow;
+        tmp.rectTransform.sizeDelta = new Vector2(150f, 90f);
+
+        // Button cluster under the screen
+        float btnY = 1.18f;
+        for (int row = 0; row < 2; row++)
+        {
+            for (int col = 0; col < 3; col++)
+            {
+                GameObject btn = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                btn.name = "Btn_" + row + "_" + col;
+                btn.transform.SetParent(parent, false);
+                btn.transform.localPosition = new Vector3((col - 1) * 0.035f, btnY - row * 0.05f, -0.13f);
+                btn.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                btn.transform.localScale = new Vector3(0.028f, 0.012f, 0.028f);
+                ApplyMat(btn, buttonMat);
+                Object.DestroyImmediate(btn.GetComponent<Collider>());
+            }
+        }
+
+        // Big start button below cluster
+        GameObject start = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        start.name = "StartButton";
+        start.transform.SetParent(parent, false);
+        start.transform.localPosition = new Vector3(0f, 0.98f, -0.13f);
+        start.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        start.transform.localScale = new Vector3(0.08f, 0.02f, 0.08f);
+        ApplyMat(start, buttonMat);
+        Object.DestroyImmediate(start.GetComponent<Collider>());
 
         GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
         plate.name = "KeyPlate";
         plate.transform.SetParent(parent, false);
-        plate.transform.localPosition = new Vector3(0f, 0.92f, -0.09f);
-        plate.transform.localScale = new Vector3(0.08f, 0.04f, 0.015f);
+        plate.transform.localPosition = new Vector3(0f, 0.86f, -0.12f);
+        plate.transform.localScale = new Vector3(0.09f, 0.04f, 0.015f);
         ApplyMat(plate, darkMat);
         Object.DestroyImmediate(plate.GetComponent<Collider>());
+    }
+
+    static void BuildArcToPoleConnection(Transform parent, Material frameMat, Material darkMat)
+    {
+        // Hub collar on top of pole
+        GameObject hub = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        hub.name = "ArcHub";
+        hub.transform.SetParent(parent, false);
+        hub.transform.localPosition = new Vector3(0f, ArcHeight, 0f);
+        hub.transform.localScale = new Vector3(0.22f, 0.05f, 0.22f);
+        ApplyMat(hub, darkMat);
+        Object.DestroyImmediate(hub.GetComponent<Collider>());
+
+        // Main spine: pole hub → arc back midpoint (270°)
+        float midRad = 270f * Mathf.Deg2Rad;
+        Vector3 arcBack = new Vector3(Mathf.Cos(midRad) * ArcRadius, ArcHeight, Mathf.Sin(midRad) * ArcRadius);
+        // midRad 270 → (0, ArcHeight, -ArcRadius)
+        Vector3 hubPos = new Vector3(0f, ArcHeight, 0f);
+        Vector3 mid = (hubPos + arcBack) * 0.5f;
+        Vector3 dir = arcBack - hubPos;
+
+        GameObject spine = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        spine.name = "ArcConnectSpine";
+        spine.transform.SetParent(parent, false);
+        spine.transform.localPosition = mid;
+        spine.transform.localRotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+        spine.transform.localScale = new Vector3(0.09f, 0.07f, dir.magnitude);
+        ApplyMat(spine, frameMat);
+        Object.DestroyImmediate(spine.GetComponent<Collider>());
+
+        // Left / right brace arms into the arc
+        AddBrace(parent, "ArcBraceL", hubPos, ArcPoint(230f), frameMat);
+        AddBrace(parent, "ArcBraceR", hubPos, ArcPoint(310f), frameMat);
+
+        // Small joint spheres where braces meet arc
+        PlaceJoint(parent, ArcPoint(230f), frameMat);
+        PlaceJoint(parent, ArcPoint(310f), frameMat);
+        PlaceJoint(parent, arcBack, darkMat);
+    }
+
+    static Vector3 ArcPoint(float deg)
+    {
+        float rad = deg * Mathf.Deg2Rad;
+        return new Vector3(Mathf.Cos(rad) * ArcRadius, ArcHeight, Mathf.Sin(rad) * ArcRadius);
+    }
+
+    static void AddBrace(Transform parent, string name, Vector3 from, Vector3 to, Material mat)
+    {
+        Vector3 mid = (from + to) * 0.5f;
+        Vector3 dir = to - from;
+        GameObject brace = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        brace.name = name;
+        brace.transform.SetParent(parent, false);
+        brace.transform.localPosition = mid;
+        brace.transform.localRotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
+        brace.transform.localScale = new Vector3(0.06f, 0.05f, dir.magnitude);
+        ApplyMat(brace, mat);
+        Object.DestroyImmediate(brace.GetComponent<Collider>());
+    }
+
+    static void PlaceJoint(Transform parent, Vector3 pos, Material mat)
+    {
+        GameObject joint = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        joint.name = "ConnectJoint";
+        joint.transform.SetParent(parent, false);
+        joint.transform.localPosition = pos;
+        joint.transform.localScale = Vector3.one * 0.08f;
+        ApplyMat(joint, mat);
+        Object.DestroyImmediate(joint.GetComponent<Collider>());
     }
 
     static Transform BuildArc(Transform parent, Material frameMat, Material rimMat)
@@ -145,17 +271,13 @@ public static class BallDropArcBuilder
         arcRoot.transform.SetParent(parent, false);
         arcRoot.transform.localPosition = new Vector3(0f, ArcHeight, 0f);
 
-        // Approximate C-arc with segment cubes + rim cylinders
-        const int segments = 16;
-        float startDeg = 200f;
-        float endDeg = 340f;
-
+        const int segments = 18;
         for (int i = 0; i < segments; i++)
         {
             float t0 = i / (float)segments;
             float t1 = (i + 1) / (float)segments;
-            float a0 = Mathf.Lerp(startDeg, endDeg, t0) * Mathf.Deg2Rad;
-            float a1 = Mathf.Lerp(startDeg, endDeg, t1) * Mathf.Deg2Rad;
+            float a0 = Mathf.Lerp(ArcStartDeg, ArcEndDeg, t0) * Mathf.Deg2Rad;
+            float a1 = Mathf.Lerp(ArcStartDeg, ArcEndDeg, t1) * Mathf.Deg2Rad;
             Vector3 p0 = new Vector3(Mathf.Cos(a0) * ArcRadius, 0f, Mathf.Sin(a0) * ArcRadius);
             Vector3 p1 = new Vector3(Mathf.Cos(a1) * ArcRadius, 0f, Mathf.Sin(a1) * ArcRadius);
             Vector3 mid = (p0 + p1) * 0.5f;
@@ -181,9 +303,8 @@ public static class BallDropArcBuilder
             Object.DestroyImmediate(rim.GetComponent<Collider>());
         }
 
-        // Caps on arc tips
-        PlaceCap(arcRoot.transform, startDeg, frameMat);
-        PlaceCap(arcRoot.transform, endDeg, frameMat);
+        PlaceCap(arcRoot.transform, ArcStartDeg, frameMat);
+        PlaceCap(arcRoot.transform, ArcEndDeg, frameMat);
 
         return arcRoot.transform;
     }
@@ -206,8 +327,8 @@ public static class BallDropArcBuilder
         spawnRoot.transform.SetParent(parent, false);
         spawnRoot.transform.localPosition = Vector3.zero;
 
-        float startDeg = 210f;
-        float endDeg = 330f;
+        float startDeg = 215f;
+        float endDeg = 325f;
 
         for (int i = 0; i < SpawnCount; i++)
         {
@@ -224,14 +345,8 @@ public static class BallDropArcBuilder
             ApplyMat(hanger, hangerMat);
             Object.DestroyImmediate(hanger.GetComponent<Collider>());
 
-            // Keep naming compatible with existing scene style
-            string pointName = i == 0 ? "SpawnPoint" : "SpawnPoint_" + i.ToString("00");
-            // Existing scene used SpawnPoint_03 style — use SpawnPoint_00..09
-            pointName = "SpawnPoint_" + i.ToString("00");
-
-            GameObject point = new GameObject(pointName);
+            GameObject point = new GameObject("SpawnPoint_" + i.ToString("00"));
             point.transform.SetParent(spawnRoot.transform, false);
-            // Release slightly below hanger so ball clears the arc
             point.transform.position = parent.TransformPoint(onArc + Vector3.down * 0.14f);
         }
 
