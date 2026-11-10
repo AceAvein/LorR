@@ -89,6 +89,9 @@ public static class LorRClinicEnvironmentKit
         Material doorLeaf = Mat("Clinic_DoorLeaf", DoorLeaf, 0.1f, 0.45f, false);
         Material signBoard = Mat("Clinic_SignBoard", SignBoard, 0.1f, 0.35f, false);
         Material signAccent = Mat("Clinic_SignAccent", SignAccent, 0.15f, 0.5f, true, SignAccent * 0.25f);
+        // Soft hospital fluorescent panel — visible glow, not blown-out white
+        Color lampPanel = new Color(0.92f, 0.94f, 0.90f);
+        Material lampMat = Mat("Clinic_LampPanel", lampPanel, 0.0f, 0.55f, true, lampPanel * 0.35f);
         Material baseboard = Mat("Clinic_Baseboard", Baseboard, 0.15f, 0.35f, false);
         Material wood = Mat("Clinic_Wood", Wood, 0.05f, 0.38f, false);
         Material plant = Mat("Clinic_Plant", Plant, 0.0f, 0.35f, false);
@@ -127,14 +130,26 @@ public static class LorRClinicEnvironmentKit
         Prim(hallway, PrimitiveType.Cube, "HallBaseR_Before", new Vector3(rightX - 0.04f, 0.08f, zBefore * 0.5f), new Vector3(0.06f, 0.16f, zBefore), baseboard);
         Prim(hallway, PrimitiveType.Cube, "HallBaseR_After", new Vector3(rightX - 0.04f, 0.08f, doorZ + doorW * 0.5f + zAfter * 0.5f), new Vector3(0.06f, 0.16f, zAfter), baseboard);
 
-        // Ceiling lights down the hall
+        // Ceiling lights down the hall (fixture + real light)
         int lightCount = 6;
         for (int i = 0; i < lightCount; i++)
         {
             float z = 1.2f + i * (hallLen - 2f) / (lightCount - 1);
             Prim(hallway, PrimitiveType.Cube, "HallLight_" + i, new Vector3(0f, hallH - 0.05f, z), new Vector3(0.7f, 0.04f, 0.4f), ceiling);
-            Prim(hallway, PrimitiveType.Cube, "HallLightGlow_" + i, new Vector3(0f, hallH - 0.08f, z), new Vector3(0.55f, 0.02f, 0.28f), signAccent);
+            GameObject glow = Prim(hallway, PrimitiveType.Cube, "HallLightGlow_" + i, new Vector3(0f, hallH - 0.08f, z), new Vector3(0.55f, 0.02f, 0.28f), lampMat);
+            AddHospitalCeilingLight(glow.transform, "HallLamp_" + i, intensity: 1.35f, range: 5.5f);
         }
+
+        // Soft hall fill — even clinic lighting, not washed out
+        GameObject hallFill = new GameObject("HallAmbientFill");
+        hallFill.transform.SetParent(hallway, false);
+        hallFill.transform.localPosition = new Vector3(0f, hallH * 0.55f, hallLen * 0.5f);
+        Light hallFillLight = hallFill.AddComponent<Light>();
+        hallFillLight.type = LightType.Point;
+        hallFillLight.color = new Color(0.90f, 0.93f, 0.95f);
+        hallFillLight.intensity = 0.45f;
+        hallFillLight.range = hallLen * 0.85f;
+        hallFillLight.shadows = LightShadows.None;
 
         // Left-wall windows / frames (storyboard)
         for (int i = 0; i < 3; i++)
@@ -204,14 +219,16 @@ public static class LorRClinicEnvironmentKit
         {
             for (int z = -1; z <= 1; z++)
             {
-                Prim(room, PrimitiveType.Cube, "RoomLight_" + x + "_" + z,
-                    new Vector3(x * (roomWidth * 0.28f), roomHeight - 0.06f, z * (roomDepth * 0.28f)),
-                    new Vector3(0.75f, 0.05f, 0.5f), ceiling);
-                Prim(room, PrimitiveType.Cube, "RoomLightGlow_" + x + "_" + z,
-                    new Vector3(x * (roomWidth * 0.28f), roomHeight - 0.09f, z * (roomDepth * 0.28f)),
-                    new Vector3(0.58f, 0.02f, 0.35f), signAccent);
+                Vector3 lampPos = new Vector3(x * (roomWidth * 0.28f), roomHeight - 0.06f, z * (roomDepth * 0.28f));
+                Prim(room, PrimitiveType.Cube, "RoomLight_" + x + "_" + z, lampPos, new Vector3(0.75f, 0.05f, 0.5f), ceiling);
+                GameObject glow = Prim(room, PrimitiveType.Cube, "RoomLightGlow_" + x + "_" + z,
+                    lampPos + new Vector3(0f, -0.03f, 0f), new Vector3(0.58f, 0.02f, 0.35f), lampMat);
+                AddHospitalCeilingLight(glow.transform, "RoomLamp_" + x + "_" + z, intensity: 1.55f, range: 6.5f);
             }
         }
+
+        // Soft fill so corners aren't pitch black (not a blow-out)
+        AddHospitalAmbientFill(room, roomHeight);
 
         Prim(room, PrimitiveType.Cube, "FloorTrimX", new Vector3(0f, 0.045f, 0f), new Vector3(roomWidth - 0.5f, 0.01f, 0.08f), floorTrim);
         Prim(room, PrimitiveType.Cube, "FloorTrimZ", new Vector3(0f, 0.045f, 0f), new Vector3(0.08f, 0.01f, roomDepth - 0.5f), floorTrim);
@@ -292,6 +309,40 @@ public static class LorRClinicEnvironmentKit
         face.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         Prim(clock.transform, PrimitiveType.Cube, "HandH", new Vector3(0f, 0f, -0.02f), new Vector3(0.02f, 0.1f, 0.01f), dark);
         Prim(clock.transform, PrimitiveType.Cube, "HandM", new Vector3(0.04f, 0.05f, -0.02f), new Vector3(0.015f, 0.14f, 0.01f), dark);
+    }
+
+    /// <summary>
+    /// Soft clinic fluorescent — cool-white, moderate intensity so colors stay readable.
+    /// </summary>
+    public static Light AddHospitalCeilingLight(Transform fixture, string name, float intensity, float range)
+    {
+        GameObject lamp = new GameObject(name);
+        lamp.transform.SetParent(fixture, false);
+        lamp.transform.localPosition = new Vector3(0f, -0.12f, 0f);
+
+        Light light = lamp.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.color = new Color(0.95f, 0.96f, 0.92f); // hospital cool-white, slight warmth
+        light.intensity = intensity;
+        light.range = range;
+        light.shadows = LightShadows.Soft;
+        light.shadowStrength = 0.45f;
+        return light;
+    }
+
+    public static Light AddHospitalAmbientFill(Transform room, float roomHeight)
+    {
+        GameObject fill = new GameObject("ClinicAmbientFill");
+        fill.transform.SetParent(room, false);
+        fill.transform.localPosition = new Vector3(0f, roomHeight * 0.55f, 0f);
+
+        Light light = fill.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.color = new Color(0.90f, 0.93f, 0.95f);
+        light.intensity = 0.55f;
+        light.range = 14f;
+        light.shadows = LightShadows.None;
+        return light;
     }
 
     public static GameObject Prim(Transform parent, PrimitiveType type, string name, Vector3 localPos, Vector3 localScale, Material mat)
