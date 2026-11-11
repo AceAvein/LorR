@@ -150,10 +150,23 @@ public class PenTrail : MonoBehaviour
 
         if (isPressed)
         {
+            Vector3 drawPoint = penTip.position;
+            TracingBoardSurface board = TracingBoardSurface.Current;
+            if (board != null)
+            {
+                if (!board.TryProject(penTip.position, out drawPoint))
+                {
+                    if (drawSound != null && drawSound.isPlaying)
+                        drawSound.Stop();
+                    wasPressed = isPressed;
+                    return;
+                }
+            }
+
             if (!wasPressed || !strokeOpen)
                 BeginStroke();
 
-            AddTrailPoint(penTip.position);
+            AddTrailPoint(drawPoint);
 
             if (drawSound != null && !drawSound.isPlaying)
                 drawSound.Play();

@@ -233,9 +233,7 @@ public class PathManager : MonoBehaviour
         if (board == null)
             return point;
 
-        Vector3 normal = board.transform.up;
-        float signed = Vector3.Dot(point - board.transform.position, normal);
-        return point - normal * signed;
+        return board.Project(point);
     }
 
     void PaintGuide()

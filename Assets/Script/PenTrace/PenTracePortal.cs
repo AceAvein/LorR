@@ -168,10 +168,15 @@ public class PenTracePortal : MonoBehaviour
 
     void SnapPlayerToPortal()
     {
+        SnapPlayerToActiveBoard(true);
+    }
+
+    public void SnapPlayerToActiveBoard(bool lockInPlace)
+    {
         if (xrOrigin == null)
             xrOrigin = FindFirstObjectByType<XROrigin>(FindObjectsInactive.Exclude);
 
-        if (xrOrigin == null || portal == null)
+        if (xrOrigin == null)
             return;
 
         Camera headset = xrOrigin.Camera;
@@ -180,26 +185,58 @@ public class PenTracePortal : MonoBehaviour
         if (headset == null)
             return;
 
+        Transform board = ActiveBoardTransform();
+        if (board == null && portal == null)
+            return;
+
         UnsinkToFloor();
 
-        // Keep drawing fixed on WHITE BOARD; raise/lower the player so eyes sit just above draw height.
-        const float GuideLocalY = 0.63f;
-        const float EyesAboveDraw = -0.4f;
-        float drawY = WhiteBoardCenter().y + GuideLocalY;
+        const float EyesAboveDraw = 0.35f;
+        const float StandBack = 0.55f;
+        float drawY = ActiveDrawHeight();
         float targetHeadsetY = drawY + EyesAboveDraw;
 
-        Vector3 stand = portal.position;
-        stand.y = targetHeadsetY;
+        Vector3 stand;
+        Vector3 face;
+        if (board != null)
+        {
+            Vector3 center = PenTraceBoards.BoardCenter(board);
+            Vector3 from = headset.transform.position;
+            face = center - from;
+            face.y = 0f;
+            if (face.sqrMagnitude < 0.001f)
+                face = FaceDirectionFromPortal();
+            else
+                face.Normalize();
+
+            stand = center - face * StandBack;
+            stand.y = targetHeadsetY;
+        }
+        else
+        {
+            stand = portal.position;
+            stand.y = targetHeadsetY;
+            face = FaceDirectionFromPortal();
+        }
+
         xrOrigin.MoveCameraToWorldLocation(stand);
 
-        Vector3 face = FaceDirectionFromPortal();
         if (face.sqrMagnitude > 0.001f)
             xrOrigin.MatchOriginUpCameraForward(Vector3.up, face);
 
         Transform originTransform = xrOrigin.Origin != null ? xrOrigin.Origin.transform : xrOrigin.transform;
         lockedPosition = originTransform.position;
         lockedRotation = originTransform.rotation;
-        locked = true;
+        if (lockInPlace)
+        {
+            locked = true;
+            LockLocomotion(true);
+        }
+        else if (locked)
+        {
+            lockedPosition = originTransform.position;
+            lockedRotation = originTransform.rotation;
+        }
     }
 
     void UnsinkToFloor()
@@ -225,20 +262,41 @@ public class PenTracePortal : MonoBehaviour
 
     Vector3 FaceDirectionFromPortal()
     {
-        if (whiteBoard == null)
+        Transform board = ActiveBoardTransform();
+        if (board == null)
             return portal != null ? portal.forward : Vector3.forward;
 
-        Vector3 target = WhiteBoardCenter();
+        Vector3 target = PenTraceBoards.BoardCenter(board);
         Vector3 from = portal != null ? portal.position : target;
         Vector3 flat = target - from;
         flat.y = 0f;
         if (flat.sqrMagnitude < 0.001f)
         {
-            Vector3 normal = WhiteBoardNormal();
-            flat = new Vector3(normal.x, 0f, normal.z);
+            Vector3 along = PenTraceBoards.BoardAlong(board, from);
+            flat = new Vector3(along.x, 0f, along.z);
         }
 
         return flat.sqrMagnitude > 0.001f ? flat.normalized : Vector3.forward;
+    }
+
+    static Transform ActiveBoardTransform()
+    {
+        PatternManager patterns = Object.FindFirstObjectByType<PatternManager>(FindObjectsInactive.Include);
+        int setIndex = patterns != null ? patterns.CurrentSetIndex : 0;
+        Transform paper = PenTraceBoards.FindSet(setIndex);
+        if (paper != null)
+            return paper;
+
+        return WhiteBoardTransform();
+    }
+
+    static float ActiveDrawHeight()
+    {
+        Transform board = ActiveBoardTransform();
+        if (board == null)
+            return 1.2f;
+
+        return PenTraceBoards.BoardCenter(board).y + 0.02f;
     }
 
     void HoldLock()

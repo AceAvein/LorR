@@ -1,0 +1,82 @@
+using UnityEngine;
+
+public static class PenTraceBoards
+{
+    public const int SetCount = 3;
+    public const int PatternsPerSet = 3;
+
+    static readonly string[] SetNames =
+    {
+        "TracingBoard_Set1",
+        "TracingBoard_Set2",
+        "TracingBoard_Set3"
+    };
+
+    public static Transform FindSet(int setIndex)
+    {
+        if (setIndex < 0 || setIndex >= SetNames.Length)
+            return null;
+
+        return FindNamed(SetNames[setIndex]);
+    }
+
+    public static Vector3 BoardCenter(Transform board)
+    {
+        if (board == null)
+            return Vector3.zero;
+
+        Renderer renderer = board.GetComponent<Renderer>();
+        if (renderer != null)
+            return renderer.bounds.center;
+
+        return board.position;
+    }
+
+    public static Vector3 BoardNormal(Transform board)
+    {
+        if (board == null)
+            return Vector3.up;
+
+        Vector3 normal = board.up;
+        if (normal.sqrMagnitude < 0.0001f)
+            return Vector3.up;
+
+        if (Vector3.Dot(normal, Vector3.up) < 0f)
+            normal = -normal;
+
+        return normal.normalized;
+    }
+
+    public static Vector3 BoardAlong(Transform board, Vector3 fromWorld)
+    {
+        if (board == null)
+            return Vector3.forward;
+
+        Vector3 center = BoardCenter(board);
+        Vector3 flat = fromWorld - center;
+        flat = Vector3.ProjectOnPlane(flat, BoardNormal(board));
+        flat.y = 0f;
+        if (flat.sqrMagnitude > 0.001f)
+            return flat.normalized;
+
+        Vector3 along = Vector3.ProjectOnPlane(board.forward, Vector3.up);
+        if (along.sqrMagnitude < 0.001f)
+            along = Vector3.ProjectOnPlane(board.right, Vector3.up);
+        if (along.sqrMagnitude < 0.001f)
+            along = Vector3.forward;
+
+        return along.normalized;
+    }
+
+    static Transform FindNamed(string objectName)
+    {
+        Transform[] transforms = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < transforms.Length; i++)
+        {
+            if (transforms[i].name == objectName)
+                return transforms[i];
+        }
+
+        return null;
+    }
+}

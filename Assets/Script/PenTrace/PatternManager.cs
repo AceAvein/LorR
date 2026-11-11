@@ -150,6 +150,18 @@ public class PatternManager : MonoBehaviour
         ShowPattern(currentPattern);
     }
 
+    public int CurrentSetIndex
+    {
+        get
+        {
+            int index = CurrentPatternIndex;
+            if (index < 0)
+                index = 0;
+
+            return Mathf.Clamp(index / PenTraceBoards.PatternsPerSet, 0, PenTraceBoards.SetCount - 1);
+        }
+    }
+
     public void ResetPatterns()
     {
         if (generateRandomPatterns)
@@ -208,8 +220,27 @@ public class PatternManager : MonoBehaviour
         pathManager.tracePath = generatedPath;
         pathManager.traceEnd = endLabel.transform;
         pathManager.ResetPattern();
+        PlaceOnCurrentSet();
         RefreshTracingHud();
         AnnounceTier(CurrentTier());
+    }
+
+    void PlaceOnCurrentSet()
+    {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
+        Countdown countdown = FindFirstObjectByType<Countdown>(FindObjectsInactive.Include);
+        if (countdown == null)
+            return;
+
+        countdown.PlaceTracingArea();
+        if (countdown.tracingArea != null && !countdown.tracingArea.activeSelf)
+        {
+            TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
+            if (timer != null && timer.IsRunning)
+                countdown.tracingArea.SetActive(true);
+        }
     }
 
     void AnnounceTier(int tier)
@@ -588,14 +619,18 @@ public class PatternManager : MonoBehaviour
         Shuffle(moderate);
         Shuffle(hard);
 
-        easyCount = easy.Count;
-        moderateCount = moderate.Count;
-        hardCount = hard.Count;
+        // Bible: 3 sets × 3 patterns/set. Set1/2/3 map to easy/moderate/hard desks.
+        easyCount = Mathf.Min(PenTraceBoards.PatternsPerSet, easy.Count);
+        moderateCount = Mathf.Min(PenTraceBoards.PatternsPerSet, moderate.Count);
+        hardCount = Mathf.Min(PenTraceBoards.PatternsPerSet, hard.Count);
 
         deck.Clear();
-        deck.AddRange(easy);
-        deck.AddRange(moderate);
-        deck.AddRange(hard);
+        for (int i = 0; i < easyCount; i++)
+            deck.Add(easy[i]);
+        for (int i = 0; i < moderateCount; i++)
+            deck.Add(moderate[i]);
+        for (int i = 0; i < hardCount; i++)
+            deck.Add(hard[i]);
     }
 
     public int CurrentPatternIndex

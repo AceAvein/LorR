@@ -11,6 +11,8 @@ public class Countdown : MonoBehaviour
     public GameObject objectiveScreen;
     public TracingTimer tracingTimer;
 
+    const float PaperLift = 0.012f;
+
     public void StartCountdown()
     {
         if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
@@ -48,12 +50,17 @@ public class Countdown : MonoBehaviour
         tracingTimer.StartTimer();
     }
 
-    void PlaceTracingArea()
+    public void PlaceTracingArea()
     {
         if (tracingArea == null)
             return;
 
-        if (!PlaceOnWhiteBoard())
+        int setIndex = 0;
+        PatternManager patterns = FindFirstObjectByType<PatternManager>(FindObjectsInactive.Include);
+        if (patterns != null)
+            setIndex = patterns.CurrentSetIndex;
+
+        if (!PlaceOnTracingBoard(setIndex))
             PlaceInFrontOfHeadset();
 
         Transform board = tracingArea.transform.Find("TracingBoard");
@@ -65,25 +72,35 @@ public class Countdown : MonoBehaviour
             surface = board.gameObject.AddComponent<TracingBoardSurface>();
 
         surface.reachDistance = 0.08f;
+        surface.surfaceLift = 0.008f;
     }
 
-    bool PlaceOnWhiteBoard()
+    bool PlaceOnTracingBoard(int setIndex)
     {
-        Transform whiteBoard = PenTracePortal.WhiteBoardTransform();
-        if (whiteBoard == null)
+        Transform paper = PenTraceBoards.FindSet(setIndex);
+        if (paper == null)
             return false;
 
-        Vector3 normal = PenTracePortal.WhiteBoardNormal();
-        if (normal.sqrMagnitude < 0.001f)
+        Vector3 normal = PenTraceBoards.BoardNormal(paper);
+        Vector3 center = PenTraceBoards.BoardCenter(paper);
+        Vector3 position = center + normal * PaperLift;
+
+        Camera headset = Camera.main;
+        Vector3 from = headset != null ? headset.transform.position : position + Vector3.forward;
+        Vector3 along = PenTraceBoards.BoardAlong(paper, from);
+        if (along.sqrMagnitude < 0.001f)
             return false;
 
-        Vector3 center = PenTracePortal.WhiteBoardCenter();
-        Vector3 position = center + normal * 0.02f;
-        Vector3 forward = -normal;
-        if (Mathf.Abs(Vector3.Dot(forward, Vector3.up)) > 0.95f)
-            return false;
+        // Face the paper from above so existing TracingBoard (-90 X) maps guide/stars onto the desk.
+        Quaternion rotation = Quaternion.LookRotation(-normal, along);
+        tracingArea.transform.SetPositionAndRotation(position, rotation);
 
-        tracingArea.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
+        bool roundLive = tracingArea.activeInHierarchy ||
+            (tracingTimer != null && tracingTimer.IsRunning) ||
+            (PenTracePortal.Instance != null && PenTracePortal.Instance.IsLocked);
+        if (roundLive && PenTracePortal.Instance != null)
+            PenTracePortal.Instance.SnapPlayerToActiveBoard(false);
+
         return true;
     }
 
