@@ -2552,6 +2552,7 @@ GameObject:
   - component: {fileID: 359576290}
   - component: {fileID: 359576292}
   - component: {fileID: 359576291}
+  - component: {fileID: 359576293}
   m_Layer: 0
   m_Name: HallEnd (1)
   m_TagString: Untagged
@@ -2630,6 +2631,27 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 359576289}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!65 &359576293
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 359576289}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &373086358
 GameObject:
   m_ObjectHideFlags: 0
@@ -8178,7 +8200,9 @@ MonoBehaviour:
   m_RepeatRate: 0.1
   m_TrackedDeviceDragThresholdMultiplier: 2
   m_TrackedScrollDeltaMultiplier: 5
+  m_NonTrackedScrollDeltaMultiplier: 6
   m_BypassUIToolkitEvents: 0
+  m_PrioritizeDistanceSorting: 0
   m_ActiveInputMode: 0
   m_EnableXRInput: 1
   m_EnableMouseInput: 1
@@ -11481,6 +11505,8 @@ GameObject:
   - component: {fileID: 5813838374730559499}
   - component: {fileID: 3943333849166503554}
   - component: {fileID: 2167578295295873465}
+  - component: {fileID: 5813838374730559500}
+  - component: {fileID: 5813838374730559501}
   m_Layer: 0
   m_Name: RoomWallNear_After
   m_TagString: Untagged
@@ -13849,6 +13875,7 @@ GameObject:
   - component: {fileID: 6969719917189245331}
   - component: {fileID: 4263016197592206948}
   - component: {fileID: 2126685536626000777}
+  - component: {fileID: 6969719917189245332}
   m_Layer: 0
   m_Name: HallFloor
   m_TagString: Untagged
@@ -16674,6 +16701,7 @@ GameObject:
   - component: {fileID: 4201177420074222151}
   - component: {fileID: 3615808497518149851}
   - component: {fileID: 2280164172942126996}
+  - component: {fileID: 4201177420074222152}
   m_Layer: 0
   m_Name: RoomWallFar
   m_TagString: Untagged
@@ -21541,6 +21569,27 @@ Transform:
   m_Children: []
   m_Father: {fileID: 6588141029502420809}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &4201177420074222152
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2193050648409107825}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 0.99999994}
+  m_Center: {x: 0.0000038146973, y: 0, z: -0.000000029802322}
 --- !u!23 &4205578478553967152
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -22080,6 +22129,7 @@ GameObject:
   - component: {fileID: 370099336999657226}
   - component: {fileID: 1624839078430733864}
   - component: {fileID: 7174440452393763778}
+  - component: {fileID: 7174440452393763779}
   m_Layer: 0
   m_Name: HallEnd
   m_TagString: Untagged
@@ -24523,6 +24573,48 @@ Transform:
   m_Children: []
   m_Father: {fileID: 6588141029502420809}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &5813838374730559500
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 264073552338607065}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 0.99999994}
+  m_Center: {x: 0.0000038146973, y: 0, z: 0.00000011920929}
+--- !u!65 &5813838374730559501
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 264073552338607065}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 0.99999994}
+  m_Center: {x: 0.0000038146973, y: 0, z: 0.00000011920929}
 --- !u!23 &5826358095187091003
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -24970,6 +25062,7 @@ GameObject:
   - component: {fileID: 8369829073325526903}
   - component: {fileID: 6514388839303786343}
   - component: {fileID: 4088605753525541683}
+  - component: {fileID: 8369829073325526904}
   m_Layer: 0
   m_Name: RoomWallNear_Above
   m_TagString: Untagged
@@ -25448,6 +25541,7 @@ GameObject:
   - component: {fileID: 4005529119185130913}
   - component: {fileID: 2796285388701286889}
   - component: {fileID: 7438303313233214926}
+  - component: {fileID: 7438303313233214927}
   m_Layer: 0
   m_Name: HallWallR_Before
   m_TagString: Untagged
@@ -27197,6 +27291,7 @@ GameObject:
   - component: {fileID: 8362329865971661070}
   - component: {fileID: 434920423133924253}
   - component: {fileID: 1922153360723395775}
+  - component: {fileID: 8362329865971661071}
   m_Layer: 0
   m_Name: RoomWallFront
   m_TagString: Untagged
@@ -27322,6 +27417,27 @@ Transform:
   m_Children: []
   m_Father: {fileID: 7071505037341271215}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &6969719917189245332
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1034519873907136693}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!4 &6971249421778944851
 Transform:
   m_ObjectHideFlags: 0
@@ -27742,6 +27858,7 @@ GameObject:
   - component: {fileID: 651735368606424143}
   - component: {fileID: 7416913452009247910}
   - component: {fileID: 2384615941974538808}
+  - component: {fileID: 7416913452009247911}
   m_Layer: 0
   m_Name: RoomWallBack
   m_TagString: Untagged
@@ -27805,6 +27922,27 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!65 &7174440452393763779
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4534777607794209394}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 1}
+  m_Center: {x: 0, y: 0, z: 0.0000076293945}
 --- !u!23 &7177074199793949633
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -28281,6 +28419,7 @@ GameObject:
   - component: {fileID: 6074199928331909203}
   - component: {fileID: 4573061942015541274}
   - component: {fileID: 7036740461646528076}
+  - component: {fileID: 7265519365667539456}
   m_Layer: 0
   m_Name: HallWallL
   m_TagString: Untagged
@@ -28288,6 +28427,27 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!65 &7265519365667539456
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7265519365667539455}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!33 &7272378648961740471
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -28436,6 +28596,7 @@ GameObject:
   - component: {fileID: 2449544179583622254}
   - component: {fileID: 3036757440857427335}
   - component: {fileID: 4699493519719726576}
+  - component: {fileID: 7288691835071860513}
   m_Layer: 0
   m_Name: RoomWallNear_Before
   m_TagString: Untagged
@@ -28443,6 +28604,27 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!65 &7288691835071860513
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7288691835071860512}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 0.99999994}
+  m_Center: {x: 0.0000038146973, y: 0, z: 0.000000018626451}
 --- !u!1 &7292229143386702357
 GameObject:
   m_ObjectHideFlags: 0
@@ -28777,6 +28959,27 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7159584694607419598}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!65 &7416913452009247911
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7159584694607419598}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 1}
+  m_Center: {x: -0.000000014901161, y: 0, z: 0}
 --- !u!23 &7438303313233214926
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -28825,6 +29028,27 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!65 &7438303313233214927
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6323339783607166099}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 1}
+  m_Center: {x: 0, y: 0, z: 0.000000044703484}
 --- !u!33 &7439597073081042017
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -30699,6 +30923,7 @@ GameObject:
   - component: {fileID: 8902181980157906318}
   - component: {fileID: 4602409929301134467}
   - component: {fileID: 1825906595131160359}
+  - component: {fileID: 8902181980157906319}
   m_Layer: 0
   m_Name: RoomFloor
   m_TagString: Untagged
@@ -30822,6 +31047,27 @@ Transform:
   m_Children: []
   m_Father: {fileID: 6588141029502420809}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8362329865971661071
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6899427513408927249}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 0.99999994, z: 1}
+  m_Center: {x: -0.000000014901161, y: 0, z: 0.0000038146973}
 --- !u!1 &8369690807888497635
 GameObject:
   m_ObjectHideFlags: 0
@@ -30855,6 +31101,27 @@ Transform:
   m_Children: []
   m_Father: {fileID: 6588141029502420809}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8369829073325526904
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6056352162949050456}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0.0000038146973, y: 0, z: 0}
 --- !u!33 &8392089314514044865
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -32052,6 +32319,27 @@ Transform:
   m_Children: []
   m_Father: {fileID: 6588141029502420809}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &8902181980157906319
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8287414040550666212}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 0.99999994}
+  m_Center: {x: -0.000000014901161, y: 0, z: -0.000000029802322}
 --- !u!23 &8914068550643681174
 MeshRenderer:
   m_ObjectHideFlags: 0
