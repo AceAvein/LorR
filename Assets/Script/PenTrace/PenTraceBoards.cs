@@ -47,25 +47,22 @@ public static class PenTraceBoards
         return normal.normalized;
     }
 
-    public static Vector3 BoardAlong(Transform board, Vector3 fromWorld)
+    // Stable desk-facing axis so every set orients the same, independent of headset position.
+    public static Vector3 BoardFacing(Transform board)
     {
         if (board == null)
             return Vector3.forward;
 
-        Vector3 center = BoardCenter(board);
-        Vector3 flat = fromWorld - center;
-        flat = Vector3.ProjectOnPlane(flat, BoardNormal(board));
-        flat.y = 0f;
-        if (flat.sqrMagnitude > 0.001f)
-            return flat.normalized;
+        Transform desk = board.parent != null ? board.parent : board;
+        Vector3 facing = Vector3.ProjectOnPlane(desk.forward, Vector3.up);
+        if (facing.sqrMagnitude < 0.001f)
+            facing = Vector3.ProjectOnPlane(board.forward, Vector3.up);
+        if (facing.sqrMagnitude < 0.001f)
+            facing = Vector3.ProjectOnPlane(board.right, Vector3.up);
+        if (facing.sqrMagnitude < 0.001f)
+            return Vector3.forward;
 
-        Vector3 along = Vector3.ProjectOnPlane(board.forward, Vector3.up);
-        if (along.sqrMagnitude < 0.001f)
-            along = Vector3.ProjectOnPlane(board.right, Vector3.up);
-        if (along.sqrMagnitude < 0.001f)
-            along = Vector3.forward;
-
-        return along.normalized;
+        return facing.normalized;
     }
 
     static Transform FindNamed(string objectName)

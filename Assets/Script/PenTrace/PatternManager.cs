@@ -206,6 +206,7 @@ public class PatternManager : MonoBehaviour
             patterns[i].SetActive(false);
 
         EnsureGeneratedGuide();
+        generatedPath.transform.localPosition = new Vector3(0f, 0.12f, 0f);
         Recipe recipe = DrawRecipe(newPlay);
         FillRecipe(recipe);
 
@@ -268,7 +269,7 @@ public class PatternManager : MonoBehaviour
         Transform root = patterns[0].transform.parent;
         GameObject guide = new GameObject("GeneratedGuide");
         guide.transform.SetParent(root, false);
-        guide.transform.localPosition = new Vector3(0f, 0.63f, 0f);
+        guide.transform.localPosition = new Vector3(0f, 0.12f, 0f);
         guide.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         guide.transform.localScale = Vector3.one;
 

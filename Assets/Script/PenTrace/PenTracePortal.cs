@@ -154,8 +154,8 @@ public class PenTracePortal : MonoBehaviour
         armed = false;
         insideSeconds = 0f;
 
-        SnapPlayerToPortal();
-        LockLocomotion(true);
+        // Player walks to each desk; do not snap or lock locomotion here.
+        SetPortalVisible(false);
 
         if (countdown == null)
             countdown = FindFirstObjectByType<Countdown>(FindObjectsInactive.Include);
@@ -164,139 +164,6 @@ public class PenTracePortal : MonoBehaviour
             countdown.StartCountdown();
         else
             Debug.LogWarning("PenTracePortal could not find Countdown");
-    }
-
-    void SnapPlayerToPortal()
-    {
-        SnapPlayerToActiveBoard(true);
-    }
-
-    public void SnapPlayerToActiveBoard(bool lockInPlace)
-    {
-        if (xrOrigin == null)
-            xrOrigin = FindFirstObjectByType<XROrigin>(FindObjectsInactive.Exclude);
-
-        if (xrOrigin == null)
-            return;
-
-        Camera headset = xrOrigin.Camera;
-        if (headset == null)
-            headset = Camera.main;
-        if (headset == null)
-            return;
-
-        Transform board = ActiveBoardTransform();
-        if (board == null && portal == null)
-            return;
-
-        UnsinkToFloor();
-
-        const float EyesAboveDraw = 0.35f;
-        const float StandBack = 0.55f;
-        float drawY = ActiveDrawHeight();
-        float targetHeadsetY = drawY + EyesAboveDraw;
-
-        Vector3 stand;
-        Vector3 face;
-        if (board != null)
-        {
-            Vector3 center = PenTraceBoards.BoardCenter(board);
-            Vector3 from = headset.transform.position;
-            face = center - from;
-            face.y = 0f;
-            if (face.sqrMagnitude < 0.001f)
-                face = FaceDirectionFromPortal();
-            else
-                face.Normalize();
-
-            stand = center - face * StandBack;
-            stand.y = targetHeadsetY;
-        }
-        else
-        {
-            stand = portal.position;
-            stand.y = targetHeadsetY;
-            face = FaceDirectionFromPortal();
-        }
-
-        xrOrigin.MoveCameraToWorldLocation(stand);
-
-        if (face.sqrMagnitude > 0.001f)
-            xrOrigin.MatchOriginUpCameraForward(Vector3.up, face);
-
-        Transform originTransform = xrOrigin.Origin != null ? xrOrigin.Origin.transform : xrOrigin.transform;
-        lockedPosition = originTransform.position;
-        lockedRotation = originTransform.rotation;
-        if (lockInPlace)
-        {
-            locked = true;
-            LockLocomotion(true);
-        }
-        else if (locked)
-        {
-            lockedPosition = originTransform.position;
-            lockedRotation = originTransform.rotation;
-        }
-    }
-
-    void UnsinkToFloor()
-    {
-        if (xrOrigin == null)
-            return;
-
-        Transform originTransform = xrOrigin.Origin != null ? xrOrigin.Origin.transform : xrOrigin.transform;
-        float floorY = PenTraceFloor.GetFloorSurfaceY();
-        Vector3 position = originTransform.position;
-        if (position.y < floorY)
-        {
-            position.y = floorY;
-            originTransform.position = position;
-        }
-
-        CharacterController controller = originTransform.GetComponent<CharacterController>();
-        if (controller == null)
-            controller = xrOrigin.GetComponentInChildren<CharacterController>();
-        if (controller != null && !controller.enabled)
-            controller.enabled = true;
-    }
-
-    Vector3 FaceDirectionFromPortal()
-    {
-        Transform board = ActiveBoardTransform();
-        if (board == null)
-            return portal != null ? portal.forward : Vector3.forward;
-
-        Vector3 target = PenTraceBoards.BoardCenter(board);
-        Vector3 from = portal != null ? portal.position : target;
-        Vector3 flat = target - from;
-        flat.y = 0f;
-        if (flat.sqrMagnitude < 0.001f)
-        {
-            Vector3 along = PenTraceBoards.BoardAlong(board, from);
-            flat = new Vector3(along.x, 0f, along.z);
-        }
-
-        return flat.sqrMagnitude > 0.001f ? flat.normalized : Vector3.forward;
-    }
-
-    static Transform ActiveBoardTransform()
-    {
-        PatternManager patterns = Object.FindFirstObjectByType<PatternManager>(FindObjectsInactive.Include);
-        int setIndex = patterns != null ? patterns.CurrentSetIndex : 0;
-        Transform paper = PenTraceBoards.FindSet(setIndex);
-        if (paper != null)
-            return paper;
-
-        return WhiteBoardTransform();
-    }
-
-    static float ActiveDrawHeight()
-    {
-        Transform board = ActiveBoardTransform();
-        if (board == null)
-            return 1.2f;
-
-        return PenTraceBoards.BoardCenter(board).y + 0.02f;
     }
 
     void HoldLock()

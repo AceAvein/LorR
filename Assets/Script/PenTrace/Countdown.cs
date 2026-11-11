@@ -11,7 +11,7 @@ public class Countdown : MonoBehaviour
     public GameObject objectiveScreen;
     public TracingTimer tracingTimer;
 
-    const float PaperLift = 0.012f;
+    const float PaperLift = 0.003f;
 
     public void StartCountdown()
     {
@@ -72,7 +72,7 @@ public class Countdown : MonoBehaviour
             surface = board.gameObject.AddComponent<TracingBoardSurface>();
 
         surface.reachDistance = 0.08f;
-        surface.surfaceLift = 0.008f;
+        surface.surfaceLift = 0.002f;
     }
 
     bool PlaceOnTracingBoard(int setIndex)
@@ -85,22 +85,13 @@ public class Countdown : MonoBehaviour
         Vector3 center = PenTraceBoards.BoardCenter(paper);
         Vector3 position = center + normal * PaperLift;
 
-        Camera headset = Camera.main;
-        Vector3 from = headset != null ? headset.transform.position : position + Vector3.forward;
-        Vector3 along = PenTraceBoards.BoardAlong(paper, from);
+        Vector3 along = PenTraceBoards.BoardFacing(paper);
         if (along.sqrMagnitude < 0.001f)
             return false;
 
-        // Face the paper from above so existing TracingBoard (-90 X) maps guide/stars onto the desk.
+        // Desk-local facing (same for every TraceDesk) — matches table-1 Start-left without headset bias.
         Quaternion rotation = Quaternion.LookRotation(-normal, along);
         tracingArea.transform.SetPositionAndRotation(position, rotation);
-
-        bool roundLive = tracingArea.activeInHierarchy ||
-            (tracingTimer != null && tracingTimer.IsRunning) ||
-            (PenTracePortal.Instance != null && PenTracePortal.Instance.IsLocked);
-        if (roundLive && PenTracePortal.Instance != null)
-            PenTracePortal.Instance.SnapPlayerToActiveBoard(false);
-
         return true;
     }
 

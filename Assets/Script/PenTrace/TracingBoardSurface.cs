@@ -3,7 +3,7 @@ using UnityEngine;
 public class TracingBoardSurface : MonoBehaviour
 {
     public float reachDistance = 0.04f;
-    public float surfaceLift = 0.008f;
+    public float surfaceLift = 0.002f;
 
     public static TracingBoardSurface Current { get; private set; }
 
