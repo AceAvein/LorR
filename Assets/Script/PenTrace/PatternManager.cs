@@ -308,7 +308,7 @@ public class PatternManager : MonoBehaviour
         label.fontSize = 0.5f;
         label.fontStyle = FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
-        label.color = Color.white;
+        label.color = Color.black;
         label.enableWordWrapping = false;
         label.overflowMode = TextOverflowModes.Overflow;
         label.outlineWidth = 0.2f;
@@ -436,17 +436,18 @@ public class PatternManager : MonoBehaviour
         outward.Normalize();
 
         label.fontSize = 0.5f;
+        label.color = Color.black;
         label.transform.SetParent(area, false);
         label.transform.localScale = Vector3.one;
         label.ForceMeshUpdate();
 
-        // Flat on the paper (horizontal), readable from above.
+        // Flat on the paper. TMP faces -Z, so aim +Z into the paper (front toward reader above).
         Vector3 pageUp = Vector3.ProjectOnPlane(area.up, paperNormal);
         if (pageUp.sqrMagnitude < 0.001f)
             pageUp = Vector3.ProjectOnPlane(Vector3.forward, paperNormal);
         if (pageUp.sqrMagnitude < 0.001f)
             pageUp = Vector3.right;
-        label.transform.rotation = Quaternion.LookRotation(paperNormal.normalized, pageUp.normalized);
+        label.transform.rotation = Quaternion.LookRotation(-paperNormal.normalized, pageUp.normalized);
 
         Vector3 halfWidth = label.transform.TransformVector(new Vector3(label.textBounds.extents.x, 0f, 0f));
         float reach = halfWidth.magnitude + 0.012f;
