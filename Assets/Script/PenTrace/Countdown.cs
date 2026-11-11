@@ -73,6 +73,11 @@ public class Countdown : MonoBehaviour
 
         surface.reachDistance = 0.08f;
         surface.surfaceLift = 0.002f;
+
+        // Invisible draw plane must not block CharacterController walking near desks.
+        Collider boardCollider = board.GetComponent<Collider>();
+        if (boardCollider != null)
+            boardCollider.enabled = false;
     }
 
     bool PlaceOnTracingBoard(int setIndex)

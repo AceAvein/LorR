@@ -210,6 +210,10 @@ public class PatternManager : MonoBehaviour
         Recipe recipe = DrawRecipe(newPlay);
         FillRecipe(recipe);
 
+        // Place on paper first so fit uses the correct board transform.
+        PlaceOnCurrentSet();
+        FitPointsToActivePaper();
+
         generatedPath.positionCount = generatedPoints.Count;
         generatedPath.SetPositions(generatedPoints.ToArray());
 
@@ -221,7 +225,6 @@ public class PatternManager : MonoBehaviour
         pathManager.tracePath = generatedPath;
         pathManager.traceEnd = endLabel.transform;
         pathManager.ResetPattern();
-        PlaceOnCurrentSet();
         RefreshTracingHud();
         AnnounceTier(CurrentTier());
     }
@@ -302,7 +305,7 @@ public class PatternManager : MonoBehaviour
 
         label.font = font;
         label.text = word;
-        label.fontSize = 1.5f;
+        label.fontSize = 0.5f;
         label.fontStyle = FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
         label.color = Color.white;
@@ -310,7 +313,7 @@ public class PatternManager : MonoBehaviour
         label.overflowMode = TextOverflowModes.Overflow;
         label.outlineWidth = 0.2f;
         label.outlineColor = Color.black;
-        label.rectTransform.sizeDelta = new Vector2(1.4f, 0.5f);
+        label.rectTransform.sizeDelta = new Vector2(0.55f, 0.22f);
 
         Renderer textRenderer = label.renderer;
         if (textRenderer != null)
@@ -421,22 +424,79 @@ public class PatternManager : MonoBehaviour
         Transform guide = generatedPath.transform;
         Transform area = guide.parent.parent.parent;
         Vector3 onLine = guide.TransformPoint(generatedPoints[pointIndex]);
-        Vector3 towardPlayer = -area.forward;
+        Vector3 paperNormal = -area.forward;
 
         int neighbor = pointIndex == 0 ? 1 : pointIndex - 1;
         Vector3 outward = onLine - guide.TransformPoint(generatedPoints[neighbor]);
         if (outward.sqrMagnitude < 0.000001f)
             outward = guide.TransformDirection(Vector3.right);
+        outward = Vector3.ProjectOnPlane(outward, paperNormal);
+        if (outward.sqrMagnitude < 0.000001f)
+            outward = Vector3.ProjectOnPlane(area.right, paperNormal);
         outward.Normalize();
 
+        label.fontSize = 0.5f;
         label.transform.SetParent(area, false);
         label.transform.localScale = Vector3.one;
         label.ForceMeshUpdate();
-        label.transform.rotation = Quaternion.LookRotation(-towardPlayer, Vector3.up);
+
+        // Flat on the paper (horizontal), readable from above.
+        Vector3 pageUp = Vector3.ProjectOnPlane(area.up, paperNormal);
+        if (pageUp.sqrMagnitude < 0.001f)
+            pageUp = Vector3.ProjectOnPlane(Vector3.forward, paperNormal);
+        if (pageUp.sqrMagnitude < 0.001f)
+            pageUp = Vector3.right;
+        label.transform.rotation = Quaternion.LookRotation(paperNormal.normalized, pageUp.normalized);
 
         Vector3 halfWidth = label.transform.TransformVector(new Vector3(label.textBounds.extents.x, 0f, 0f));
-        float reach = halfWidth.magnitude + LetterThickness(label) * 0.5f;
-        label.transform.position = onLine + towardPlayer.normalized * 0.004f + outward * reach;
+        float reach = halfWidth.magnitude + 0.012f;
+        label.transform.position = onLine + paperNormal.normalized * 0.003f + outward * reach;
+    }
+
+    void FitPointsToActivePaper()
+    {
+        if (generatedPath == null || generatedPoints.Count == 0)
+            return;
+
+        Transform paper = PenTraceBoards.FindSet(CurrentSetIndex);
+        if (paper == null)
+            return;
+
+        Transform guide = generatedPath.transform;
+        Vector3 normal = PenTraceBoards.BoardNormal(paper);
+        Vector3 axisA = Vector3.ProjectOnPlane(paper.right, normal);
+        Vector3 axisB = Vector3.ProjectOnPlane(paper.forward, normal);
+        if (axisA.sqrMagnitude < 0.001f || axisB.sqrMagnitude < 0.001f)
+            return;
+
+        axisA.Normalize();
+        axisB.Normalize();
+
+        Vector3 center = PenTraceBoards.BoardCenter(paper);
+        float maxA = 0f;
+        float maxB = 0f;
+        for (int i = 0; i < generatedPoints.Count; i++)
+        {
+            Vector3 delta = guide.TransformPoint(generatedPoints[i]) - center;
+            maxA = Mathf.Max(maxA, Mathf.Abs(Vector3.Dot(delta, axisA)));
+            maxB = Mathf.Max(maxB, Mathf.Abs(Vector3.Dot(delta, axisB)));
+        }
+
+        // Unity cube paper: local ±0.5 scaled by lossyScale on X/Z.
+        const float FitMargin = 0.82f;
+        float limitA = Mathf.Abs(paper.lossyScale.x) * 0.5f * FitMargin;
+        float limitB = Mathf.Abs(paper.lossyScale.z) * 0.5f * FitMargin;
+        if (limitA < 0.01f || limitB < 0.01f)
+            return;
+
+        float scaleA = maxA > 0.0001f ? limitA / maxA : 1f;
+        float scaleB = maxB > 0.0001f ? limitB / maxB : 1f;
+        float scale = Mathf.Min(1f, Mathf.Min(scaleA, scaleB));
+        if (scale >= 0.999f)
+            return;
+
+        for (int i = 0; i < generatedPoints.Count; i++)
+            generatedPoints[i] *= scale;
     }
 
     float LetterThickness(TextMeshPro label)
