@@ -56,10 +56,15 @@ public class PathManager : MonoBehaviour
         if (trail == null || !trail.IsDrawing())
             return;
 
-        RecordInk(penTip.position);
-        TryAdvance(penTip.position);
+        TracingBoardSurface board = TracingBoardSurface.Current;
+        Vector3 tip = penTip.position;
+        if (board != null && !board.TryProject(tip, out tip))
+            return;
+
+        RecordInk(tip);
+        TryAdvance(tip);
         if (patternManager != null)
-            patternManager.CheckStars(penTip.position);
+            patternManager.CheckStars(tip);
 
         if (progress >= totalLength - 0.01f)
         {

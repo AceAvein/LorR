@@ -71,8 +71,13 @@ public class Countdown : MonoBehaviour
         if (surface == null)
             surface = board.gameObject.AddComponent<TracingBoardSurface>();
 
-        surface.reachDistance = 0.08f;
+        surface.reachDistance = 0.02f;
         surface.surfaceLift = 0.002f;
+        surface.edgeMargin = 0.01f;
+
+        Transform paper = PenTraceBoards.FindSet(setIndex);
+        if (paper != null)
+            surface.SetPaperBounds(paper);
 
         // Invisible draw plane must not block CharacterController walking near desks.
         Collider boardCollider = board.GetComponent<Collider>();
