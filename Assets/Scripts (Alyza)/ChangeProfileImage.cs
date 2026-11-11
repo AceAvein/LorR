@@ -10,7 +10,7 @@ public class ChangeProfileImage : MonoBehaviour
 
     void Awake()
     {
-        Debug.Log("[AWAKE] ChangeProfileImage on GameObject: " + gameObject.name + " | InstanceID: " + GetInstanceID());
+        Debug.Log("[AWAKE] ChangeProfileImage on GameObject: " + gameObject.name + " | EntityId: " + GetEntityId());
     }
 
     public void OnChangeProfileClicked()
@@ -67,6 +67,6 @@ public class ChangeProfileImage : MonoBehaviour
         string destination = Path.Combine(Application.persistentDataPath, fileName);
         File.Copy(originalPath, destination, true);
         SelectedImagePath = destination;
-        Debug.Log("[SETIMAGE] Called on GameObject: " + gameObject.name + " | InstanceID: " + GetInstanceID() + " | Path: " + SelectedImagePath);
+        Debug.Log("[SETIMAGE] Called on GameObject: " + gameObject.name + " | EntityId: " + GetEntityId() + " | Path: " + SelectedImagePath);
     }
 }
