@@ -15,7 +15,8 @@ public static class BallDropArcBuilder
     const string PrefabsFolder = RootFolder + "/Prefabs";
     const string PrefabPath = PrefabsFolder + "/BallDropOverheadArc.prefab";
 
-    const int SpawnCount = 10;
+    // 6 drop points: 3 left + 3 right of center, equal spacing on the same arc.
+    const int SpawnCount = 6;
     const float ArcRadius = 0.55f;
     const float ArcHeight = 2.15f;
 
@@ -327,6 +328,7 @@ public static class BallDropArcBuilder
         spawnRoot.transform.SetParent(parent, false);
         spawnRoot.transform.localPosition = Vector3.zero;
 
+        // Same arc span as before; 6 slots → 3 left / 3 right of center with equal gaps.
         float startDeg = 215f;
         float endDeg = 325f;
 
@@ -339,15 +341,20 @@ public static class BallDropArcBuilder
 
             GameObject hanger = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             hanger.name = "Hanger_" + i.ToString("00");
-            hanger.transform.SetParent(parent, false);
+            hanger.transform.SetParent(spawnRoot.transform, false);
             hanger.transform.localPosition = onArc + Vector3.down * 0.05f;
             hanger.transform.localScale = new Vector3(0.035f, 0.04f, 0.035f);
             ApplyMat(hanger, hangerMat);
             Object.DestroyImmediate(hanger.GetComponent<Collider>());
 
             GameObject point = new GameObject("SpawnPoint_" + i.ToString("00"));
-            point.transform.SetParent(spawnRoot.transform, false);
-            point.transform.position = parent.TransformPoint(onArc + Vector3.down * 0.14f);
+            point.transform.SetParent(hanger.transform, false);
+            // Same world drop offset as before (0.09 below hanger), expressed in hanger local space.
+            point.transform.localPosition = new Vector3(0f, -0.09f / 0.04f, 0f);
+            point.transform.localRotation = Quaternion.identity;
+            // Counter hanger scale so markers/spawn points keep world scale 1.
+            Vector3 hs = hanger.transform.localScale;
+            point.transform.localScale = new Vector3(1f / hs.x, 1f / hs.y, 1f / hs.z);
         }
 
         return spawnRoot.transform;
