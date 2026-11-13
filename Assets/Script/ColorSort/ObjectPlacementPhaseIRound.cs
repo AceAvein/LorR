@@ -6,37 +6,50 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Object Placement Phase I: 3 sets × 10 stylized groceries from conveyor.
-/// Fruits (yellow/Grip) → Yellow Box; Vegetables (red/Trigger) → Red Box.
-/// Replaces ColorSortRound when an ObjectPlacementStation is present.
+/// Object Placement Phase I (bible): 3×10 fruits/veg from left conveyor.
+/// Yellow + Red boxes only. Fruit=Grip→Yellow, Veg=Trigger→Red.
+/// Items stop at belt stopper; settle visibly inside boxes (correct or wrong).
 /// </summary>
 [DisallowMultipleComponent]
 public class ObjectPlacementPhaseIRound : MonoBehaviour
 {
-    const float SpawnInterval = 1.35f;
-    const float BeltItemSpeed = 0.38f;
+    const float SpawnInterval = 1.6f;
+    const float ScoreDelay = 0.18f;
+    public const int MaxBeltQueue = 4;
+    const float QueueSpacing = 0.17f;
 
     ObjectPlacementStation station;
     ObjectPlacementConveyorController conveyor;
     Transform yellowBox;
     Transform redBox;
+    Transform blueBox;
     Collider yellowCol;
     Collider redCol;
+    Transform beltStopper;
+    readonly List<ObjectPlacementGroceryItem> beltQueue = new List<ObjectPlacementGroceryItem>();
 
     GameObject objectiveScreen;
     GameObject countdownScreen;
     TMP_Text countdownText;
     GameObject resultsScreen;
 
-    readonly List<string> fruitPool = new List<string>();
-    readonly List<string> vegPool = new List<string>();
+    readonly List<GameObject> fruitDeck = new List<GameObject>();
+    readonly List<GameObject> vegDeck = new List<GameObject>();
     readonly List<ObjectPlacementGroceryItem> live = new List<ObjectPlacementGroceryItem>();
+    readonly List<ObjectPlacementGroceryItem> placed = new List<ObjectPlacementGroceryItem>();
     readonly Queue<SpawnSpec> spawnQueue = new Queue<SpawnSpec>();
+    readonly List<ScorePending> scorePending = new List<ScorePending>();
 
     struct SpawnSpec
     {
-        public string id;
+        public GameObject template;
         public ObjectPlacementGroceryKind kind;
+    }
+
+    struct ScorePending
+    {
+        public ObjectPlacementGroceryItem item;
+        public float at;
     }
 
     bool countingDown;
@@ -48,7 +61,6 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     int placedTotal;
     int placedCorrect;
     float spawnTimer;
-    int spawnedThisSet;
     float wrongControlFlashUntil;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -69,8 +81,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         if (!scene.IsValid() || !ModuleScenes.IsColorSort(scene.name) || ModuleScenes.IsGuided(scene.name))
             return;
 
-        ObjectPlacementStation station = Object.FindAnyObjectByType<ObjectPlacementStation>();
-        if (station == null)
+        if (Object.FindAnyObjectByType<ObjectPlacementStation>() == null)
             return;
 
         if (Object.FindAnyObjectByType<ObjectPlacementPhaseIRound>() != null)
@@ -102,8 +113,10 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
         conveyor = station.GetComponent<ObjectPlacementConveyorController>();
         CacheBoxes();
+        ApplyPhaseIBoxVisibility();
+        CacheStopper();
         StripLegacyProps();
-        EnsureFlapHinges();
+        ObjectPlacementItemLibrary.EnsureLoaded();
 
         objectiveScreen = FindNamed("ObjectiveScreen");
         resultsScreen = FindNamed("ResultsScreen");
@@ -118,16 +131,41 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
     void Update()
     {
-        if (GamePauseMenu.IsFrozen || !running || !setOpen)
+        if (GamePauseMenu.IsFrozen)
             return;
+
+        TickScorePending();
+
+        if (!running || !setOpen)
+            return;
+
+        // Keep item belt speed locked to FlowMarks.
+        float speed = conveyor != null ? conveyor.BeltFlowSpeed : 0.38f;
+        for (int i = 0; i < live.Count; i++)
+        {
+            if (live[i] != null && !live[i].Resolved)
+                live[i].SetBeltSpeed(speed);
+        }
 
         TickSpawn();
     }
 
     void CacheBoxes()
     {
-        yellowBox = station.yellowBox;
-        redBox = station.redBox;
+        if (station.boxesRoot != null)
+        {
+            yellowBox = station.boxesRoot.Find("Yellow Box");
+            redBox = station.boxesRoot.Find("Red Box");
+            blueBox = station.boxesRoot.Find("Blue Box");
+        }
+
+        if (yellowBox == null)
+            yellowBox = station.yellowBox;
+        if (redBox == null)
+            redBox = station.redBox;
+        if (blueBox == null)
+            blueBox = station.blueBox;
+
         if (yellowBox == null)
         {
             GameObject go = FindNamed("Yellow Box");
@@ -142,30 +180,85 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
                 redBox = go.transform;
         }
 
-        // Prefer station boxes when duplicates exist.
-        if (station.boxesRoot != null)
-        {
-            Transform y = station.boxesRoot.Find("Yellow Box");
-            Transform r = station.boxesRoot.Find("Red Box");
-            if (y != null)
-                yellowBox = y;
-            if (r != null)
-                redBox = r;
-        }
-
-        yellowCol = yellowBox != null ? yellowBox.GetComponent<Collider>() : null;
-        redCol = redBox != null ? redBox.GetComponent<Collider>() : null;
-        if (yellowCol == null && yellowBox != null)
-            yellowCol = yellowBox.gameObject.AddComponent<BoxCollider>();
-        if (redCol == null && redBox != null)
-            redCol = redBox.gameObject.AddComponent<BoxCollider>();
-        if (yellowCol != null)
-            yellowCol.isTrigger = true;
-        if (redCol != null)
-            redCol.isTrigger = true;
+        yellowCol = EnsureTriggerCollider(yellowBox);
+        redCol = EnsureTriggerCollider(redBox);
 
         if (station.boxesRoot != null)
             station.boxesRoot.gameObject.SetActive(true);
+    }
+
+    void ApplyPhaseIBoxVisibility()
+    {
+        if (yellowBox != null)
+            yellowBox.gameObject.SetActive(true);
+        if (redBox != null)
+            redBox.gameObject.SetActive(true);
+        if (blueBox != null)
+            blueBox.gameObject.SetActive(false);
+
+        // Hide any green/brown bins if present under station.
+        if (station.boxesRoot != null)
+        {
+            for (int i = 0; i < station.boxesRoot.childCount; i++)
+            {
+                Transform child = station.boxesRoot.GetChild(i);
+                string n = child.name;
+                if (n.IndexOf("Green", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    n.IndexOf("Brown", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    n.IndexOf("Blue", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    child.gameObject.SetActive(false);
+                }
+            }
+        }
+    }
+
+    static Collider EnsureTriggerCollider(Transform box)
+    {
+        if (box == null)
+            return null;
+
+        Collider col = box.GetComponent<Collider>();
+        if (col == null)
+            col = box.gameObject.AddComponent<BoxCollider>();
+        col.isTrigger = true;
+        return col;
+    }
+
+    void CacheStopper()
+    {
+        beltStopper = station.beltStopperLeft;
+        if (beltStopper != null)
+            return;
+
+        Transform root = station.conveyorLeft != null ? station.conveyorLeft : station.transform;
+        Transform[] all = root.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < all.Length; i++)
+        {
+            string n = all[i].name;
+            if (n.IndexOf("stop", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                beltStopper = all[i];
+                station.beltStopperLeft = beltStopper;
+                return;
+            }
+        }
+
+        // Fallback: create a thin stopper at the open end of the left belt.
+        if (station.beltSurfaceLeft != null)
+        {
+            GameObject stop = new GameObject("BeltStopper");
+            stop.transform.SetParent(station.conveyorLeft != null ? station.conveyorLeft : station.beltSurfaceLeft, false);
+            Transform belt = station.beltSurfaceLeft;
+            float half = Mathf.Abs(belt.localScale.x) * 0.5f;
+            // ConveyorLeft flows -X in world along belt; stopper at the outgoing end.
+            stop.transform.position = belt.TransformPoint(new Vector3(-half + 0.05f, 0.06f, 0f));
+            BoxCollider col = stop.AddComponent<BoxCollider>();
+            col.isTrigger = true;
+            col.size = new Vector3(0.06f, 0.16f, Mathf.Max(0.2f, Mathf.Abs(belt.localScale.z)));
+            beltStopper = stop.transform;
+            station.beltStopperLeft = beltStopper;
+        }
     }
 
     void StripLegacyProps()
@@ -174,7 +267,6 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         if (shapes != null && (station == null || !shapes.transform.IsChildOf(station.transform)))
             shapes.SetActive(false);
 
-        // Disable root-level legacy Boxes (Father=0), keep station Boxes.
         Transform[] all = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < all.Length; i++)
         {
@@ -186,37 +278,6 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
             if (t.parent == null)
                 t.gameObject.SetActive(false);
         }
-    }
-
-    void EnsureFlapHinges()
-    {
-        if (station.conveyor != null)
-            HingeFlap(station.conveyor.Find("ExitTunnel"), openTowardBelt: true);
-        if (station.conveyorLeft != null)
-            HingeFlap(station.conveyorLeft.Find("ExitTunnel"), openTowardBelt: false);
-    }
-
-    static void HingeFlap(Transform tunnel, bool openTowardBelt)
-    {
-        if (tunnel == null)
-            return;
-
-        Transform flap = tunnel.Find("RubberFlap");
-        if (flap == null)
-            return;
-        if (flap.parent != null && flap.parent.name == "RubberFlapHinge")
-            return;
-
-        GameObject hinge = new GameObject("RubberFlapHinge");
-        hinge.transform.SetParent(tunnel, false);
-        // Pivot at top edge of flap; opposite belts swing opposite ways.
-        Vector3 flapPos = flap.localPosition;
-        Vector3 flapScale = flap.localScale;
-        hinge.transform.localPosition = new Vector3(flapPos.x, flapPos.y + Mathf.Abs(flapScale.y) * 0.5f, flapPos.z);
-        hinge.transform.localRotation = Quaternion.Euler(0f, 0f, openTowardBelt ? -8f : 8f);
-
-        flap.SetParent(hinge.transform, true);
-        flap.localPosition = new Vector3(0f, -Mathf.Abs(flapScale.y) * 0.5f, 0f);
     }
 
     void WireStart()
@@ -278,64 +339,74 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         placedTotal = 0;
         placedCorrect = 0;
         running = true;
-        RefillPools();
+        RefillDecks();
         if (conveyor != null)
             conveyor.StartConveyors();
-        station.SetScreenText("SET 1 / 3");
+        station.SetScreenText("SET 1");
         BeginSet();
     }
 
-    void RefillPools()
+    void RefillDecks()
     {
-        fruitPool.Clear();
-        vegPool.Clear();
-        fruitPool.AddRange(ObjectPlacementGroceryCatalog.FruitIds);
-        vegPool.AddRange(ObjectPlacementGroceryCatalog.VegetableIds);
-        Shuffle(fruitPool);
-        Shuffle(vegPool);
+        fruitDeck.Clear();
+        vegDeck.Clear();
+        fruitDeck.AddRange(ObjectPlacementItemLibrary.Fruits);
+        vegDeck.AddRange(ObjectPlacementItemLibrary.Vegetables);
+        Shuffle(fruitDeck);
+        Shuffle(vegDeck);
     }
 
     void BeginSet()
     {
-        ClearLive();
+        ClearUnresolvedLive();
+        ClearPlacedInBoxes();
+        beltQueue.Clear();
         spawnQueue.Clear();
+        scorePending.Clear();
         setCorrect = 0;
         setWrong = 0;
-        spawnedThisSet = 0;
-        spawnTimer = 0.25f;
+        spawnTimer = 0.35f;
         setOpen = true;
 
-        // 5 fruit + 5 veg per set, shuffled order.
         List<SpawnSpec> batch = new List<SpawnSpec>(ObjectPlacementGroceryCatalog.PhaseIItemsPerSet);
         for (int i = 0; i < 5; i++)
         {
-            batch.Add(new SpawnSpec { id = TakeNext(fruitPool, ObjectPlacementGroceryCatalog.FruitIds), kind = ObjectPlacementGroceryKind.Fruit });
-            batch.Add(new SpawnSpec { id = TakeNext(vegPool, ObjectPlacementGroceryCatalog.VegetableIds), kind = ObjectPlacementGroceryKind.Vegetable });
+            batch.Add(new SpawnSpec { template = TakeNext(fruitDeck, ObjectPlacementItemLibrary.Fruits), kind = ObjectPlacementGroceryKind.Fruit });
+            batch.Add(new SpawnSpec { template = TakeNext(vegDeck, ObjectPlacementItemLibrary.Vegetables), kind = ObjectPlacementGroceryKind.Vegetable });
         }
 
         Shuffle(batch);
         for (int i = 0; i < batch.Count; i++)
-            spawnQueue.Enqueue(batch[i]);
-
-        station.SetScreenText("SET " + (setIndex + 1) + " / 3");
-    }
-
-    static string TakeNext(List<string> pool, string[] source)
-    {
-        if (pool.Count == 0)
         {
-            pool.AddRange(source);
-            Shuffle(pool);
+            if (batch[i].template != null)
+                spawnQueue.Enqueue(batch[i]);
         }
 
-        string id = pool[pool.Count - 1];
-        pool.RemoveAt(pool.Count - 1);
-        return id;
+        station.SetScreenText("SET " + (setIndex + 1));
+    }
+
+    static GameObject TakeNext(List<GameObject> deck, GameObject[] source)
+    {
+        if (deck.Count == 0)
+        {
+            if (source == null || source.Length == 0)
+                return null;
+            deck.AddRange(source);
+            Shuffle(deck);
+        }
+
+        GameObject go = deck[deck.Count - 1];
+        deck.RemoveAt(deck.Count - 1);
+        return go;
     }
 
     void TickSpawn()
     {
         if (spawnQueue.Count == 0)
+            return;
+
+        // Queue full or still filling toward capacity — nothing new leaves the spawn.
+        if (!BeltQueueHasRoom || CountItemsOnBelt() >= MaxBeltQueue)
             return;
 
         spawnTimer -= Time.deltaTime;
@@ -345,58 +416,231 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         spawnTimer = SpawnInterval;
         SpawnSpec spec = spawnQueue.Dequeue();
         SpawnItem(spec);
-        spawnedThisSet++;
     }
+
+    int CountItemsOnBelt()
+    {
+        int n = 0;
+        for (int i = 0; i < live.Count; i++)
+        {
+            ObjectPlacementGroceryItem item = live[i];
+            if (item == null || item.Resolved || item.IsHeld)
+                continue;
+            n++;
+        }
+
+        return n;
+    }
+
+    /// <summary>Join end-of-belt queue. Slot 0 is front (grab first).</summary>
+    public int JoinBeltQueue(ObjectPlacementGroceryItem item)
+    {
+        if (item == null)
+            return -1;
+
+        int existing = beltQueue.IndexOf(item);
+        if (existing >= 0)
+            return existing;
+
+        if (beltQueue.Count >= MaxBeltQueue)
+            return -1;
+
+        beltQueue.Add(item);
+        return beltQueue.Count - 1;
+    }
+
+    public void LeaveBeltQueue(ObjectPlacementGroceryItem item)
+    {
+        if (item == null)
+            return;
+        if (beltQueue.Remove(item))
+            CompactBeltQueue();
+    }
+
+    void CompactBeltQueue()
+    {
+        for (int i = beltQueue.Count - 1; i >= 0; i--)
+        {
+            if (beltQueue[i] == null || beltQueue[i].Resolved)
+                beltQueue.RemoveAt(i);
+        }
+    }
+
+    public Vector3 GetBeltQueueWorldPosition(ObjectPlacementGroceryItem item)
+    {
+        int index = beltQueue.IndexOf(item);
+        if (index < 0)
+            index = Mathf.Max(0, beltQueue.Count);
+
+        return GetBeltQueueSlotWorld(index);
+    }
+
+    public Vector3 GetBeltQueueSlotWorld(int index)
+    {
+        Transform belt = station != null
+            ? (station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.beltSurface)
+            : null;
+        if (belt == null && station != null)
+            belt = station.conveyorLeft != null ? station.conveyorLeft : station.conveyor;
+
+        float dir = -1f;
+        if (station != null && station.conveyorLeft != null && belt != null &&
+            (belt == station.beltSurfaceLeft || belt.IsChildOf(station.conveyorLeft) || belt == station.conveyorLeft))
+            dir = -1f;
+        else
+            dir = 1f;
+
+        Vector3 anchor = beltStopper != null
+            ? beltStopper.position
+            : (belt != null ? belt.position : Vector3.zero);
+
+        if (belt != null)
+        {
+            Vector3 local = belt.InverseTransformPoint(anchor);
+            // Park just upstream of stopper; each slot further upstream.
+            local.x -= dir * (0.07f + index * QueueSpacing);
+            Vector3 world = belt.TransformPoint(local);
+            world.y = anchor.y + 0.02f;
+            if (beltStopper != null)
+                world.y = Mathf.Max(world.y, beltStopper.position.y + 0.01f);
+            return world;
+        }
+
+        Vector3 right = Vector3.right;
+        return anchor - right * dir * (0.07f + index * QueueSpacing) + Vector3.up * 0.02f;
+    }
+
+    public bool BeltQueueHasRoom => beltQueue.Count < MaxBeltQueue;
 
     void SpawnItem(SpawnSpec spec)
     {
-        GameObject go = ObjectPlacementGroceryFactory.Create(spec.id, spec.kind);
+        if (spec.template == null)
+            return;
+
+        Transform spawn = station.grocerySpawnPointLeft != null ? station.grocerySpawnPointLeft : station.grocerySpawnPoint;
+        Transform belt = station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.beltSurface;
+        if (belt == null)
+            belt = station.conveyorLeft != null ? station.conveyorLeft : station.conveyor;
+
+        GameObject go = ObjectPlacementItemLibrary.Spawn(spec.template, spec.kind, null);
+        if (go == null)
+            return;
+
         ObjectPlacementGroceryItem item = go.GetComponent<ObjectPlacementGroceryItem>();
         item.Bind(this);
 
-        Transform spawn = station.grocerySpawnPoint;
-        Transform belt = station.beltSurface != null ? station.beltSurface : station.conveyor;
-        // Alternate belts lightly so both conveyors get use.
-        float dir = 1f;
-        if (spawnedThisSet % 3 == 2 && station.grocerySpawnPointLeft != null)
-        {
-            spawn = station.grocerySpawnPointLeft;
-            belt = station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.conveyorLeft;
-            dir = -1f; // ConveyorLeft scrolls reverse
-        }
+        float speed = conveyor != null ? conveyor.BeltFlowSpeed : 0.38f;
+        // ConveyorLeft scrolls reverse (-X).
+        float dir = station.conveyorLeft != null && belt != null &&
+                    (belt == station.beltSurfaceLeft || belt.IsChildOf(station.conveyorLeft) || belt == station.conveyorLeft)
+            ? -1f
+            : 1f;
 
-        item.PlaceOnBelt(spawn, belt, dir, BeltItemSpeed);
+        item.PlaceOnBelt(spawn, belt, dir, speed, beltStopper);
         live.Add(item);
     }
 
     public void OnWrongControl(ObjectPlacementGroceryItem item)
     {
-        wrongControlFlashUntil = Time.time + 0.8f;
-        station.SetScreenText(item.Kind == ObjectPlacementGroceryKind.Fruit ? "USE GRIP" : "USE TRIGGER");
+        wrongControlFlashUntil = Time.time + 0.85f;
+        station.SetScreenText(item != null && item.Kind == ObjectPlacementGroceryKind.Fruit ? "USE GRIP" : "USE TRIGGER");
     }
 
-    public bool TryScoreItem(ObjectPlacementGroceryItem item, out bool correct)
+    public void RequestScoreCheck(ObjectPlacementGroceryItem item)
+    {
+        if (item == null || item.Resolved)
+            return;
+
+        ScorePending pending = new ScorePending();
+        pending.item = item;
+        pending.at = Time.time + ScoreDelay;
+        scorePending.Add(pending);
+    }
+
+    void TickScorePending()
+    {
+        for (int i = scorePending.Count - 1; i >= 0; i--)
+        {
+            ScorePending pending = scorePending[i];
+            if (pending.item == null || pending.item.Resolved)
+            {
+                scorePending.RemoveAt(i);
+                continue;
+            }
+
+            if (Time.time < pending.at)
+                continue;
+
+            scorePending.RemoveAt(i);
+            TryResolveDrop(pending.item);
+        }
+    }
+
+    void TryResolveDrop(ObjectPlacementGroceryItem item)
+    {
+        if (item == null || item.Resolved || !setOpen)
+            return;
+
+        Transform box;
+        bool correct;
+        if (!TryScoreItem(item, out correct, out box))
+        {
+            // Missed both boxes — park back at stopper for another try.
+            item.ReturnToStopper();
+            return;
+        }
+
+        item.SettleInBox(box, correct);
+        if (!placed.Contains(item))
+            placed.Add(item);
+    }
+
+    public bool TryScoreItem(ObjectPlacementGroceryItem item, out bool correct, out Transform box)
     {
         correct = false;
+        box = null;
         if (item == null)
             return false;
 
         Bounds itemBounds = GetWorldBounds(item.transform);
-        bool inYellow = yellowCol != null && yellowCol.bounds.Intersects(itemBounds);
-        bool inRed = redCol != null && redCol.bounds.Intersects(itemBounds);
+        bool inYellow = yellowCol != null && Overlaps(yellowCol.bounds, itemBounds);
+        bool inRed = redCol != null && Overlaps(redCol.bounds, itemBounds);
         if (!inYellow && !inRed)
             return false;
 
-        if (item.Kind == ObjectPlacementGroceryKind.Fruit)
-            correct = inYellow && !inRed;
-        else
-            correct = inRed && !inYellow;
+        if (inYellow && inRed)
+        {
+            // Pick closer box center.
+            float dy = Vector3.Distance(itemBounds.center, yellowCol.bounds.center);
+            float dr = Vector3.Distance(itemBounds.center, redCol.bounds.center);
+            inYellow = dy <= dr;
+            inRed = !inYellow;
+        }
 
-        return true;
+        if (item.Kind == ObjectPlacementGroceryKind.Fruit)
+        {
+            box = inYellow ? yellowBox : redBox;
+            correct = inYellow;
+        }
+        else
+        {
+            box = inRed ? redBox : yellowBox;
+            correct = inRed;
+        }
+
+        return box != null;
+    }
+
+    static bool Overlaps(Bounds a, Bounds b)
+    {
+        Bounds expanded = a;
+        expanded.Expand(0.12f);
+        return expanded.Intersects(b);
     }
 
     public void OnItemResolved(ObjectPlacementGroceryItem item, bool correct)
     {
+        LeaveBeltQueue(item);
         if (!setOpen)
             return;
 
@@ -416,14 +660,14 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         if (Time.time > wrongControlFlashUntil)
             station.SetScreenText("SET " + (setIndex + 1) + "  " + setCorrect + "/10");
 
-        int remainingLive = 0;
+        int remaining = 0;
         for (int i = 0; i < live.Count; i++)
         {
             if (live[i] != null && !live[i].Resolved)
-                remainingLive++;
+                remaining++;
         }
 
-        if (spawnQueue.Count == 0 && remainingLive == 0)
+        if (spawnQueue.Count == 0 && remaining == 0)
             FinishSet();
     }
 
@@ -433,30 +677,41 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
             return;
 
         setOpen = false;
-        ClearLive();
 
         if (setCorrect >= 8)
-            ShowWord("Great");
+            station.SetScreenText("GREAT");
         else if (setCorrect >= 5)
-            ShowWord("Good");
+            station.SetScreenText("GOOD");
         else
-            ShowWord("Fair");
+            station.SetScreenText("FAIR");
 
         setIndex++;
         if (setIndex >= ObjectPlacementGroceryCatalog.PhaseISetCount)
         {
-            EndRound();
+            StartCoroutine(EndAfterBeat());
             return;
         }
 
+        StartCoroutine(NextSetAfterBeat());
+    }
+
+    IEnumerator NextSetAfterBeat()
+    {
+        yield return new WaitForSeconds(1.1f);
         BeginSet();
+    }
+
+    IEnumerator EndAfterBeat()
+    {
+        yield return new WaitForSeconds(1.1f);
+        EndRound();
     }
 
     void EndRound()
     {
         running = false;
         setOpen = false;
-        ClearLive();
+        ClearUnresolvedLive();
         if (conveyor != null)
             conveyor.StopConveyors();
         station.SetScreenText("DONE");
@@ -488,23 +743,32 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         results.Show(report);
     }
 
-    void ClearLive()
+    void ClearUnresolvedLive()
     {
+        beltQueue.Clear();
         for (int i = 0; i < live.Count; i++)
         {
-            if (live[i] != null)
-            {
-                live[i].ForceResolve();
-                Destroy(live[i].gameObject);
-            }
+            ObjectPlacementGroceryItem item = live[i];
+            if (item == null)
+                continue;
+            if (item.Resolved)
+                continue;
+            item.ForceResolve();
+            Destroy(item.gameObject);
         }
 
         live.Clear();
     }
 
-    void ShowWord(string word)
+    void ClearPlacedInBoxes()
     {
-        station.SetScreenText(word.ToUpperInvariant());
+        for (int i = 0; i < placed.Count; i++)
+        {
+            if (placed[i] != null)
+                Destroy(placed[i].gameObject);
+        }
+
+        placed.Clear();
     }
 
     void EnsureCountdown()

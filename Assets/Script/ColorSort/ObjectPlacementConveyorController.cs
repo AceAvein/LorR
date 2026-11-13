@@ -439,7 +439,8 @@ public class ObjectPlacementConveyorController : MonoBehaviour
                 motorSource.Play();
         }
 
-        if (station != null)
+        // Screen text is owned by ObjectPlacementPhaseIRound during training.
+        if (station != null && Object.FindAnyObjectByType<ObjectPlacementPhaseIRound>() == null)
             station.SetScreenText("CONVEYOR ON");
     }
 
@@ -447,7 +448,7 @@ public class ObjectPlacementConveyorController : MonoBehaviour
     {
         running = false;
         StopMotor();
-        if (station != null)
+        if (station != null && Object.FindAnyObjectByType<ObjectPlacementPhaseIRound>() == null)
             station.SetScreenText("READY!");
     }
 

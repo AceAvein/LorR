@@ -5,7 +5,8 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 /// <summary>
-/// Phase I grocery: rides belt until grabbed; Fruit=Grip→Yellow, Vegetable=Trigger→Red.
+/// Phase I grocery: rides left belt at FlowMark speed, stops at stopper,
+/// Fruit=Grip→Yellow, Vegetable=Trigger→Red. Settles visible inside boxes.
 /// </summary>
 [DisallowMultipleComponent]
 public class ObjectPlacementGroceryItem : MonoBehaviour
@@ -22,9 +23,11 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
     Rigidbody body;
     BoxCollider grabCollider;
     Transform beltRoot;
+    Transform stopper;
     float beltDirection = 1f;
     float beltSpeed;
     bool onBelt = true;
+    bool atStopper;
     bool grabWired;
     bool pendingReject;
     IXRSelectInteractor pendingInteractor;
@@ -46,16 +49,22 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         EnsurePhysics();
     }
 
-    public void PlaceOnBelt(Transform spawn, Transform belt, float direction, float speed)
+    public void PlaceOnBelt(Transform spawn, Transform belt, float direction, float speed, Transform beltStopper)
     {
         Resolved = false;
+        atStopper = false;
         onBelt = true;
+        host?.LeaveBeltQueue(this);
         beltRoot = belt;
+        stopper = beltStopper;
         beltDirection = Mathf.Sign(direction) == 0f ? 1f : Mathf.Sign(direction);
         beltSpeed = speed;
 
         Vector3 pos = spawn != null ? spawn.position : (belt != null ? belt.position + Vector3.up * 0.05f : transform.position);
-        transform.SetPositionAndRotation(pos, spawn != null ? spawn.rotation : Quaternion.identity);
+        Quaternion rot = spawn != null ? spawn.rotation : Quaternion.identity;
+        transform.SetParent(null, true);
+        transform.SetPositionAndRotation(pos, rot);
+
         if (body != null)
         {
             body.isKinematic = true;
@@ -90,7 +99,6 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         {
             grab.selectEntered.RemoveListener(OnGrabbed);
             grab.selectExited.RemoveListener(OnReleased);
-            grab.hoverEntered.RemoveListener(OnHoverEntered);
         }
 
         DisposeInput();
@@ -98,40 +106,45 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
 
     void EnsurePhysics()
     {
-        if (grabCollider == null)
+        Collider[] childCols = GetComponentsInChildren<Collider>(true);
+        for (int i = 0; i < childCols.Length; i++)
         {
-            Bounds bounds = new Bounds(transform.position, Vector3.one * 0.08f);
-            Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
-            bool has = false;
-            for (int i = 0; i < renderers.Length; i++)
-            {
-                if (renderers[i] == null)
-                    continue;
-                if (!has)
-                {
-                    bounds = renderers[i].bounds;
-                    has = true;
-                }
-                else
-                    bounds.Encapsulate(renderers[i].bounds);
-            }
+            if (childCols[i] != null && childCols[i].gameObject != gameObject)
+                Object.Destroy(childCols[i]);
+        }
 
+        if (grabCollider == null)
+            grabCollider = GetComponent<BoxCollider>();
+        if (grabCollider == null)
             grabCollider = gameObject.AddComponent<BoxCollider>();
-            if (has)
+
+        Bounds bounds = new Bounds(transform.position, Vector3.one * 0.08f);
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        bool has = false;
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            if (renderers[i] == null)
+                continue;
+            if (!has)
             {
-                grabCollider.center = transform.InverseTransformPoint(bounds.center);
-                Vector3 lossy = transform.lossyScale;
-                grabCollider.size = new Vector3(
-                    bounds.size.x / Mathf.Max(0.0001f, Mathf.Abs(lossy.x)),
-                    bounds.size.y / Mathf.Max(0.0001f, Mathf.Abs(lossy.y)),
-                    bounds.size.z / Mathf.Max(0.0001f, Mathf.Abs(lossy.z)));
+                bounds = renderers[i].bounds;
+                has = true;
             }
             else
-            {
-                grabCollider.center = Vector3.zero;
-                grabCollider.size = Vector3.one * 0.08f;
-            }
+                bounds.Encapsulate(renderers[i].bounds);
         }
+
+        if (has)
+        {
+            grabCollider.center = transform.InverseTransformPoint(bounds.center);
+            Vector3 lossy = transform.lossyScale;
+            grabCollider.size = new Vector3(
+                bounds.size.x / Mathf.Max(0.0001f, Mathf.Abs(lossy.x)),
+                bounds.size.y / Mathf.Max(0.0001f, Mathf.Abs(lossy.y)),
+                bounds.size.z / Mathf.Max(0.0001f, Mathf.Abs(lossy.z)));
+        }
+
+        grabCollider.isTrigger = false;
 
         body = GetComponent<Rigidbody>();
         if (body == null)
@@ -156,7 +169,6 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         {
             grab.selectEntered.AddListener(OnGrabbed);
             grab.selectExited.AddListener(OnReleased);
-            grab.hoverEntered.AddListener(OnHoverEntered);
             grabWired = true;
         }
     }
@@ -195,24 +207,126 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
 
         TryTriggerSelectWhileHovered();
 
-        if (!onBelt || IsHeld || beltRoot == null)
+        if (IsHeld || beltRoot == null)
             return;
+
+        if (atStopper)
+        {
+            // Track assigned queue slot; slides forward when the front item is taken.
+            FollowQueueSlot(false);
+            return;
+        }
+
+        if (!onBelt)
+            return;
+
+        // Ride belt until queue zone, then join line without overlapping.
+        if (InQueueZone() && host != null)
+        {
+            if (host.BeltQueueHasRoom)
+            {
+                int slot = host.JoinBeltQueue(this);
+                if (slot >= 0)
+                {
+                    FollowQueueSlot(false);
+                    return;
+                }
+            }
+
+            // Queue full — stay put mid-belt; do not stack on the stopper.
+            ZeroVelocity();
+            return;
+        }
 
         Vector3 delta = beltRoot.right * (beltSpeed * beltDirection * Time.deltaTime);
         transform.position += delta;
+    }
 
-        // Drop off the end of the belt → count as miss and recycle.
-        Vector3 local = beltRoot.InverseTransformPoint(transform.position);
-        float half = Mathf.Abs(beltRoot.localScale.x) * 0.5f + 0.15f;
-        bool pastEnd = beltDirection >= 0f ? local.x > half : local.x < -half;
-        if (pastEnd && host != null && !Resolved)
+    bool InQueueZone()
+    {
+        if (host == null)
+            return stopper != null && Vector3.Distance(transform.position, stopper.position) < 0.75f;
+
+        Vector3 front = host.GetBeltQueueSlotWorld(0);
+        Vector3 back = host.GetBeltQueueSlotWorld(ObjectPlacementPhaseIRound.MaxBeltQueue);
+        float zone = Vector3.Distance(front, back) + 0.12f;
+        return Vector3.Distance(transform.position, front) <= zone;
+    }
+
+    void FollowQueueSlot(bool snapIfClose)
+    {
+        if (host == null)
+            return;
+
+        if (host.JoinBeltQueue(this) < 0 && !atStopper)
+            return;
+
+        Vector3 target = host.GetBeltQueueWorldPosition(this);
+        float dist = Vector3.Distance(transform.position, target);
+        if (snapIfClose || dist < 0.03f)
         {
-            Resolved = true;
-            if (grab != null)
-                grab.enabled = false;
-            gameObject.SetActive(false);
-            host.OnItemResolved(this, false);
+            transform.position = target;
+            atStopper = true;
+            onBelt = false;
+            ZeroVelocity();
+            return;
         }
+
+        MoveToward(target, Mathf.Max(beltSpeed, 0.45f));
+        if (Vector3.Distance(transform.position, target) < 0.03f)
+        {
+            transform.position = target;
+            atStopper = true;
+            onBelt = false;
+            ZeroVelocity();
+        }
+    }
+
+    void MoveToward(Vector3 target, float speed)
+    {
+        transform.position = Vector3.MoveTowards(transform.position, target, speed * Time.deltaTime);
+        ZeroVelocity();
+    }
+
+    void ZeroVelocity()
+    {
+        if (body == null)
+            return;
+        body.isKinematic = true;
+        body.useGravity = false;
+        body.linearVelocity = Vector3.zero;
+        body.angularVelocity = Vector3.zero;
+    }
+
+    void SnapToStopper()
+    {
+        if (host != null)
+        {
+            host.JoinBeltQueue(this);
+            transform.position = host.GetBeltQueueWorldPosition(this);
+        }
+        else if (stopper != null)
+        {
+            Vector3 p = transform.position;
+            Vector3 stop = stopper.position;
+            if (beltRoot != null)
+            {
+                Vector3 local = beltRoot.InverseTransformPoint(stop);
+                local.y = beltRoot.InverseTransformPoint(p).y;
+                local.x -= beltDirection * 0.06f;
+                p = beltRoot.TransformPoint(local);
+            }
+            else
+            {
+                p = stop + Vector3.up * 0.04f;
+            }
+
+            transform.position = p;
+        }
+
+        atStopper = true;
+        onBelt = false;
+        ZeroVelocity();
     }
 
     void LateUpdate()
@@ -225,7 +339,11 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         if (pendingReject)
         {
             pendingReject = false;
-            onBelt = true;
+            if (atStopper)
+                onBelt = false;
+            else
+                onBelt = true;
+
             if (body != null)
             {
                 body.isKinematic = true;
@@ -260,11 +378,6 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         }
     }
 
-    void OnHoverEntered(HoverEnterEventArgs args)
-    {
-        // Trigger-select path handled in Update for vegetables.
-    }
-
     void OnGrabbed(SelectEnterEventArgs args)
     {
         if (Resolved || GamePauseMenu.IsFrozen)
@@ -293,6 +406,8 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         }
 
         onBelt = false;
+        atStopper = false;
+        host?.LeaveBeltQueue(this);
         if (body != null)
         {
             body.isKinematic = true;
@@ -313,32 +428,80 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
             body.angularVelocity = Vector3.zero;
         }
 
-        TryScoreDrop();
+        // Score after a short settle so bounds overlap the bin.
+        if (host != null)
+            host.RequestScoreCheck(this);
     }
 
-    void TryScoreDrop()
+    public void SettleInBox(Transform box, bool correct)
     {
-        if (host == null || Resolved)
-            return;
+        Resolved = true;
+        onBelt = false;
+        atStopper = false;
+        host?.LeaveBeltQueue(this);
 
-        if (host.TryScoreItem(this, out bool correct))
+        if (grab != null)
         {
-            Resolved = true;
-            if (grab != null)
-                grab.enabled = false;
-            if (body != null)
-            {
-                body.isKinematic = true;
-                body.useGravity = false;
-            }
-
-            gameObject.SetActive(false);
-            host.OnItemResolved(this, correct);
-            return;
+            if (grab.isSelected && grab.interactionManager != null)
+                grab.interactionManager.CancelInteractableSelection((IXRSelectInteractable)grab);
+            grab.enabled = false;
         }
 
-        // Missed box — allow re-grab; soft land near belt if close.
-        onBelt = false;
+        ZeroVelocity();
+
+        if (box != null)
+        {
+            // Place in box local space above the visible floor — collider centers
+            // (especially Red Box) often sit low and bury meshes in world space.
+            transform.SetParent(box, false);
+            Transform floor = box.Find("Floor");
+            Vector3 local;
+            if (floor != null)
+            {
+                local = floor.localPosition + new Vector3(
+                    Random.Range(-0.09f, 0.09f),
+                    0.08f + Random.Range(0f, 0.06f),
+                    Random.Range(-0.09f, 0.09f));
+            }
+            else
+            {
+                local = new Vector3(
+                    Random.Range(-0.1f, 0.1f),
+                    0.16f + Random.Range(0f, 0.08f),
+                    Random.Range(-0.1f, 0.1f));
+            }
+
+            transform.localPosition = local;
+            transform.localRotation = Quaternion.Euler(
+                Random.Range(-18f, 18f),
+                Random.Range(0f, 360f),
+                Random.Range(-18f, 18f));
+        }
+
+        gameObject.SetActive(true);
+        host?.OnItemResolved(this, correct);
+    }
+
+    public void ReturnToStopper()
+    {
+        if (Resolved)
+            return;
+
+        atStopper = false;
+        onBelt = true;
+        if (host != null && host.BeltQueueHasRoom)
+        {
+            host.JoinBeltQueue(this);
+            FollowQueueSlot(true);
+        }
+        else
+        {
+            SnapToStopper();
+        }
+
+        ZeroVelocity();
+        if (grab != null)
+            grab.enabled = true;
     }
 
     public void ForceResolve()
@@ -348,7 +511,6 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
             grab.interactionManager.CancelInteractableSelection((IXRSelectInteractable)grab);
         if (grab != null)
             grab.enabled = false;
-        gameObject.SetActive(false);
     }
 
     static bool IsLeftHand(IXRInteractor interactor)
@@ -357,21 +519,14 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
             return true;
 
         Transform t = interactor.transform;
-        string n = t != null ? t.name : string.Empty;
-        if (n.IndexOf("left", System.StringComparison.OrdinalIgnoreCase) >= 0)
-            return true;
-        if (n.IndexOf("right", System.StringComparison.OrdinalIgnoreCase) >= 0)
-            return false;
-
-        Transform root = t;
-        while (root != null)
+        while (t != null)
         {
-            string rn = root.name;
-            if (rn.IndexOf("left", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            string n = t.name;
+            if (n.IndexOf("left", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 return true;
-            if (rn.IndexOf("right", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            if (n.IndexOf("right", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 return false;
-            root = root.parent;
+            t = t.parent;
         }
 
         return true;

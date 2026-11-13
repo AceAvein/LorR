@@ -25,6 +25,8 @@ public class ObjectPlacementStation : MonoBehaviour
     public Transform supplyBoxLeft;
     public Transform grocerySpawnPointLeft;
     public Transform beltSurfaceLeft;
+    [Tooltip("Phase I item stopper at the end of the left belt. Items stop here instead of falling off.")]
+    public Transform beltStopperLeft;
 
     public TMP_Text setScreenLabel;
 
