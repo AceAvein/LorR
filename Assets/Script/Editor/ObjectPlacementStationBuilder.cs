@@ -5,9 +5,11 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Builds a factory/airport-style Object Placement station:
-/// conveyor with integrated left tunnel mouth (groceries exit here),
-/// industrial legs/feet, A/B/C sort bins, start button, set screen.
+/// Builds Object Placement station:
+/// - Infeed conveyor with ExitTunnel on the RIGHT (items emerge onto belt)
+/// - Left conveyor, same style, same +X flow, own ExitTunnel + spawn
+/// - Open A/B/C sort crates (grab-ready, not welded to conveyors)
+/// - Start button + SET screen kept
 /// Menu: LorR / Object Placement / Build Station Prefab
 /// </summary>
 public static class ObjectPlacementStationBuilder
@@ -29,6 +31,7 @@ public static class ObjectPlacementStationBuilder
     static readonly Color Blue = new Color(0.12f, 0.32f, 0.78f);
     static readonly Color Yellow = new Color(0.92f, 0.78f, 0.12f);
     static readonly Color PlasticWhite = new Color(0.90f, 0.91f, 0.93f);
+    static readonly Color BinInterior = new Color(0.75f, 0.76f, 0.78f);
 
     [MenuItem("LorR/Object Placement/Build Station Prefab")]
     public static void BuildPrefab()
@@ -47,24 +50,44 @@ public static class ObjectPlacementStationBuilder
         Material blueMat = Mat("OP_BoxBlue", Blue, 0.08f, 0.45f, false);
         Material yellowMat = Mat("OP_BoxYellow", Yellow, 0.08f, 0.45f, false);
         Material labelMat = Mat("OP_LabelPlate", PlasticWhite, 0.0f, 0.35f, false);
+        Material binInMat = Mat("OP_BinInterior", BinInterior, 0.0f, 0.35f, false);
 
         GameObject root = new GameObject("ObjectPlacementStation");
         ObjectPlacementStation station = root.AddComponent<ObjectPlacementStation>();
 
-        Transform conveyor = BuildFactoryConveyor(root.transform, steelMat, steelDarkMat, warnMat, beltMat, tunnelMat);
+        // Right / infeed conveyor — ExitTunnel on the RIGHT, flow +X
+        Transform conveyor = BuildFactoryConveyor(
+            root.transform,
+            "Conveyor",
+            new Vector3(0.35f, 0.95f, 0.55f),
+            tunnelOnRight: true,
+            steelMat, steelDarkMat, warnMat, beltMat, tunnelMat);
         station.conveyor = conveyor;
-
+        station.beltSurface = conveyor.Find("BeltSurface");
         Transform tunnel = conveyor.Find("ExitTunnel");
         station.supplyBox = tunnel;
-        Transform spawn = tunnel != null ? tunnel.Find("GrocerySpawnPoint") : null;
-        station.grocerySpawnPoint = spawn;
+        station.grocerySpawnPoint = tunnel != null ? tunnel.Find("GrocerySpawnPoint") : null;
 
-        Transform boxes = BuildSortBins(root.transform, steelDarkMat, redMat, blueMat, yellowMat, labelMat);
+        // Left conveyor — same style, same +X flow, own mouth/box
+        Transform conveyorLeft = BuildFactoryConveyor(
+            root.transform,
+            "ConveyorLeft",
+            new Vector3(-1.35f, 0.95f, 0.05f),
+            tunnelOnRight: true,
+            steelMat, steelDarkMat, warnMat, beltMat, tunnelMat);
+        station.conveyorLeft = conveyorLeft;
+        station.beltSurfaceLeft = conveyorLeft.Find("BeltSurface");
+        Transform tunnelLeft = conveyorLeft.Find("ExitTunnel");
+        station.supplyBoxLeft = tunnelLeft;
+        station.grocerySpawnPointLeft = tunnelLeft != null ? tunnelLeft.Find("GrocerySpawnPoint") : null;
+
+        Transform boxes = BuildSortBins(root.transform, steelDarkMat, redMat, blueMat, yellowMat, labelMat, binInMat);
         station.boxesRoot = boxes;
         station.redBox = boxes.Find("Red Box");
         station.blueBox = boxes.Find("Blue Box");
         station.yellowBox = boxes.Find("Yellow Box");
 
+        // Start button near right infeed tunnel (side belt)
         station.startButton = BuildStartButton(root.transform, pedestalMat, buttonMat, steelDarkMat);
         BuildSetScreen(root.transform, steelDarkMat, screenMat, station);
 
@@ -75,15 +98,24 @@ public static class ObjectPlacementStationBuilder
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        EditorUtility.DisplayDialog(
-            "Object Placement Station",
-            "Rebuilt station:\n" + PrefabPath +
-            "\n\n• Left conveyor EXIT TUNNEL (airport/factory mouth)\n• Groceries come out onto the belt\n• Industrial legs/feet + A/B/C bins\n\nRe-drag into Color Sort.unity.",
-            "OK");
+        if (!Application.isBatchMode)
+        {
+            EditorUtility.DisplayDialog(
+                "Object Placement Station",
+                "Rebuilt station:\n" + PrefabPath +
+                "\n\n• Right infeed ExitTunnel (items emerge)\n" +
+                "• Left conveyor + ExitTunnel (same +X flow)\n" +
+                "• Open grab-ready A/B/C crates\n" +
+                "• Start button + SET screen kept\n\n" +
+                "Re-drag into Color Sort / Object Placement scene.",
+                "OK");
+        }
 
         Object prefab = AssetDatabase.LoadAssetAtPath<Object>(PrefabPath);
         if (prefab != null)
             Selection.activeObject = prefab;
+
+        Debug.Log("ObjectPlacementStation prefab rebuilt: " + PrefabPath);
     }
 
     static void EnsureFolders()
@@ -98,76 +130,112 @@ public static class ObjectPlacementStationBuilder
             AssetDatabase.CreateFolder(RootFolder, "Prefabs");
     }
 
-    static Transform BuildFactoryConveyor(Transform parent, Material steel, Material steelDark, Material warn, Material belt, Material tunnelInterior)
+    /// <summary>
+    /// Factory belt. When tunnelOnRight, ExitTunnel sits at +X and mouth faces the open run (-X).
+    /// BeltSurface is a dedicated child for later scroll/run code. Flow sense is +X.
+    /// </summary>
+    static Transform BuildFactoryConveyor(
+        Transform parent,
+        string name,
+        Vector3 localPos,
+        bool tunnelOnRight,
+        Material steel,
+        Material steelDark,
+        Material warn,
+        Material belt,
+        Material tunnelInterior)
     {
-        GameObject conveyor = new GameObject("Conveyor");
+        GameObject conveyor = new GameObject(name);
         conveyor.transform.SetParent(parent, false);
-        conveyor.transform.localPosition = new Vector3(0.2f, 0.95f, 0.40f);
+        conveyor.transform.localPosition = localPos;
 
-        // Main run (open sorting section)
-        Prim(conveyor.transform, PrimitiveType.Cube, "Chassis", new Vector3(0.15f, -0.06f, 0f), new Vector3(1.7f, 0.14f, 0.58f), steel);
-        Prim(conveyor.transform, PrimitiveType.Cube, "BeltSurface", new Vector3(0.15f, 0.05f, 0f), new Vector3(1.55f, 0.025f, 0.42f), belt);
-        Prim(conveyor.transform, PrimitiveType.Cube, "RailFront", new Vector3(0.15f, 0.08f, 0.24f), new Vector3(1.6f, 0.08f, 0.035f), steelDark);
-        Prim(conveyor.transform, PrimitiveType.Cube, "RailBack", new Vector3(0.15f, 0.08f, -0.24f), new Vector3(1.6f, 0.08f, 0.035f), steelDark);
-        Prim(conveyor.transform, PrimitiveType.Cube, "WarnStripe", new Vector3(0.55f, 0.12f, 0.24f), new Vector3(0.35f, 0.02f, 0.04f), warn);
+        float side = tunnelOnRight ? 1f : -1f;
 
-        // Right end roller + motor
-        GameObject rollR = Prim(conveyor.transform, PrimitiveType.Cylinder, "RollerRight", new Vector3(0.95f, 0.02f, 0f), new Vector3(0.42f, 0.06f, 0.42f), steelDark);
+        // Open run toward the opposite side of the tunnel
+        Prim(conveyor.transform, PrimitiveType.Cube, "Chassis",
+            new Vector3(-0.15f * side, -0.06f, 0f), new Vector3(1.7f, 0.14f, 0.58f), steel);
+
+        // Named belt surface — later code can scroll this material / move items along +X
+        GameObject beltGo = Prim(conveyor.transform, PrimitiveType.Cube, "BeltSurface",
+            new Vector3(-0.15f * side, 0.05f, 0f), new Vector3(1.55f, 0.025f, 0.42f), belt);
+        beltGo.tag = "Untagged";
+
+        Prim(conveyor.transform, PrimitiveType.Cube, "RailFront",
+            new Vector3(-0.15f * side, 0.08f, 0.24f), new Vector3(1.6f, 0.08f, 0.035f), steelDark);
+        Prim(conveyor.transform, PrimitiveType.Cube, "RailBack",
+            new Vector3(-0.15f * side, 0.08f, -0.24f), new Vector3(1.6f, 0.08f, 0.035f), steelDark);
+
+        // Flow chevrons pointing +X (right)
+        Prim(conveyor.transform, PrimitiveType.Cube, "FlowMark_0",
+            new Vector3(-0.45f * side, 0.07f, 0f), new Vector3(0.12f, 0.01f, 0.08f), warn);
+        Prim(conveyor.transform, PrimitiveType.Cube, "FlowMark_1",
+            new Vector3(-0.15f * side, 0.07f, 0f), new Vector3(0.12f, 0.01f, 0.08f), warn);
+        Prim(conveyor.transform, PrimitiveType.Cube, "FlowMark_2",
+            new Vector3(0.15f * side, 0.07f, 0f), new Vector3(0.12f, 0.01f, 0.08f), warn);
+        Prim(conveyor.transform, PrimitiveType.Cube, "WarnStripe",
+            new Vector3(-0.55f * side, 0.12f, 0.24f), new Vector3(0.35f, 0.02f, 0.04f), warn);
+
+        // Roller / motor on the +X end (flow direction)
+        GameObject rollR = Prim(conveyor.transform, PrimitiveType.Cylinder, "RollerRight",
+            new Vector3(0.95f, 0.02f, 0f), new Vector3(0.42f, 0.06f, 0.42f), steelDark);
         rollR.transform.localRotation = Quaternion.Euler(0f, 0f, 90f);
-        Prim(conveyor.transform, PrimitiveType.Cube, "MotorHousing", new Vector3(1.05f, -0.12f, 0.28f), new Vector3(0.22f, 0.18f, 0.22f), steelDark);
+        Prim(conveyor.transform, PrimitiveType.Cube, "MotorHousing",
+            new Vector3(1.05f, -0.12f, 0.28f), new Vector3(0.22f, 0.18f, 0.22f), steelDark);
 
-        // Airport/factory EXIT TUNNEL on LEFT — groceries come out of this mouth onto the belt
-        BuildExitTunnel(conveyor.transform, steel, steelDark, warn, belt, tunnelInterior);
+        BuildExitTunnel(conveyor.transform, tunnelOnRight, steel, steelDark, warn, belt, tunnelInterior);
 
-        // Legs with feet
-        BuildLeg(conveyor.transform, "Leg_FL", new Vector3(-0.55f, -0.55f, 0.2f), steel, steelDark);
+        BuildLeg(conveyor.transform, "Leg_FL", new Vector3(-0.7f, -0.55f, 0.2f), steel, steelDark);
         BuildLeg(conveyor.transform, "Leg_FR", new Vector3(0.7f, -0.55f, 0.2f), steel, steelDark);
-        BuildLeg(conveyor.transform, "Leg_BL", new Vector3(-0.55f, -0.55f, -0.2f), steel, steelDark);
+        BuildLeg(conveyor.transform, "Leg_BL", new Vector3(-0.7f, -0.55f, -0.2f), steel, steelDark);
         BuildLeg(conveyor.transform, "Leg_BR", new Vector3(0.7f, -0.55f, -0.2f), steel, steelDark);
-        Prim(conveyor.transform, PrimitiveType.Cube, "BraceFront", new Vector3(0.1f, -0.75f, 0.2f), new Vector3(1.15f, 0.04f, 0.04f), steelDark);
-        Prim(conveyor.transform, PrimitiveType.Cube, "BraceBack", new Vector3(0.1f, -0.75f, -0.2f), new Vector3(1.15f, 0.04f, 0.04f), steelDark);
+        Prim(conveyor.transform, PrimitiveType.Cube, "BraceFront",
+            new Vector3(0f, -0.75f, 0.2f), new Vector3(1.25f, 0.04f, 0.04f), steelDark);
+        Prim(conveyor.transform, PrimitiveType.Cube, "BraceBack",
+            new Vector3(0f, -0.75f, -0.2f), new Vector3(1.25f, 0.04f, 0.04f), steelDark);
 
-        // Extra support under tunnel
-        BuildLeg(conveyor.transform, "Leg_TunnelF", new Vector3(-1.15f, -0.55f, 0.2f), steel, steelDark);
-        BuildLeg(conveyor.transform, "Leg_TunnelB", new Vector3(-1.15f, -0.55f, -0.2f), steel, steelDark);
+        float tunnelLegX = tunnelOnRight ? 1.15f : -1.15f;
+        BuildLeg(conveyor.transform, "Leg_TunnelF", new Vector3(tunnelLegX, -0.55f, 0.2f), steel, steelDark);
+        BuildLeg(conveyor.transform, "Leg_TunnelB", new Vector3(tunnelLegX, -0.55f, -0.2f), steel, steelDark);
 
         return conveyor.transform;
     }
 
-    static void BuildExitTunnel(Transform conveyor, Material steel, Material steelDark, Material warn, Material belt, Material interior)
+    static void BuildExitTunnel(
+        Transform conveyor,
+        bool onRight,
+        Material steel,
+        Material steelDark,
+        Material warn,
+        Material belt,
+        Material interior)
     {
+        float side = onRight ? 1f : -1f;
+
         GameObject tunnel = new GameObject("ExitTunnel");
         tunnel.transform.SetParent(conveyor, false);
-        tunnel.transform.localPosition = new Vector3(-1.05f, 0.12f, 0f);
+        tunnel.transform.localPosition = new Vector3(1.05f * side, 0.12f, 0f);
+        // Flip so mouth faces the open belt (toward center / -side)
+        tunnel.transform.localRotation = onRight ? Quaternion.Euler(0f, 180f, 0f) : Quaternion.identity;
 
-        // Covered hood / box section (like baggage claim mouth)
         Prim(tunnel.transform, PrimitiveType.Cube, "TunnelRoof", new Vector3(0f, 0.28f, 0f), new Vector3(0.85f, 0.06f, 0.62f), steel);
         Prim(tunnel.transform, PrimitiveType.Cube, "TunnelLeftWall", new Vector3(0f, 0.05f, 0.29f), new Vector3(0.85f, 0.42f, 0.05f), steel);
         Prim(tunnel.transform, PrimitiveType.Cube, "TunnelRightWall", new Vector3(0f, 0.05f, -0.29f), new Vector3(0.85f, 0.42f, 0.05f), steel);
         Prim(tunnel.transform, PrimitiveType.Cube, "TunnelBack", new Vector3(-0.4f, 0.05f, 0f), new Vector3(0.05f, 0.42f, 0.58f), steelDark);
 
-        // Dark interior so the opening reads as a tunnel
         Prim(tunnel.transform, PrimitiveType.Cube, "TunnelCeilingIn", new Vector3(0.05f, 0.22f, 0f), new Vector3(0.7f, 0.03f, 0.5f), interior);
         Prim(tunnel.transform, PrimitiveType.Cube, "TunnelFloorIn", new Vector3(0.05f, -0.12f, 0f), new Vector3(0.7f, 0.03f, 0.5f), interior);
-
-        // Belt continues into the tunnel
         Prim(tunnel.transform, PrimitiveType.Cube, "TunnelBelt", new Vector3(0.1f, -0.07f, 0f), new Vector3(0.75f, 0.025f, 0.4f), belt);
 
-        // Mouth frame facing the open conveyor (where items appear)
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthFrameTop", new Vector3(0.42f, 0.28f, 0f), new Vector3(0.06f, 0.08f, 0.64f), steelDark);
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthFrameBot", new Vector3(0.42f, -0.14f, 0f), new Vector3(0.06f, 0.06f, 0.64f), steelDark);
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthFrameL", new Vector3(0.42f, 0.07f, 0.30f), new Vector3(0.06f, 0.4f, 0.06f), steelDark);
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthFrameR", new Vector3(0.42f, 0.07f, -0.30f), new Vector3(0.06f, 0.4f, 0.06f), steelDark);
 
-        // Warning chevrons around mouth
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthWarnTop", new Vector3(0.45f, 0.32f, 0f), new Vector3(0.04f, 0.03f, 0.55f), warn);
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthWarnL", new Vector3(0.45f, 0.07f, 0.33f), new Vector3(0.04f, 0.35f, 0.03f), warn);
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthWarnR", new Vector3(0.45f, 0.07f, -0.33f), new Vector3(0.04f, 0.35f, 0.03f), warn);
-
-        // Rubber flap strip at mouth (airport vibe)
         Prim(tunnel.transform, PrimitiveType.Cube, "RubberFlap", new Vector3(0.48f, 0.12f, 0f), new Vector3(0.02f, 0.22f, 0.48f), interior);
 
-        // Spawn point just outside the mouth, on the belt
         GameObject spawn = new GameObject("GrocerySpawnPoint");
         spawn.transform.SetParent(tunnel.transform, false);
         spawn.transform.localPosition = new Vector3(0.55f, -0.02f, 0f);
@@ -187,34 +255,77 @@ public static class ObjectPlacementStationBuilder
         Prim(leg.transform, PrimitiveType.Cylinder, "BoltB", new Vector3(-0.07f, -0.42f, -0.07f), new Vector3(0.03f, 0.02f, 0.03f), dark);
     }
 
-    static Transform BuildSortBins(Transform parent, Material steelDark, Material red, Material blue, Material yellow, Material label)
+    static Transform BuildSortBins(
+        Transform parent,
+        Material steelDark,
+        Material red,
+        Material blue,
+        Material yellow,
+        Material label,
+        Material interior)
     {
         GameObject boxes = new GameObject("Boxes");
         boxes.transform.SetParent(parent, false);
+        // Independent group — not parented under conveyors (grab later)
 
-        CreateBin(boxes.transform, "Red Box", "A", new Vector3(-0.2f, 0.42f, -0.05f), red, label, steelDark);
-        CreateBin(boxes.transform, "Blue Box", "B", new Vector3(0.35f, 0.42f, -0.05f), blue, label, steelDark);
-        CreateBin(boxes.transform, "Yellow Box", "C", new Vector3(0.9f, 0.42f, -0.05f), yellow, label, steelDark);
+        CreateOpenBin(boxes.transform, "Red Box", "A", new Vector3(-0.15f, 0.42f, -0.35f), red, label, steelDark, interior);
+        CreateOpenBin(boxes.transform, "Blue Box", "B", new Vector3(0.35f, 0.42f, -0.35f), blue, label, steelDark, interior);
+        CreateOpenBin(boxes.transform, "Yellow Box", "C", new Vector3(0.85f, 0.42f, -0.35f), yellow, label, steelDark, interior);
 
         return boxes.transform;
     }
 
-    static void CreateBin(Transform parent, string objectName, string letter, Vector3 localPos, Material boxMat, Material labelMat, Material footMat)
+    /// <summary>
+    /// Open-top crate: floor + 4 walls so interior is visible. Root keeps a BoxCollider for grab.
+    /// </summary>
+    static void CreateOpenBin(
+        Transform parent,
+        string objectName,
+        string letter,
+        Vector3 localPos,
+        Material boxMat,
+        Material labelMat,
+        Material footMat,
+        Material interiorMat)
     {
-        GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        box.name = objectName;
+        GameObject box = new GameObject(objectName);
         box.transform.SetParent(parent, false);
         box.transform.localPosition = localPos;
-        box.transform.localScale = new Vector3(0.38f, 0.5f, 0.38f);
-        Apply(box, boxMat);
+        box.transform.localRotation = Quaternion.identity;
+        box.transform.localScale = Vector3.one;
 
-        Prim(box.transform, PrimitiveType.Cube, "Rim", new Vector3(0f, 0.48f, 0f), new Vector3(1.05f, 0.08f, 1.05f), boxMat);
-        Prim(box.transform, PrimitiveType.Cube, "FootFL", new Vector3(-0.35f, -0.52f, 0.35f), new Vector3(0.18f, 0.08f, 0.18f), footMat);
-        Prim(box.transform, PrimitiveType.Cube, "FootFR", new Vector3(0.35f, -0.52f, 0.35f), new Vector3(0.18f, 0.08f, 0.18f), footMat);
-        Prim(box.transform, PrimitiveType.Cube, "FootBL", new Vector3(-0.35f, -0.52f, -0.35f), new Vector3(0.18f, 0.08f, 0.18f), footMat);
-        Prim(box.transform, PrimitiveType.Cube, "FootBR", new Vector3(0.35f, -0.52f, -0.35f), new Vector3(0.18f, 0.08f, 0.18f), footMat);
+        // Grab collider on root (not welded into conveyor)
+        BoxCollider grab = box.AddComponent<BoxCollider>();
+        grab.size = new Vector3(0.38f, 0.42f, 0.38f);
+        grab.center = new Vector3(0f, 0.21f, 0f);
 
-        GameObject plate = Prim(box.transform, PrimitiveType.Cube, "LabelPlate", new Vector3(0f, 0.1f, -0.52f), new Vector3(0.55f, 0.4f, 0.05f), labelMat);
+        const float w = 0.38f;
+        const float h = 0.42f;
+        const float d = 0.38f;
+        const float wall = 0.03f;
+        const float floor = 0.03f;
+
+        Prim(box.transform, PrimitiveType.Cube, "Floor",
+            new Vector3(0f, floor * 0.5f, 0f), new Vector3(w, floor, d), interiorMat);
+        Prim(box.transform, PrimitiveType.Cube, "WallFront",
+            new Vector3(0f, h * 0.5f, -d * 0.5f + wall * 0.5f), new Vector3(w, h, wall), boxMat);
+        Prim(box.transform, PrimitiveType.Cube, "WallBack",
+            new Vector3(0f, h * 0.5f, d * 0.5f - wall * 0.5f), new Vector3(w, h, wall), boxMat);
+        Prim(box.transform, PrimitiveType.Cube, "WallLeft",
+            new Vector3(-w * 0.5f + wall * 0.5f, h * 0.5f, 0f), new Vector3(wall, h, d - wall * 2f), boxMat);
+        Prim(box.transform, PrimitiveType.Cube, "WallRight",
+            new Vector3(w * 0.5f - wall * 0.5f, h * 0.5f, 0f), new Vector3(wall, h, d - wall * 2f), boxMat);
+
+        Prim(box.transform, PrimitiveType.Cube, "Rim",
+            new Vector3(0f, h + 0.01f, 0f), new Vector3(w + 0.02f, 0.025f, d + 0.02f), boxMat);
+
+        Prim(box.transform, PrimitiveType.Cube, "FootFL", new Vector3(-0.14f, -0.02f, 0.14f), new Vector3(0.07f, 0.04f, 0.07f), footMat);
+        Prim(box.transform, PrimitiveType.Cube, "FootFR", new Vector3(0.14f, -0.02f, 0.14f), new Vector3(0.07f, 0.04f, 0.07f), footMat);
+        Prim(box.transform, PrimitiveType.Cube, "FootBL", new Vector3(-0.14f, -0.02f, -0.14f), new Vector3(0.07f, 0.04f, 0.07f), footMat);
+        Prim(box.transform, PrimitiveType.Cube, "FootBR", new Vector3(0.14f, -0.02f, -0.14f), new Vector3(0.07f, 0.04f, 0.07f), footMat);
+
+        GameObject plate = Prim(box.transform, PrimitiveType.Cube, "LabelPlate",
+            new Vector3(0f, 0.22f, -d * 0.5f - 0.01f), new Vector3(0.2f, 0.16f, 0.02f), labelMat);
         AddWorldText(plate.transform, "Letter", letter, new Vector3(0f, 0f, -0.7f), 72, Color.black, 0.02f, new Vector2(80f, 80f));
     }
 
@@ -222,8 +333,8 @@ public static class ObjectPlacementStationBuilder
     {
         GameObject root = new GameObject("StartConveyorButton");
         root.transform.SetParent(parent, false);
-        // Near tunnel mouth / left side
-        root.transform.localPosition = new Vector3(-1.05f, 0f, 0.0f);
+        // Near right infeed tunnel
+        root.transform.localPosition = new Vector3(1.15f, 0f, 0.15f);
 
         Prim(root.transform, PrimitiveType.Cylinder, "PedestalPost", new Vector3(0f, 0.4f, 0f), new Vector3(0.1f, 0.4f, 0.1f), pedestal);
         Prim(root.transform, PrimitiveType.Cylinder, "PedestalFoot", new Vector3(0f, 0.03f, 0f), new Vector3(0.28f, 0.03f, 0.28f), metal);
@@ -238,7 +349,7 @@ public static class ObjectPlacementStationBuilder
     {
         GameObject screenRoot = new GameObject("SetScreen");
         screenRoot.transform.SetParent(parent, false);
-        screenRoot.transform.localPosition = new Vector3(0.35f, 1.65f, 0.62f);
+        screenRoot.transform.localPosition = new Vector3(0.35f, 1.65f, 0.85f);
 
         Prim(screenRoot.transform, PrimitiveType.Cube, "MonitorFrame", Vector3.zero, new Vector3(0.95f, 0.42f, 0.06f), steelDark);
         Prim(screenRoot.transform, PrimitiveType.Cube, "ScreenPanel", new Vector3(0f, 0f, -0.02f), new Vector3(0.82f, 0.32f, 0.03f), screenMat);
