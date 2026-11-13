@@ -28,6 +28,14 @@ Overwrites:
 4. Drag the new prefab in
 5. Keep `Red Box` / `Blue Box` / `Yellow Box` names for `ColorSortRound`
 
+## Runtime (conveyor)
+
+`ObjectPlacementStation` auto-adds `ObjectPlacementConveyorController`:
+- Press `Btn_Start_World` with VR hands (or click in Editor) → button sinks then springs back
+- Both `Conveyor` + `ConveyorLeft` run: `BeltSurface` UV scroll + looping `FlowMark_*`
+- Procedural motor loop + button click sounds
+- Items on belt come later
+
 ## Alignment
 
 - Storyboard: dual conveyors (side infeed + left/outbound), start button, A/B/C stations

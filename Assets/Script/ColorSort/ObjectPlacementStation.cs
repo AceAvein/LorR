@@ -28,6 +28,12 @@ public class ObjectPlacementStation : MonoBehaviour
 
     public TMP_Text setScreenLabel;
 
+    void Awake()
+    {
+        if (GetComponent<ObjectPlacementConveyorController>() == null)
+            gameObject.AddComponent<ObjectPlacementConveyorController>();
+    }
+
     public void SetScreenText(string value)
     {
         if (setScreenLabel == null)
