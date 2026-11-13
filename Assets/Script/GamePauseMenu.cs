@@ -330,6 +330,8 @@ public class GamePauseMenu : MonoBehaviour
             return true;
         if (go.GetComponent<ColorSortPiece>() != null)
             return true;
+        if (go.GetComponent<ObjectPlacementGroceryItem>() != null)
+            return true;
 
         Camera headset = Camera.main;
         if (headset != null && headset.transform.root == go.transform)
@@ -348,6 +350,10 @@ public class GamePauseMenu : MonoBehaviour
         ColorSortPiece[] pieces = FindObjectsByType<ColorSortPiece>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
         for (int i = 0; i < pieces.Length; i++)
             FreezeGrab(pieces[i].GetComponent<XRGrabInteractable>());
+
+        ObjectPlacementGroceryItem[] groceries = FindObjectsByType<ObjectPlacementGroceryItem>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        for (int i = 0; i < groceries.Length; i++)
+            FreezeGrab(groceries[i].GetComponent<XRGrabInteractable>());
     }
 
     void FreezeGrab(XRGrabInteractable grab)

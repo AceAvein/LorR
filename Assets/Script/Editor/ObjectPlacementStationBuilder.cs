@@ -234,7 +234,12 @@ public static class ObjectPlacementStationBuilder
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthWarnTop", new Vector3(0.45f, 0.32f, 0f), new Vector3(0.04f, 0.03f, 0.55f), warn);
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthWarnL", new Vector3(0.45f, 0.07f, 0.33f), new Vector3(0.04f, 0.35f, 0.03f), warn);
         Prim(tunnel.transform, PrimitiveType.Cube, "MouthWarnR", new Vector3(0.45f, 0.07f, -0.33f), new Vector3(0.04f, 0.35f, 0.03f), warn);
-        Prim(tunnel.transform, PrimitiveType.Cube, "RubberFlap", new Vector3(0.48f, 0.12f, 0f), new Vector3(0.02f, 0.22f, 0.48f), interior);
+        // Hinge at top of flap; slight opposite lean so left/right mouths read differently.
+        GameObject flapHinge = new GameObject("RubberFlapHinge");
+        flapHinge.transform.SetParent(tunnel.transform, false);
+        flapHinge.transform.localPosition = new Vector3(0.48f, 0.23f, 0f);
+        flapHinge.transform.localRotation = Quaternion.Euler(0f, 0f, onRight ? -8f : 8f);
+        Prim(flapHinge.transform, PrimitiveType.Cube, "RubberFlap", new Vector3(0f, -0.11f, 0f), new Vector3(0.02f, 0.22f, 0.48f), interior);
 
         GameObject spawn = new GameObject("GrocerySpawnPoint");
         spawn.transform.SetParent(tunnel.transform, false);

@@ -420,6 +420,10 @@ public class ObjectPlacementConveyorController : MonoBehaviour
         pressRoutine = null;
     }
 
+    public bool IsRunning => running;
+
+    public float BeltFlowSpeed => flowMarkSpeed;
+
     public void StartConveyors()
     {
         if (running)
