@@ -29,6 +29,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     Transform beltStopper;
     ObjectPlacementSortBox yellowSortBox;
     ObjectPlacementSortBox redSortBox;
+    Transform frontDropZone;
     readonly List<ObjectPlacementGroceryItem> beltQueue = new List<ObjectPlacementGroceryItem>();
 
     GameObject objectiveScreen;
@@ -214,6 +215,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
     void SetupSortBoxes()
     {
+        EnsureFrontDropZone();
         yellowSortBox = ConfigureSortBox(yellowBox, ObjectPlacementSortBox.BoxId.Yellow);
         redSortBox = ConfigureSortBox(redBox, ObjectPlacementSortBox.BoxId.Red);
         SetSortBoxesGrabEnabled(false);
@@ -230,35 +232,69 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
         Transform belt;
         float dir;
-        PickFacingConveyor(box, out belt, out dir);
-        sort.Configure(this, id, belt, dir);
+        GetFrontConveyor(out belt, out dir);
+        sort.Configure(this, id, belt, frontDropZone, dir);
         return sort;
     }
 
-    void PickFacingConveyor(Transform box, out Transform belt, out float direction)
+    /// <summary>
+    /// Storyboard: front belt = sorted boxes transport (station Conveyor / BeltSurface).
+    /// Ride direction = toward ExitTunnel (into the mouth).
+    /// </summary>
+    void GetFrontConveyor(out Transform belt, out float direction)
     {
-        Transform left = station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.conveyorLeft;
-        Transform right = station.beltSurface != null ? station.beltSurface : station.conveyor;
+        belt = station.beltSurface != null ? station.beltSurface : station.conveyor;
+        direction = 1f;
 
-        if (box == null)
+        Transform tunnel = station.supplyBox;
+        if (tunnel == null && station.conveyor != null)
+            tunnel = station.conveyor.Find("ExitTunnel");
+
+        if (belt != null && tunnel != null)
         {
-            belt = left != null ? left : right;
-            direction = belt == left ? -1f : 1f;
+            Vector3 toTunnel = tunnel.position - belt.position;
+            direction = Vector3.Dot(toTunnel, belt.right) >= 0f ? 1f : -1f;
+        }
+    }
+
+    void EnsureFrontDropZone()
+    {
+        Transform belt;
+        float dir;
+        GetFrontConveyor(out belt, out dir);
+        if (belt == null)
+            return;
+
+        Transform existing = belt.Find("BoxDropZone");
+        if (existing == null && belt.parent != null)
+            existing = belt.parent.Find("BoxDropZone");
+
+        if (existing != null)
+        {
+            frontDropZone = existing;
             return;
         }
 
-        float dLeft = left != null ? Vector3.Distance(box.position, left.position) : float.MaxValue;
-        float dRight = right != null ? Vector3.Distance(box.position, right.position) : float.MaxValue;
-        if (dLeft <= dRight && left != null)
-        {
-            belt = left;
-            direction = -1f;
-        }
+        GameObject zone = new GameObject("BoxDropZone");
+        Transform parent = belt.parent != null ? belt.parent : belt;
+        zone.transform.SetParent(parent, false);
+
+        // Sit above the open run of the front belt so crates are easy to land.
+        Vector3 local = belt.localPosition + new Vector3(0f, 0.18f, 0f);
+        if (belt.parent == parent)
+            zone.transform.localPosition = local;
         else
-        {
-            belt = right;
-            direction = 1f;
-        }
+            zone.transform.position = belt.position + Vector3.up * 0.18f;
+
+        zone.transform.localRotation = Quaternion.identity;
+        BoxCollider col = zone.AddComponent<BoxCollider>();
+        col.isTrigger = true;
+        // Wide landing pad covering most of the front belt top.
+        float len = Mathf.Max(1.0f, Mathf.Abs(belt.lossyScale.x) * 1.1f);
+        float depth = Mathf.Max(0.45f, Mathf.Abs(belt.lossyScale.z) * 1.4f);
+        col.size = new Vector3(len, 0.45f, depth);
+        col.center = Vector3.zero;
+        frontDropZone = zone.transform;
     }
 
     void SetSortBoxesGrabEnabled(bool enabled)
@@ -838,14 +874,14 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         SetSortBoxesGrabEnabled(true);
         if (conveyor != null && !conveyor.IsRunning)
             conveyor.StartConveyors();
-        station.SetScreenText("BOTH HANDS → PUT BOXES ON CONVEYOR");
+        station.SetScreenText("BOTH HANDS → FRONT CONVEYOR");
     }
 
     public void OnSortBoxMissed(ObjectPlacementSortBox box)
     {
         if (!boxDeliveryPhase)
             return;
-        station.SetScreenText("USE BOTH HANDS → CONVEYOR");
+        station.SetScreenText("DROP ON FRONT CONVEYOR");
     }
 
     public void OnSortBoxAccepted(ObjectPlacementSortBox box)
