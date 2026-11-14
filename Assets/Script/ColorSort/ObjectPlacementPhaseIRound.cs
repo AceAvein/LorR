@@ -73,6 +73,9 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     public bool BeltIsRunning => conveyor != null && conveyor.IsRunning;
     public float BeltFlowSpeed => conveyor != null ? conveyor.BeltFlowSpeed : 0.38f;
 
+    /// <summary>Left conveyor + in-transit items pause while the end queue is full.</summary>
+    public bool LeftBeltMotionPaused => !BeltQueueHasRoom || CountItemsOnBelt() >= MaxBeltQueue;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
     {
@@ -669,6 +672,8 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     }
 
     public bool BeltQueueHasRoom => beltQueue.Count < MaxBeltQueue;
+
+    public int BeltQueueCount => beltQueue.Count;
 
     void SpawnItem(SpawnSpec spec)
     {

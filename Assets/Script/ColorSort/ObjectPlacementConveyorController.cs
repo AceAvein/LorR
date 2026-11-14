@@ -26,6 +26,7 @@ public class ObjectPlacementConveyorController : MonoBehaviour
     public float clickVolume = 0.7f;
 
     ObjectPlacementStation station;
+    ObjectPlacementPhaseIRound phaseRound;
     Transform button;
     Vector3 buttonRestLocal;
     bool pressing;
@@ -70,9 +71,29 @@ public class ObjectPlacementConveyorController : MonoBehaviour
         if (!running)
             return;
 
+        if (phaseRound == null)
+            phaseRound = Object.FindAnyObjectByType<ObjectPlacementPhaseIRound>();
+        bool pauseLeft = phaseRound != null && phaseRound.LeftBeltMotionPaused;
+
         float dt = Time.deltaTime;
         for (int i = 0; i < belts.Count; i++)
-            TickBelt(belts[i], dt);
+        {
+            BeltRig rig = belts[i];
+            // Left / outbound item belt stops while the stopper queue is full.
+            if (pauseLeft && IsLeftBelt(rig))
+                continue;
+            TickBelt(rig, dt);
+        }
+    }
+
+    static bool IsLeftBelt(BeltRig rig)
+    {
+        if (rig == null)
+            return false;
+        if (rig.direction < 0f)
+            return true;
+        return !string.IsNullOrEmpty(rig.name) &&
+               rig.name.IndexOf("Left", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     void CacheRigs()

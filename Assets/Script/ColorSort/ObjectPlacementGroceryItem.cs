@@ -225,6 +225,13 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         if (!onBelt)
             return;
 
+        // Queue full — left belt and in-transit items freeze until the line moves again.
+        if (host != null && host.LeftBeltMotionPaused)
+        {
+            ZeroVelocity();
+            return;
+        }
+
         // Ride belt until queue zone, then join line without overlapping.
         if (InQueueZone() && host != null)
         {
