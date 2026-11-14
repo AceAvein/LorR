@@ -20178,7 +20178,7 @@ GameObject:
   - component: {fileID: 7861116880587994403}
   - component: {fileID: 8313147393383785297}
   m_Layer: 0
-  m_Name: RubberFlap
+  m_Name: RubberFlap Boxes
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -22636,7 +22636,7 @@ GameObject:
   - component: {fileID: 3163753680690242912}
   - component: {fileID: 6566184937304969175}
   m_Layer: 0
-  m_Name: RubberFlap
+  m_Name: RubberFlap Grocery
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

@@ -5,13 +5,13 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 /// <summary>
-/// Hands only: blocks XRRayInteractor and NearFar far-casting (the visible "ray").
+/// Hands only: blocks XRRayInteractor and NearFar far-casting.
 /// Allows XRDirectInteractor and NearFar near (controller within hand reach).
 /// </summary>
 [DisallowMultipleComponent]
 public class ObjectPlacementHandOnlyFilter : MonoBehaviour, IXRHoverFilter, IXRSelectFilter
 {
-    const float DefaultHandReachMeters = 0.55f;
+    const float DefaultHandReachMeters = 0.45f;
 
     float handReachMeters = DefaultHandReachMeters;
 
@@ -27,10 +27,15 @@ public class ObjectPlacementHandOnlyFilter : MonoBehaviour, IXRHoverFilter, IXRS
         return AllowsHandGrab(interactor, interactable as IXRInteractable, handReachMeters);
     }
 
-    /// <summary>True when this interactor is distant/ray-style (should be rejected).</summary>
     public static bool IsRay(IXRInteractor interactor)
     {
-        return !AllowsHandGrab(interactor, null, DefaultHandReachMeters);
+        if (interactor == null)
+            return true;
+        if (interactor is XRRayInteractor)
+            return true;
+        if (interactor is NearFarInteractor nf && nf.selectionRegion.Value == NearFarInteractor.Region.Far)
+            return true;
+        return false;
     }
 
     public static bool AllowsHandGrab(IXRInteractor interactor, IXRInteractable interactable)
@@ -43,17 +48,18 @@ public class ObjectPlacementHandOnlyFilter : MonoBehaviour, IXRHoverFilter, IXRS
         if (interactor == null)
             return false;
 
+        // No ray interactor may grab Object Placement cargo.
         if (interactor is XRRayInteractor)
             return false;
 
         if (interactor is XRDirectInteractor)
-            return true;
+            return IsWithinHandReach(interactor, interactable, reachMeters);
 
         if (interactor is NearFarInteractor nearFar)
         {
             if (nearFar.selectionRegion.Value == NearFarInteractor.Region.Far)
                 return false;
-
+            // Near casting only — must be in hand reach.
             return IsWithinHandReach(interactor, interactable, reachMeters);
         }
 
@@ -81,7 +87,35 @@ public class ObjectPlacementHandOnlyFilter : MonoBehaviour, IXRHoverFilter, IXRS
                 dist = d;
         }
 
-        return dist <= Mathf.Max(0.2f, reachMeters);
+        return dist <= Mathf.Max(0.15f, reachMeters);
+    }
+
+    public static bool IsOurGrabTarget(IXRInteractable interactable)
+    {
+        float reach;
+        return IsOurGrabTarget(interactable, out reach);
+    }
+
+    public static bool IsOurGrabTarget(IXRInteractable interactable, out float reachMeters)
+    {
+        reachMeters = DefaultHandReachMeters;
+        Component c = interactable as Component;
+        if (c == null)
+            return false;
+
+        if (c.GetComponent<ObjectPlacementSortBox>() != null)
+        {
+            reachMeters = 1.25f;
+            return true;
+        }
+
+        if (c.GetComponent<ObjectPlacementGroceryItem>() != null)
+        {
+            reachMeters = DefaultHandReachMeters;
+            return true;
+        }
+
+        return false;
     }
 
     public static void AttachTo(XRGrabInteractable grab)

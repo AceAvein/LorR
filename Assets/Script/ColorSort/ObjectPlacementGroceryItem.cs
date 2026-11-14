@@ -375,6 +375,10 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
             if (!(hover is IXRSelectInteractor selectInteractor))
                 continue;
 
+            // Never promote a ray / far hover into a grab.
+            if (!ObjectPlacementHandOnlyFilter.AllowsHandGrab(selectInteractor, grab))
+                continue;
+
             bool left = IsLeftHand(selectInteractor);
             float trigger = ReadTrigger(left);
             float grip = ReadGrip(left);

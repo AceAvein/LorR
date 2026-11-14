@@ -34,6 +34,7 @@ public class ObjectPlacementStation : MonoBehaviour
     {
         if (GetComponent<ObjectPlacementConveyorController>() == null)
             gameObject.AddComponent<ObjectPlacementConveyorController>();
+        ObjectPlacementRubberFlap.WireStationFlaps(this);
     }
 
     public void SetScreenText(string value)

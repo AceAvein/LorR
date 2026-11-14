@@ -3,18 +3,29 @@ using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit.Filtering;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Casters;
+using UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals;
 
 /// <summary>
-/// On Color Sort load: register filters on every NearFar / Ray interactor so
-/// far-ray cannot grab grocery items or sort crates (hands / near only).
+/// Hard-disables ray / far-cast interaction with Object Placement grab targets.
+/// Near-hand (NearFar near casting / Direct) still works.
 /// </summary>
 public static class ObjectPlacementFarGrabBlocker
 {
     static bool installed;
-    static readonly List<NearFarInteractor> nearFars = new List<NearFarInteractor>();
-    static readonly List<XRRayInteractor> rays = new List<XRRayInteractor>();
+    static readonly List<NearFarBackup> nearFarBackups = new List<NearFarBackup>();
     static readonly List<XRSelectFilterDelegate> selectDelegates = new List<XRSelectFilterDelegate>();
     static readonly List<XRHoverFilterDelegate> hoverDelegates = new List<XRHoverFilterDelegate>();
+
+    struct NearFarBackup
+    {
+        public NearFarInteractor nearFar;
+        public bool enableFarCasting;
+        public float castDistance;
+        public CurveInteractionCaster farCaster;
+        public bool curveEnabled;
+        public CurveVisualController curve;
+    }
 
     public static void Install()
     {
@@ -36,12 +47,36 @@ public static class ObjectPlacementFarGrabBlocker
         if (nf == null)
             return;
 
-        nearFars.Add(nf);
+        NearFarBackup backup = new NearFarBackup();
+        backup.nearFar = nf;
+        backup.enableFarCasting = nf.enableFarCasting;
+        // Kill far-ray grab for this module. Near casting still reaches items by hand.
+        nf.enableFarCasting = false;
+
+        CurveInteractionCaster far = nf.farInteractionCaster as CurveInteractionCaster;
+        if (far != null)
+        {
+            backup.farCaster = far;
+            backup.castDistance = far.castDistance;
+            far.castDistance = 0.01f;
+        }
+
+        CurveVisualController curve = nf.GetComponentInChildren<CurveVisualController>(true);
+        if (curve != null)
+        {
+            backup.curve = curve;
+            backup.curveEnabled = curve.enabled;
+            // Keep component alive; shorten so the far beam is not usable on items.
+            curve.restingVisualLineLength = Mathf.Min(curve.restingVisualLineLength, 0.05f);
+            curve.maxVisualCurveDistance = Mathf.Min(curve.maxVisualCurveDistance, 0.05f);
+        }
+
+        nearFarBackups.Add(backup);
 
         XRSelectFilterDelegate select = new XRSelectFilterDelegate((interactor, interactable) =>
-            AllowSelect(interactor, interactable));
+            AllowNearFar(interactor, interactable));
         XRHoverFilterDelegate hover = new XRHoverFilterDelegate((interactor, interactable) =>
-            AllowHover(interactor, interactable));
+            AllowNearFarHover(interactor, interactable));
 
         nf.selectFilters.Add(select);
         nf.hoverFilters.Add(hover);
@@ -54,13 +89,11 @@ public static class ObjectPlacementFarGrabBlocker
         if (ray == null)
             return;
 
-        // Teleport rays keep working; only block grab targets.
-        rays.Add(ray);
-
+        // Teleport rays stay; no Object Placement item may be hovered/selected by any ray.
         XRSelectFilterDelegate select = new XRSelectFilterDelegate((interactor, interactable) =>
-            !IsOurGrabTarget(interactable));
+            !ObjectPlacementHandOnlyFilter.IsOurGrabTarget(interactable));
         XRHoverFilterDelegate hover = new XRHoverFilterDelegate((interactor, interactable) =>
-            !IsOurGrabTarget(interactable));
+            !ObjectPlacementHandOnlyFilter.IsOurGrabTarget(interactable));
 
         ray.selectFilters.Add(select);
         ray.hoverFilters.Add(hover);
@@ -68,47 +101,28 @@ public static class ObjectPlacementFarGrabBlocker
         hoverDelegates.Add(hover);
     }
 
-    static bool AllowSelect(IXRSelectInteractor interactor, IXRSelectInteractable interactable)
+    static bool AllowNearFar(IXRSelectInteractor interactor, IXRSelectInteractable interactable)
     {
         float reach;
-        if (!IsOurGrabTarget(interactable, out reach))
+        if (!ObjectPlacementHandOnlyFilter.IsOurGrabTarget(interactable, out reach))
             return true;
+
+        // Far region / ray path — never.
+        if (interactor is NearFarInteractor nf && nf.selectionRegion.Value == NearFarInteractor.Region.Far)
+            return false;
+
         return ObjectPlacementHandOnlyFilter.AllowsHandGrab(interactor, interactable, reach);
     }
 
-    static bool AllowHover(IXRHoverInteractor interactor, IXRHoverInteractable interactable)
+    static bool AllowNearFarHover(IXRHoverInteractor interactor, IXRHoverInteractable interactable)
     {
         float reach;
-        if (!IsOurGrabTarget(interactable, out reach))
+        if (!ObjectPlacementHandOnlyFilter.IsOurGrabTarget(interactable, out reach))
             return true;
-        return ObjectPlacementHandOnlyFilter.AllowsHandGrab(interactor, interactable as IXRInteractable, reach);
-    }
 
-    static bool IsOurGrabTarget(IXRInteractable interactable)
-    {
-        float reach;
-        return IsOurGrabTarget(interactable, out reach);
-    }
-
-    static bool IsOurGrabTarget(IXRInteractable interactable, out float reachMeters)
-    {
-        reachMeters = 0.55f;
-        Component c = interactable as Component;
-        if (c == null)
+        if (interactor is NearFarInteractor nf && nf.selectionRegion.Value == NearFarInteractor.Region.Far)
             return false;
 
-        if (c.GetComponent<ObjectPlacementSortBox>() != null)
-        {
-            reachMeters = 1.25f;
-            return true;
-        }
-
-        if (c.GetComponent<ObjectPlacementGroceryItem>() != null)
-        {
-            reachMeters = 0.55f;
-            return true;
-        }
-
-        return false;
+        return ObjectPlacementHandOnlyFilter.AllowsHandGrab(interactor, interactable as IXRInteractable, reach);
     }
 }
