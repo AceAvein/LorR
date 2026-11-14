@@ -164,6 +164,7 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         grab.selectMode = InteractableSelectMode.Single;
         grab.colliders.Clear();
         grab.colliders.Add(grabCollider);
+        ObjectPlacementHandOnlyFilter.AttachTo(grab);
 
         if (!grabWired)
         {
@@ -208,6 +209,10 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         TryTriggerSelectWhileHovered();
 
         if (IsHeld || beltRoot == null)
+            return;
+
+        // Belts only move after Btn_Start_World starts the conveyor.
+        if (host != null && !host.BeltIsRunning)
             return;
 
         if (atStopper)
@@ -258,8 +263,12 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         if (host == null)
             return;
 
-        if (host.JoinBeltQueue(this) < 0 && !atStopper)
-            return;
+        // Already requeued (incl. miss overflow) or newly joining under MaxBeltQueue.
+        if (!host.IsInBeltQueue(this))
+        {
+            if (host.JoinBeltQueue(this) < 0 && !atStopper)
+                return;
+        }
 
         Vector3 target = host.GetBeltQueueWorldPosition(this);
         float dist = Vector3.Distance(transform.position, target);
@@ -387,6 +396,13 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
             return;
         }
 
+        if (!ObjectPlacementHandOnlyFilter.AllowsHandGrab(args.interactorObject, grab))
+        {
+            pendingReject = true;
+            pendingInteractor = args.interactorObject;
+            return;
+        }
+
         bool left = IsLeftHand(args.interactorObject);
         float grip = ReadGrip(left);
         float trigger = ReadTrigger(left);
@@ -489,9 +505,10 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
 
         atStopper = false;
         onBelt = true;
-        if (host != null && host.BeltQueueHasRoom)
+        if (host != null)
         {
-            host.JoinBeltQueue(this);
+            // Always last in this set's line so misses never stack on the front.
+            host.RequeueAtEnd(this);
             FollowQueueSlot(true);
         }
         else

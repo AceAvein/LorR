@@ -8,7 +8,8 @@ using UnityEngine.UI;
 /// <summary>
 /// Object Placement Phase I (bible): 3×10 fruits/veg from left conveyor.
 /// Yellow + Red boxes only. Fruit=Grip→Yellow, Veg=Trigger→Red.
-/// Items stop at belt stopper; settle visibly inside boxes (correct or wrong).
+/// Items stay in boxes across all 3 sets. After set 3, two-hand-carry boxes
+/// onto the facing conveyor to finish Phase I (storyboard).
 /// </summary>
 [DisallowMultipleComponent]
 public class ObjectPlacementPhaseIRound : MonoBehaviour
@@ -26,6 +27,8 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     Collider yellowCol;
     Collider redCol;
     Transform beltStopper;
+    ObjectPlacementSortBox yellowSortBox;
+    ObjectPlacementSortBox redSortBox;
     readonly List<ObjectPlacementGroceryItem> beltQueue = new List<ObjectPlacementGroceryItem>();
 
     GameObject objectiveScreen;
@@ -55,13 +58,19 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     bool countingDown;
     bool running;
     bool setOpen;
+    bool boxDeliveryPhase;
+    bool waitingForConveyorStart;
     int setIndex;
     int setCorrect;
     int setWrong;
     int placedTotal;
     int placedCorrect;
+    int boxesDelivered;
     float spawnTimer;
     float wrongControlFlashUntil;
+
+    public bool BeltIsRunning => conveyor != null && conveyor.IsRunning;
+    public float BeltFlowSpeed => conveyor != null ? conveyor.BeltFlowSpeed : 0.38f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -115,6 +124,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         CacheBoxes();
         ApplyPhaseIBoxVisibility();
         CacheStopper();
+        SetupSortBoxes();
         StripLegacyProps();
         ObjectPlacementItemLibrary.EnsureLoaded();
 
@@ -125,6 +135,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
         EnsureCountdown();
         WireStart();
+        ObjectPlacementFarGrabBlocker.Install();
         ShowObjective();
         station.SetScreenText("PHASE I");
     }
@@ -139,8 +150,22 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         if (!running || !setOpen)
             return;
 
-        // Keep item belt speed locked to FlowMarks.
-        float speed = conveyor != null ? conveyor.BeltFlowSpeed : 0.38f;
+        if (!BeltIsRunning)
+        {
+            waitingForConveyorStart = true;
+            if (Time.time > wrongControlFlashUntil)
+                station.SetScreenText("PRESS START");
+            return;
+        }
+
+        if (waitingForConveyorStart)
+        {
+            waitingForConveyorStart = false;
+            station.SetScreenText("SET " + (setIndex + 1));
+        }
+
+        // Keep item belt speed locked to FlowMarks (only while conveyor is on).
+        float speed = BeltFlowSpeed;
         for (int i = 0; i < live.Count; i++)
         {
             if (live[i] != null && !live[i].Resolved)
@@ -185,6 +210,72 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
         if (station.boxesRoot != null)
             station.boxesRoot.gameObject.SetActive(true);
+    }
+
+    void SetupSortBoxes()
+    {
+        yellowSortBox = ConfigureSortBox(yellowBox, ObjectPlacementSortBox.BoxId.Yellow);
+        redSortBox = ConfigureSortBox(redBox, ObjectPlacementSortBox.BoxId.Red);
+        SetSortBoxesGrabEnabled(false);
+    }
+
+    ObjectPlacementSortBox ConfigureSortBox(Transform box, ObjectPlacementSortBox.BoxId id)
+    {
+        if (box == null)
+            return null;
+
+        ObjectPlacementSortBox sort = box.GetComponent<ObjectPlacementSortBox>();
+        if (sort == null)
+            sort = box.gameObject.AddComponent<ObjectPlacementSortBox>();
+
+        Transform belt;
+        float dir;
+        PickFacingConveyor(box, out belt, out dir);
+        sort.Configure(this, id, belt, dir);
+        return sort;
+    }
+
+    void PickFacingConveyor(Transform box, out Transform belt, out float direction)
+    {
+        Transform left = station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.conveyorLeft;
+        Transform right = station.beltSurface != null ? station.beltSurface : station.conveyor;
+
+        if (box == null)
+        {
+            belt = left != null ? left : right;
+            direction = belt == left ? -1f : 1f;
+            return;
+        }
+
+        float dLeft = left != null ? Vector3.Distance(box.position, left.position) : float.MaxValue;
+        float dRight = right != null ? Vector3.Distance(box.position, right.position) : float.MaxValue;
+        if (dLeft <= dRight && left != null)
+        {
+            belt = left;
+            direction = -1f;
+        }
+        else
+        {
+            belt = right;
+            direction = 1f;
+        }
+    }
+
+    void SetSortBoxesGrabEnabled(bool enabled)
+    {
+        if (yellowSortBox != null)
+            yellowSortBox.SetGrabEnabled(enabled);
+        if (redSortBox != null)
+            redSortBox.SetGrabEnabled(enabled);
+
+        // Scoring volumes stay triggers while sorting; grab mode flips collider in SortBox.
+        if (!enabled)
+        {
+            if (yellowCol != null)
+                yellowCol.isTrigger = true;
+            if (redCol != null)
+                redCol.isTrigger = true;
+        }
     }
 
     void ApplyPhaseIBoxVisibility()
@@ -338,12 +429,17 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         setIndex = 0;
         placedTotal = 0;
         placedCorrect = 0;
+        boxesDelivered = 0;
+        boxDeliveryPhase = false;
         running = true;
+        ClearPlacedInBoxes();
         RefillDecks();
-        if (conveyor != null)
-            conveyor.StartConveyors();
-        station.SetScreenText("SET 1");
+        SetSortBoxesGrabEnabled(false);
         BeginSet();
+        // Conveyor starts only from Btn_Start_World poke — not from UI start.
+        waitingForConveyorStart = !BeltIsRunning;
+        if (waitingForConveyorStart)
+            station.SetScreenText("PRESS START");
     }
 
     void RefillDecks()
@@ -359,7 +455,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     void BeginSet()
     {
         ClearUnresolvedLive();
-        ClearPlacedInBoxes();
+        // Keep sorted items in boxes across all 3 sets (clear only on new round).
         beltQueue.Clear();
         spawnQueue.Clear();
         scorePending.Clear();
@@ -367,6 +463,8 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         setWrong = 0;
         spawnTimer = 0.35f;
         setOpen = true;
+        boxDeliveryPhase = false;
+        SetSortBoxesGrabEnabled(false);
 
         List<SpawnSpec> batch = new List<SpawnSpec>(ObjectPlacementGroceryCatalog.PhaseIItemsPerSet);
         for (int i = 0; i < 5; i++)
@@ -403,6 +501,10 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     void TickSpawn()
     {
         if (spawnQueue.Count == 0)
+            return;
+
+        // Wait for Btn_Start_World before anything leaves the spawn.
+        if (!BeltIsRunning)
             return;
 
         // Queue full or still filling toward capacity — nothing new leaves the spawn.
@@ -447,6 +549,26 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
         beltQueue.Add(item);
         return beltQueue.Count - 1;
+    }
+
+    /// <summary>
+    /// Missed drop: always put item at the back of this set's line (may overflow MaxBeltQueue).
+    /// Spaced slots avoid stacking on the stopper.
+    /// </summary>
+    public int RequeueAtEnd(ObjectPlacementGroceryItem item)
+    {
+        if (item == null)
+            return -1;
+
+        CompactBeltQueue();
+        beltQueue.Remove(item);
+        beltQueue.Add(item);
+        return beltQueue.Count - 1;
+    }
+
+    public bool IsInBeltQueue(ObjectPlacementGroceryItem item)
+    {
+        return item != null && beltQueue.IndexOf(item) >= 0;
     }
 
     public void LeaveBeltQueue(ObjectPlacementGroceryItem item)
@@ -585,7 +707,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         bool correct;
         if (!TryScoreItem(item, out correct, out box))
         {
-            // Missed both boxes — park back at stopper for another try.
+            // Missed both boxes — return to conveyor at the end of this set's queue.
             item.ReturnToStopper();
             return;
         }
@@ -688,7 +810,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         setIndex++;
         if (setIndex >= ObjectPlacementGroceryCatalog.PhaseISetCount)
         {
-            StartCoroutine(EndAfterBeat());
+            StartCoroutine(BeginBoxDeliveryAfterBeat());
             return;
         }
 
@@ -701,9 +823,56 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         BeginSet();
     }
 
-    IEnumerator EndAfterBeat()
+    IEnumerator BeginBoxDeliveryAfterBeat()
     {
         yield return new WaitForSeconds(1.1f);
+        BeginBoxDeliveryPhase();
+    }
+
+    void BeginBoxDeliveryPhase()
+    {
+        running = false;
+        setOpen = false;
+        boxDeliveryPhase = true;
+        ClearUnresolvedLive();
+        SetSortBoxesGrabEnabled(true);
+        if (conveyor != null && !conveyor.IsRunning)
+            conveyor.StartConveyors();
+        station.SetScreenText("PUT BOXES ON CONVEYOR");
+    }
+
+    public void OnSortBoxMissed(ObjectPlacementSortBox box)
+    {
+        if (!boxDeliveryPhase)
+            return;
+        station.SetScreenText("USE BOTH HANDS → CONVEYOR");
+    }
+
+    public void OnSortBoxAccepted(ObjectPlacementSortBox box)
+    {
+        if (!boxDeliveryPhase)
+            return;
+        station.SetScreenText("BOX LOADING…");
+    }
+
+    public void OnSortBoxDelivered(ObjectPlacementSortBox box)
+    {
+        if (!boxDeliveryPhase)
+            return;
+
+        boxesDelivered++;
+        int remaining = 0;
+        if (yellowSortBox != null && !yellowSortBox.IsDelivered)
+            remaining++;
+        if (redSortBox != null && !redSortBox.IsDelivered)
+            remaining++;
+
+        if (remaining > 0)
+        {
+            station.SetScreenText("PUT NEXT BOX ON CONVEYOR");
+            return;
+        }
+
         EndRound();
     }
 
@@ -711,6 +880,8 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     {
         running = false;
         setOpen = false;
+        boxDeliveryPhase = false;
+        SetSortBoxesGrabEnabled(false);
         ClearUnresolvedLive();
         if (conveyor != null)
             conveyor.StopConveyors();
