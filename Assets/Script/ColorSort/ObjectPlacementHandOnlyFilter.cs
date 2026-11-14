@@ -11,32 +11,38 @@ using UnityEngine.XR.Interaction.Toolkit.Interactors;
 [DisallowMultipleComponent]
 public class ObjectPlacementHandOnlyFilter : MonoBehaviour, IXRHoverFilter, IXRSelectFilter
 {
-    const float HandReachMeters = 0.55f;
+    const float DefaultHandReachMeters = 0.55f;
+
+    float handReachMeters = DefaultHandReachMeters;
 
     public bool canProcess => isActiveAndEnabled;
 
     public bool Process(IXRHoverInteractor interactor, IXRHoverInteractable interactable)
     {
-        return AllowsHandGrab(interactor, interactable as IXRInteractable);
+        return AllowsHandGrab(interactor, interactable as IXRInteractable, handReachMeters);
     }
 
     public bool Process(IXRSelectInteractor interactor, IXRSelectInteractable interactable)
     {
-        return AllowsHandGrab(interactor, interactable as IXRInteractable);
+        return AllowsHandGrab(interactor, interactable as IXRInteractable, handReachMeters);
     }
 
     /// <summary>True when this interactor is distant/ray-style (should be rejected).</summary>
     public static bool IsRay(IXRInteractor interactor)
     {
-        return !AllowsHandGrab(interactor, null);
+        return !AllowsHandGrab(interactor, null, DefaultHandReachMeters);
     }
 
     public static bool AllowsHandGrab(IXRInteractor interactor, IXRInteractable interactable)
     {
+        return AllowsHandGrab(interactor, interactable, DefaultHandReachMeters);
+    }
+
+    public static bool AllowsHandGrab(IXRInteractor interactor, IXRInteractable interactable, float reachMeters)
+    {
         if (interactor == null)
             return false;
 
-        // Classic teleport/manipulation ray — never for groceries/crates.
         if (interactor is XRRayInteractor)
             return false;
 
@@ -45,19 +51,16 @@ public class ObjectPlacementHandOnlyFilter : MonoBehaviour, IXRHoverFilter, IXRS
 
         if (interactor is NearFarInteractor nearFar)
         {
-            // Already locked onto a far-ray target — reject.
             if (nearFar.selectionRegion.Value == NearFarInteractor.Region.Far)
                 return false;
 
-            // NearFar is both near-hand and far-ray. Gate by reach so far cast cannot grab.
-            return IsWithinHandReach(interactor, interactable);
+            return IsWithinHandReach(interactor, interactable, reachMeters);
         }
 
-        // Poke / other: not a grab hand for these items.
         return false;
     }
 
-    static bool IsWithinHandReach(IXRInteractor interactor, IXRInteractable interactable)
+    static bool IsWithinHandReach(IXRInteractor interactor, IXRInteractable interactable, float reachMeters)
     {
         Transform item = null;
         if (interactable is Component c)
@@ -68,14 +71,25 @@ public class ObjectPlacementHandOnlyFilter : MonoBehaviour, IXRHoverFilter, IXRS
         Vector3 hand = interactor.transform.position;
         float dist = Vector3.Distance(hand, item.position);
 
-        Collider col = item.GetComponent<Collider>();
-        if (col != null)
-            dist = Vector3.Distance(hand, col.ClosestPoint(hand));
+        Collider[] cols = item.GetComponentsInChildren<Collider>();
+        for (int i = 0; i < cols.Length; i++)
+        {
+            if (cols[i] == null || !cols[i].enabled)
+                continue;
+            float d = Vector3.Distance(hand, cols[i].ClosestPoint(hand));
+            if (d < dist)
+                dist = d;
+        }
 
-        return dist <= HandReachMeters;
+        return dist <= Mathf.Max(0.2f, reachMeters);
     }
 
     public static void AttachTo(XRGrabInteractable grab)
+    {
+        AttachTo(grab, DefaultHandReachMeters);
+    }
+
+    public static void AttachTo(XRGrabInteractable grab, float reachMeters)
     {
         if (grab == null)
             return;
@@ -84,7 +98,8 @@ public class ObjectPlacementHandOnlyFilter : MonoBehaviour, IXRHoverFilter, IXRS
         if (filter == null)
             filter = grab.gameObject.AddComponent<ObjectPlacementHandOnlyFilter>();
 
-        // IXRFilterList has no Contains — Remove then Add keeps a single registration.
+        filter.handReachMeters = reachMeters;
+
         grab.hoverFilters.Remove(filter);
         grab.hoverFilters.Add(filter);
         grab.selectFilters.Remove(filter);

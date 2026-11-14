@@ -838,7 +838,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         SetSortBoxesGrabEnabled(true);
         if (conveyor != null && !conveyor.IsRunning)
             conveyor.StartConveyors();
-        station.SetScreenText("PUT BOXES ON CONVEYOR");
+        station.SetScreenText("BOTH HANDS → PUT BOXES ON CONVEYOR");
     }
 
     public void OnSortBoxMissed(ObjectPlacementSortBox box)

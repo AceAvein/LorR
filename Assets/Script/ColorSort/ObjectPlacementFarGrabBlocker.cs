@@ -70,24 +70,45 @@ public static class ObjectPlacementFarGrabBlocker
 
     static bool AllowSelect(IXRSelectInteractor interactor, IXRSelectInteractable interactable)
     {
-        if (!IsOurGrabTarget(interactable))
+        float reach;
+        if (!IsOurGrabTarget(interactable, out reach))
             return true;
-        return ObjectPlacementHandOnlyFilter.AllowsHandGrab(interactor, interactable);
+        return ObjectPlacementHandOnlyFilter.AllowsHandGrab(interactor, interactable, reach);
     }
 
     static bool AllowHover(IXRHoverInteractor interactor, IXRHoverInteractable interactable)
     {
-        if (!IsOurGrabTarget(interactable))
+        float reach;
+        if (!IsOurGrabTarget(interactable, out reach))
             return true;
-        return ObjectPlacementHandOnlyFilter.AllowsHandGrab(interactor, interactable as IXRInteractable);
+        return ObjectPlacementHandOnlyFilter.AllowsHandGrab(interactor, interactable as IXRInteractable, reach);
     }
 
     static bool IsOurGrabTarget(IXRInteractable interactable)
     {
+        float reach;
+        return IsOurGrabTarget(interactable, out reach);
+    }
+
+    static bool IsOurGrabTarget(IXRInteractable interactable, out float reachMeters)
+    {
+        reachMeters = 0.55f;
         Component c = interactable as Component;
         if (c == null)
             return false;
-        return c.GetComponent<ObjectPlacementGroceryItem>() != null
-            || c.GetComponent<ObjectPlacementSortBox>() != null;
+
+        if (c.GetComponent<ObjectPlacementSortBox>() != null)
+        {
+            reachMeters = 1.25f;
+            return true;
+        }
+
+        if (c.GetComponent<ObjectPlacementGroceryItem>() != null)
+        {
+            reachMeters = 0.55f;
+            return true;
+        }
+
+        return false;
     }
 }

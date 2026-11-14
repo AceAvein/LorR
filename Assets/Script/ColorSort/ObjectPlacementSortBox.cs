@@ -26,7 +26,8 @@ public class ObjectPlacementSortBox : MonoBehaviour
     Transform homeParent;
     XRGrabInteractable grab;
     Rigidbody body;
-    Collider boxCollider;
+    Collider scoreCollider;
+    BoxCollider grabCollider;
     bool grabEnabled;
     bool delivering;
     bool delivered;
@@ -44,7 +45,7 @@ public class ObjectPlacementSortBox : MonoBehaviour
         homePos = transform.position;
         homeRot = transform.rotation;
         homeParent = transform.parent;
-        boxCollider = GetComponent<Collider>();
+        scoreCollider = GetComponent<Collider>();
         EnsureGrab(false);
     }
 
@@ -69,8 +70,11 @@ public class ObjectPlacementSortBox : MonoBehaviour
         body.useGravity = false;
         body.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
-        if (boxCollider != null)
-            boxCollider.isTrigger = !forUse;
+        // Keep score trigger for Phase I sorting; use a separate solid grab volume for hands.
+        if (scoreCollider != null && scoreCollider != grabCollider)
+            scoreCollider.isTrigger = true;
+
+        EnsureGrabCollider();
 
         grab = GetComponent<XRGrabInteractable>();
         if (grab == null)
@@ -83,23 +87,88 @@ public class ObjectPlacementSortBox : MonoBehaviour
         // Manual two-hand midpoint in Update (one hand cannot lift).
         grab.trackPosition = false;
         grab.trackRotation = false;
-        ObjectPlacementHandOnlyFilter.AttachTo(grab);
+        grab.colliders.Clear();
+        if (grabCollider != null)
+            grab.colliders.Add(grabCollider);
+
+        // Looser hand-reach than groceries — crates are large.
+        ObjectPlacementHandOnlyFilter.AttachTo(grab, 1.25f);
 
         grab.selectEntered.RemoveListener(OnSelectEntered);
         grab.selectExited.RemoveListener(OnSelectExited);
         grab.selectEntered.AddListener(OnSelectEntered);
         grab.selectExited.AddListener(OnSelectExited);
         grab.enabled = forUse;
+
+        if (grabCollider != null)
+            grabCollider.enabled = forUse;
+    }
+
+    void EnsureGrabCollider()
+    {
+        if (grabCollider == null)
+        {
+            // Dedicated volume so we don't fight the score trigger collider.
+            GameObject volume = transform.Find("GrabVolume") != null
+                ? transform.Find("GrabVolume").gameObject
+                : new GameObject("GrabVolume");
+            volume.transform.SetParent(transform, false);
+            volume.transform.localPosition = Vector3.zero;
+            volume.transform.localRotation = Quaternion.identity;
+            volume.transform.localScale = Vector3.one;
+            grabCollider = volume.GetComponent<BoxCollider>();
+            if (grabCollider == null)
+                grabCollider = volume.AddComponent<BoxCollider>();
+        }
+
+        Bounds b = GetLocalRendererBounds();
+        grabCollider.isTrigger = false;
+        grabCollider.center = b.center;
+        grabCollider.size = Vector3.Max(b.size, new Vector3(0.28f, 0.22f, 0.28f)) * 1.05f;
+    }
+
+    Bounds GetLocalRendererBounds()
+    {
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+        if (renderers.Length == 0)
+            return new Bounds(Vector3.up * 0.12f, new Vector3(0.35f, 0.28f, 0.35f));
+
+        Bounds world = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++)
+            world.Encapsulate(renderers[i].bounds);
+
+        Vector3 localCenter = transform.InverseTransformPoint(world.center);
+        Vector3 lossy = transform.lossyScale;
+        Vector3 localSize = new Vector3(
+            world.size.x / Mathf.Max(0.0001f, Mathf.Abs(lossy.x)),
+            world.size.y / Mathf.Max(0.0001f, Mathf.Abs(lossy.y)),
+            world.size.z / Mathf.Max(0.0001f, Mathf.Abs(lossy.z)));
+        return new Bounds(localCenter, localSize);
     }
 
     void OnSelectEntered(SelectEnterEventArgs args)
     {
-        if (!ObjectPlacementHandOnlyFilter.AllowsHandGrab(args.interactorObject, grab))
+        if (!grabEnabled || delivering || delivered)
         {
-            if (grab != null && grab.interactionManager != null)
-                grab.interactionManager.SelectExit(args.interactorObject, grab);
+            RejectSelect(args.interactorObject);
             return;
         }
+
+        if (!ObjectPlacementHandOnlyFilter.AllowsHandGrab(args.interactorObject, grab, 1.25f))
+        {
+            RejectSelect(args.interactorObject);
+            return;
+        }
+
+        // Stay planted until both hands are on it.
+        if (grab != null && grab.interactorsSelecting.Count < 2)
+            transform.SetPositionAndRotation(homePos, homeRot);
+    }
+
+    void RejectSelect(IXRSelectInteractor interactor)
+    {
+        if (grab != null && grab.interactionManager != null && interactor != null)
+            grab.interactionManager.SelectExit(interactor, grab);
     }
 
     void OnSelectExited(SelectExitEventArgs args)
@@ -109,6 +178,8 @@ public class ObjectPlacementSortBox : MonoBehaviour
 
         if (grab != null && grab.interactorsSelecting.Count == 0)
             TryAcceptDrop();
+        else if (grab != null && grab.interactorsSelecting.Count == 1)
+            transform.SetPositionAndRotation(homePos, homeRot);
     }
 
     void Update()
@@ -126,11 +197,7 @@ public class ObjectPlacementSortBox : MonoBehaviour
                 transform.position = mid;
             }
         }
-        else if (grab.interactorsSelecting.Count == 1)
-        {
-            // One hand cannot lift the crate.
-            transform.SetPositionAndRotation(homePos, homeRot);
-        }
+        // Do not snap every frame with 1 hand — that cancels XR selection.
     }
 
     void TryAcceptDrop()
@@ -158,15 +225,14 @@ public class ObjectPlacementSortBox : MonoBehaviour
         if (beltCol != null)
         {
             Bounds b = beltCol.bounds;
-            b.Expand(0.2f);
+            b.Expand(0.25f);
             return b.Intersects(item);
         }
 
-        // Fallback: near belt surface along up-axis and within length.
         Vector3 local = belt.InverseTransformPoint(transform.position);
-        float halfX = Mathf.Max(0.2f, Mathf.Abs(belt.lossyScale.x) * 0.55f);
-        float halfZ = Mathf.Max(0.15f, Mathf.Abs(belt.lossyScale.z) * 0.55f);
-        return Mathf.Abs(local.x) <= halfX && Mathf.Abs(local.z) <= halfZ && local.y > -0.05f && local.y < 0.45f;
+        float halfX = Mathf.Max(0.25f, Mathf.Abs(belt.lossyScale.x) * 0.55f);
+        float halfZ = Mathf.Max(0.18f, Mathf.Abs(belt.lossyScale.z) * 0.55f);
+        return Mathf.Abs(local.x) <= halfX && Mathf.Abs(local.z) <= halfZ && local.y > -0.05f && local.y < 0.5f;
     }
 
     void BeginRide()
@@ -180,8 +246,8 @@ public class ObjectPlacementSortBox : MonoBehaviour
             grab.enabled = false;
         }
 
-        if (boxCollider != null)
-            boxCollider.enabled = false;
+        if (grabCollider != null)
+            grabCollider.enabled = false;
 
         transform.SetParent(belt != null ? belt : null, true);
         if (rideRoutine != null)
@@ -192,7 +258,6 @@ public class ObjectPlacementSortBox : MonoBehaviour
 
     IEnumerator RideInward()
     {
-        // Slide along belt into the infeed / tunnel, then despawn.
         float travel = 1.6f;
         float speed = host != null && host.BeltFlowSpeed > 0.01f ? host.BeltFlowSpeed * 1.35f : 0.5f;
         Vector3 axis = belt != null ? belt.right * beltDirection : Vector3.right * beltDirection;
