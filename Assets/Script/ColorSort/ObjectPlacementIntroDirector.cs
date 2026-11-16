@@ -36,6 +36,8 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     [SerializeField] float fadeSeconds = 0.65f;
     [SerializeField] float beltRideSeconds = 2.4f;
     [SerializeField] float toBoxSeconds = 1.15f;
+    [Tooltip("Pull cutscene items back from the belt end so they don't overshoot.")]
+    [SerializeField] float demoBeltStopPullback = 0.28f;
     [SerializeField] float beatPause = 2.0f;
     [SerializeField] float camBlendSeconds = 1.1f;
     [SerializeField] float talkFontSize = 0.55f;
@@ -139,6 +141,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     BoxAnimState pendingYellowRestore;
     BoxAnimState pendingRedRestore;
     bool hasPendingBoxRestore;
+    readonly List<GameObject> demoPlacedProps = new List<GameObject>();
+    int demoFruitInBox;
+    int demoVegInBox;
 
     struct DemoBeat
     {
@@ -212,6 +217,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             instance = null;
         RestorePoseDrivers();
         RestoreHighlights();
+        ClearDemoPlacedProps();
     }
 
     bool HandleStartPressed()
@@ -730,6 +736,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         cutsceneRunning = true;
         ColorSortWalk.MovementLocked = true;
         SetTalkVisible(false);
+        ClearDemoPlacedProps();
 
         yield return Fade(1f);
         if (station != null)
@@ -808,6 +815,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         yield return ShowGuide("Great. Now you try.", 1.6f);
         yield return AnimateLetterbox(0f, 0.4f);
         yield return Fade(1f);
+
+        // Clear demo groceries only after the cutscene finishes (kept in boxes until now).
+        ClearDemoPlacedProps();
 
         // Restore boxes while screen is black so Phase I starts with crates at home.
         if (hasPendingBoxRestore)
@@ -1070,8 +1080,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         yield return ShowGuide(beat.guide, beatPause);
 
         Vector3 spawn = GetBeltSpawn();
-        Vector3 stopper = GetBeltStopper();
-        Vector3 boxTarget = box != null ? box.position + Vector3.up * 0.14f : stopper + Vector3.up * 0.2f;
+        Vector3 stopper = GetDemoBeltStop(spawn);
+        int stackIndex = beat.kind == ObjectPlacementGroceryKind.Fruit ? demoFruitInBox : demoVegInBox;
+        Vector3 boxTarget = GetDemoBoxSeat(box, stopper, stackIndex);
 
         // Slight lateral offset so fruit/veg don't overlap perfectly.
         Vector3 side = beat.kind == ObjectPlacementGroceryKind.Fruit ? Vector3.forward * 0.04f : Vector3.back * 0.04f;
@@ -1086,11 +1097,61 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         yield return MovePropArc(prop, boxTarget, toBoxSeconds);
         yield return new WaitForSeconds(0.55f);
 
-        if (prop != null)
-            Destroy(prop);
+        // Keep items inside the box until cutscene end.
+        SettleDemoPropInBox(prop, box, boxTarget);
+        if (beat.kind == ObjectPlacementGroceryKind.Fruit)
+            demoFruitInBox++;
+        else
+            demoVegInBox++;
 
         PulseBox(box, false);
         yield return new WaitForSeconds(0.35f);
+    }
+
+    /// <summary>Stop short of the belt end so demo items don't overshoot.</summary>
+    Vector3 GetDemoBeltStop(Vector3 spawn)
+    {
+        Vector3 stopper = GetBeltStopper();
+        Vector3 pull = spawn - stopper;
+        pull.y = 0f;
+        if (pull.sqrMagnitude > 0.0001f)
+            stopper += pull.normalized * Mathf.Max(0f, demoBeltStopPullback);
+        return stopper;
+    }
+
+    static Vector3 GetDemoBoxSeat(Transform box, Vector3 fallback, int stackIndex)
+    {
+        if (box == null)
+            return fallback + Vector3.up * 0.2f;
+
+        float y = 0.12f + stackIndex * 0.08f;
+        float x = (stackIndex % 2 == 0) ? -0.06f : 0.06f;
+        float z = (stackIndex < 2) ? 0.04f : -0.04f;
+        return box.TransformPoint(new Vector3(x, y, z));
+    }
+
+    void SettleDemoPropInBox(GameObject prop, Transform box, Vector3 worldSeat)
+    {
+        if (prop == null)
+            return;
+
+        if (box != null)
+            prop.transform.SetParent(box, true);
+        prop.transform.position = worldSeat;
+        if (!demoPlacedProps.Contains(prop))
+            demoPlacedProps.Add(prop);
+    }
+
+    void ClearDemoPlacedProps()
+    {
+        for (int i = 0; i < demoPlacedProps.Count; i++)
+        {
+            if (demoPlacedProps[i] != null)
+                Destroy(demoPlacedProps[i]);
+        }
+        demoPlacedProps.Clear();
+        demoFruitInBox = 0;
+        demoVegInBox = 0;
     }
 
     Vector3 GetBeltSpawn()
