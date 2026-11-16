@@ -433,10 +433,29 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         if (countingDown || running)
             return;
 
+        // Intro director owns the first Btn_Start (unlock walk → dialogue → cutscene).
+        if (!ObjectPlacementIntroDirector.HasCompleted)
+        {
+            ObjectPlacementIntroDirector.TryConsumeStartButton();
+            return;
+        }
+
         if (objectiveScreen != null)
             objectiveScreen.SetActive(false);
 
         StartCoroutine(CountdownThenStart());
+    }
+
+    /// <summary>Called after Rivera intro cutscene — arm Phase I without another countdown.</summary>
+    public void ArmTrainingAfterIntro()
+    {
+        if (running || countingDown)
+            return;
+
+        if (objectiveScreen != null)
+            objectiveScreen.SetActive(false);
+
+        StartRound();
     }
 
     IEnumerator CountdownThenStart()

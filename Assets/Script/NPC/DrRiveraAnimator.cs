@@ -32,11 +32,11 @@ public class DrRiveraAnimator : MonoBehaviour
     public void SetObserving(bool on) => SetExclusiveHold(Params.IsObserving, on);
     public void SetSad(bool on) => SetExclusiveHold(Params.IsSad, on);
 
-    public void Point() => Fire(Params.Point);
-    public void Clap() => Fire(Params.Clap);
-    public void Wave() => Fire(Params.Wave);
-    public void Agree() => Fire(Params.Agree);
-    public void Greet() => Fire(Params.Greet);
+    public void Point() => FireOneShot(Params.Point);
+    public void Clap() => FireOneShot(Params.Clap);
+    public void Wave() => FireOneShot(Params.Wave);
+    public void Agree() => FireOneShot(Params.Agree);
+    public void Greet() => FireOneShot(Params.Greet);
 
     public void ReturnToIdle()
     {
@@ -47,6 +47,13 @@ public class DrRiveraAnimator : MonoBehaviour
         animator.SetBool(Params.IsTalking, false);
         animator.SetBool(Params.IsObserving, false);
         animator.SetBool(Params.IsSad, false);
+    }
+
+    /// <summary>One-shots only transition from Idle in DrRivera.controller — clear holds first.</summary>
+    void FireOneShot(string trigger)
+    {
+        ReturnToIdle();
+        Fire(trigger);
     }
 
     /// <summary>Welcome beat: greet one-shot then hold talking.</summary>
