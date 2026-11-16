@@ -38,6 +38,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     [SerializeField] float toBoxSeconds = 1.15f;
     [SerializeField] float beatPause = 2.0f;
     [SerializeField] float camBlendSeconds = 1.1f;
+    [SerializeField] float talkFontSize = 0.55f;
+    [SerializeField] float pageHoldSeconds = 1.35f;
+    [SerializeField] float guideFontSize = 32f;
 
     ObjectPlacementStation station;
     ObjectPlacementConveyorController conveyor;
@@ -77,6 +80,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     bool startConsumed;
     bool dialogueStarted;
     bool cutsceneRunning;
+    BoxAnimState pendingYellowRestore;
+    BoxAnimState pendingRedRestore;
+    bool hasPendingBoxRestore;
 
     struct DemoBeat
     {
@@ -139,7 +145,8 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         EnsureEffectsUi();
         EnsureCinemaCamera();
         SetTalkVisible(false);
-        SetPadVisible(true);
+        // Circle only after Btn_Start unlocks walk.
+        SetPadVisible(false);
     }
 
     void OnDestroy()
@@ -200,94 +207,89 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         }
         if (talk == null)
             return;
+
         talkCanvas = talk.gameObject;
         talkText = talk.GetComponentInChildren<TMP_Text>(true);
-        if (talkText != null)
-            talkText.text = string.Empty;
+        if (talkText == null)
+            return;
+
+        // Fit Text (TMP) inside its parent Image panel (scene: Talk/Image/Text (TMP)).
+        RectTransform textRt = talkText.rectTransform;
+        RectTransform panelRt = textRt.parent as RectTransform;
+        if (panelRt != null)
+        {
+            textRt.anchorMin = new Vector2(0.06f, 0.08f);
+            textRt.anchorMax = new Vector2(0.94f, 0.92f);
+            textRt.pivot = new Vector2(0.5f, 0.5f);
+            textRt.anchoredPosition = Vector2.zero;
+            textRt.sizeDelta = Vector2.zero;
+            textRt.offsetMin = new Vector2(0.12f, 0.12f);
+            textRt.offsetMax = new Vector2(-0.12f, -0.12f);
+        }
+
+        talkText.text = string.Empty;
+        talkText.alignment = TextAlignmentOptions.TopLeft;
+        talkText.textWrappingMode = TextWrappingModes.Normal;
+        talkText.overflowMode = TextOverflowModes.Truncate;
+        // Fixed readable size — pagination handles overflow (no auto-shrink).
+        talkText.enableAutoSizing = false;
+        float fixedSize = talkFontSize > 0.05f ? talkFontSize : 0.55f;
+        if (talkText.fontSize > 0.2f && talkText.fontSize < 1.2f)
+            fixedSize = talkText.fontSize;
+        talkFontSize = fixedSize;
+        talkText.fontSize = fixedSize;
+        talkText.fontSizeMin = fixedSize;
+        talkText.fontSizeMax = fixedSize;
+        talkText.margin = Vector4.zero;
     }
 
     void SetupDialoguePad()
     {
-        dialogueZone = GameObject.Find("Dialogue");
-        if (dialogueZone == null && riveraRoot != null)
-        {
-            dialogueZone = new GameObject("Dialogue");
-            Vector3 flatFwd = riveraRoot.forward;
-            flatFwd.y = 0f;
-            if (flatFwd.sqrMagnitude < 0.01f)
-                flatFwd = Vector3.forward;
-            flatFwd.Normalize();
-            dialogueZone.transform.position = riveraRoot.position + flatFwd * 1.05f;
-        }
+        // ONLY the scene hierarchy object "Dialogue circle" — never invent "Dialogue".
+        dialogueZone = GameObject.Find("Dialogue circle");
         if (dialogueZone == null)
+        {
+            Debug.LogError("ObjectPlacementIntroDirector: required scene object 'Dialogue circle' was not found.");
             return;
-
-        // Flatten marker to floor — this object IS the step circle.
-        Vector3 p = dialogueZone.transform.position;
-        p.y = 0.02f;
-        dialogueZone.transform.position = p;
-        dialogueZone.transform.rotation = Quaternion.identity;
-        dialogueZone.transform.localScale = Vector3.one;
-
-        // Remove old mesh / extra triggers — circle only.
-        MeshRenderer oldMr = dialogueZone.GetComponent<MeshRenderer>();
-        if (oldMr != null)
-            oldMr.enabled = false;
-        MeshFilter oldMf = dialogueZone.GetComponent<MeshFilter>();
-        if (oldMf != null)
-            Destroy(oldMf);
-        CapsuleCollider[] oldCaps = dialogueZone.GetComponents<CapsuleCollider>();
-        for (int i = 0; i < oldCaps.Length; i++)
-            Destroy(oldCaps[i]);
-        Transform oldProbe = dialogueZone.transform.Find("IntroTrigger");
-        if (oldProbe != null)
-            Destroy(oldProbe.gameObject);
-
-        Transform visual = dialogueZone.transform.Find("DialoguePadVisual");
-        if (visual == null)
-        {
-            GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            ring.name = "DialoguePadVisual";
-            ring.transform.SetParent(dialogueZone.transform, false);
-            ring.transform.localPosition = new Vector3(0f, 0.02f, 0f);
-            ring.transform.localScale = new Vector3(1.4f, 0.025f, 1.4f);
-            // Collider stays on the circle mesh — convert to trigger on parent instead.
-            Collider ringCol = ring.GetComponent<Collider>();
-            if (ringCol != null)
-                Destroy(ringCol);
-            MeshRenderer mr = ring.GetComponent<MeshRenderer>();
-            mr.sharedMaterial = MakePadMaterial();
-            dialoguePadVisual = ring;
-
-            GameObject labelGo = new GameObject("PadLabel");
-            labelGo.transform.SetParent(ring.transform, false);
-            labelGo.transform.localPosition = new Vector3(0f, 1.6f, 0f);
-            labelGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            labelGo.transform.localScale = Vector3.one * 0.14f;
-            TextMeshPro tmp = labelGo.AddComponent<TextMeshPro>();
-            tmp.text = "STEP HERE";
-            tmp.fontSize = 9f;
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = new Color(0.05f, 0.12f, 0.22f, 1f);
-            tmp.textWrappingMode = TextWrappingModes.NoWrap;
-        }
-        else
-        {
-            dialoguePadVisual = visual.gameObject;
-            Collider ringCol = dialoguePadVisual.GetComponent<Collider>();
-            if (ringCol != null)
-                Destroy(ringCol);
         }
 
-        // Single trigger on the Dialogue circle root (matches the visible pad).
-        dialoguePadCollider = dialogueZone.GetComponent<CapsuleCollider>();
-        if (dialoguePadCollider == null)
-            dialoguePadCollider = dialogueZone.AddComponent<CapsuleCollider>();
-        dialoguePadCollider.isTrigger = true;
-        dialoguePadCollider.direction = 1;
-        dialoguePadCollider.radius = 0.75f;
-        dialoguePadCollider.height = 2.0f;
-        dialoguePadCollider.center = new Vector3(0f, 1.0f, 0f);
+        // Clean leftovers from older runtime builds (do not keep alternate trigger systems).
+        Transform leftoverProbe = dialogueZone.transform.Find("IntroTrigger");
+        if (leftoverProbe != null)
+            Destroy(leftoverProbe.gameObject);
+        Transform leftoverVisual = dialogueZone.transform.Find("DialoguePadVisual");
+        if (leftoverVisual != null)
+            Destroy(leftoverVisual.gameObject);
+        Transform leftoverLabel = dialogueZone.transform.Find("PadLabel");
+        if (leftoverLabel != null)
+            Destroy(leftoverLabel.gameObject);
+
+        // Keep authored flat-cylinder transform/mesh from Color Sort.unity.
+        MeshRenderer circleMr = dialogueZone.GetComponent<MeshRenderer>();
+        if (circleMr != null)
+        {
+            circleMr.enabled = true;
+            circleMr.sharedMaterial = MakePadMaterial();
+        }
+        dialoguePadVisual = dialogueZone;
+
+        // Reuse the existing CapsuleCollider on Dialogue circle; compensate flat Y scale
+        // so world size is walkable (~0.45m radius, ~2m tall).
+        CapsuleCollider capsule = dialogueZone.GetComponent<CapsuleCollider>();
+        if (capsule == null)
+            capsule = dialogueZone.AddComponent<CapsuleCollider>();
+        dialoguePadCollider = capsule;
+
+        Vector3 ls = dialogueZone.transform.lossyScale;
+        float sx = Mathf.Max(0.01f, Mathf.Abs(ls.x));
+        float sy = Mathf.Max(0.01f, Mathf.Abs(ls.y));
+        capsule.isTrigger = true;
+        capsule.direction = 1;
+        capsule.radius = 0.45f / sx;
+        capsule.height = 2.0f / sy;
+        capsule.center = new Vector3(0f, 1.0f / sy, 0f);
+        // Disabled until Btn_Start — prevents load-time / early triggers.
+        capsule.enabled = false;
 
         ObjectPlacementDialogueTrigger trigger = dialogueZone.GetComponent<ObjectPlacementDialogueTrigger>();
         if (trigger == null)
@@ -296,6 +298,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
         if (dialogueZone.GetComponent<ObjectPlacementDialoguePadPulse>() == null)
             dialogueZone.AddComponent<ObjectPlacementDialoguePadPulse>();
+
+        // Hidden until Start unlocks walk.
+        dialogueZone.SetActive(false);
     }
 
     static Material MakePadMaterial()
@@ -320,98 +325,150 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     void EnsureEffectsUi()
     {
         if (hmdCamera == null)
+            hmdCamera = Camera.main;
+        if (hmdCamera == null)
             return;
 
-        Transform existing = hmdCamera.transform.Find("IntroEffectsCanvas");
-        GameObject canvasGo;
-        if (existing != null)
+        // Prefer a root-level canvas so Screen Space works in VR + Game View / Device Simulator.
+        GameObject canvasGo = GameObject.Find("IntroEffectsCanvas");
+        if (canvasGo == null)
         {
-            canvasGo = existing.gameObject;
-            effectsCanvas = canvasGo.GetComponent<Canvas>();
+            Transform underCam = hmdCamera.transform.Find("IntroEffectsCanvas");
+            if (underCam != null)
+                canvasGo = underCam.gameObject;
         }
-        else
+
+        if (canvasGo == null)
         {
             canvasGo = new GameObject("IntroEffectsCanvas");
-            canvasGo.transform.SetParent(hmdCamera.transform, false);
-            effectsCanvas = canvasGo.AddComponent<Canvas>();
-            effectsCanvas.renderMode = RenderMode.WorldSpace;
-            effectsCanvas.sortingOrder = 1000;
-
             fadeImage = MakeFullImage(canvasGo.transform, "Fade", new Color(0f, 0f, 0f, 0f), 0);
             vignetteImage = MakeFullImage(canvasGo.transform, "Vignette", new Color(0f, 0f, 0f, 0f), 1);
             letterboxTop = MakeBar(canvasGo.transform, "LetterboxTop", true);
             letterboxBottom = MakeBar(canvasGo.transform, "LetterboxBottom", false);
         }
 
+        // Detach from camera local space — Screen Space - Camera handles framing.
+        if (canvasGo.transform.parent != null)
+            canvasGo.transform.SetParent(null, false);
+
+        effectsCanvas = canvasGo.GetComponent<Canvas>();
+        if (effectsCanvas == null)
+            effectsCanvas = canvasGo.AddComponent<Canvas>();
+
+        effectsCanvas.renderMode = RenderMode.ScreenSpaceCamera;
+        effectsCanvas.worldCamera = hmdCamera;
+        effectsCanvas.planeDistance = 0.45f;
+        effectsCanvas.overrideSorting = true;
+        effectsCanvas.sortingOrder = 5000;
+        effectsCanvas.enabled = true;
+
+        CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
+        if (scaler == null)
+            scaler = canvasGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        // iPad mini 4 landscape reference; MatchWidthOrHeight keeps VR + simulator readable.
+        scaler.referenceResolution = new Vector2(2048f, 1536f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
+        scaler.referencePixelsPerUnit = 100f;
+
+        if (canvasGo.GetComponent<CanvasGroup>() == null)
+        {
+            CanvasGroup cg = canvasGo.AddComponent<CanvasGroup>();
+            cg.alpha = 1f;
+            cg.interactable = false;
+            cg.blocksRaycasts = false;
+        }
+        else
+        {
+            CanvasGroup cg = canvasGo.GetComponent<CanvasGroup>();
+            cg.alpha = 1f;
+        }
+
         RectTransform canvasRt = canvasGo.GetComponent<RectTransform>();
         if (canvasRt == null)
             canvasRt = canvasGo.AddComponent<RectTransform>();
-        canvasRt.sizeDelta = new Vector2(2f, 2f);
-        canvasRt.localPosition = new Vector3(0f, 0f, 0.28f);
-        canvasRt.localScale = Vector3.one * 0.55f;
+        canvasRt.localScale = Vector3.one;
+        canvasRt.localRotation = Quaternion.identity;
+        canvasRt.anchorMin = Vector2.zero;
+        canvasRt.anchorMax = Vector2.one;
+        canvasRt.pivot = new Vector2(0.5f, 0.5f);
+        canvasRt.offsetMin = Vector2.zero;
+        canvasRt.offsetMax = Vector2.zero;
 
         if (fadeImage == null)
             fadeImage = canvasGo.transform.Find("Fade")?.GetComponent<Image>();
+        if (vignetteImage == null)
+            vignetteImage = canvasGo.transform.Find("Vignette")?.GetComponent<Image>();
         if (letterboxTop == null)
             letterboxTop = canvasGo.transform.Find("LetterboxTop")?.GetComponent<Image>();
         if (letterboxBottom == null)
             letterboxBottom = canvasGo.transform.Find("LetterboxBottom")?.GetComponent<Image>();
 
-        // Always rebuild guide plate so text stays readable (old tiny text gets replaced).
+        if (fadeImage == null)
+            fadeImage = MakeFullImage(canvasGo.transform, "Fade", new Color(0f, 0f, 0f, 0f), 0);
+        if (vignetteImage == null)
+            vignetteImage = MakeFullImage(canvasGo.transform, "Vignette", new Color(0f, 0f, 0f, 0f), 1);
+        if (letterboxTop == null)
+            letterboxTop = MakeBar(canvasGo.transform, "LetterboxTop", true);
+        if (letterboxBottom == null)
+            letterboxBottom = MakeBar(canvasGo.transform, "LetterboxBottom", false);
+
+        // Rebuild lower subtitle band with responsive anchors (not fixed pixels).
         Transform oldGuide = canvasGo.transform.Find("GuidePanel");
         if (oldGuide != null)
             Destroy(oldGuide.gameObject);
-        Transform oldGuideText = canvasGo.transform.Find("GuideText");
-        if (oldGuideText != null)
-            Destroy(oldGuideText.gameObject);
 
         GameObject panel = new GameObject("GuidePanel");
         panel.transform.SetParent(canvasGo.transform, false);
         RectTransform prt = panel.AddComponent<RectTransform>();
-        // Centered, above letterbox — large readable band.
-        prt.anchorMin = new Vector2(0.06f, 0.30f);
-        prt.anchorMax = new Vector2(0.94f, 0.52f);
+        prt.anchorMin = new Vector2(0.06f, 0.045f);
+        prt.anchorMax = new Vector2(0.94f, 0.20f);
+        prt.pivot = new Vector2(0.5f, 0f);
         prt.offsetMin = Vector2.zero;
         prt.offsetMax = Vector2.zero;
         guidePlate = panel.AddComponent<Image>();
-        guidePlate.color = new Color(0f, 0f, 0f, 0.72f);
+        guidePlate.color = new Color(0f, 0f, 0f, 0.78f);
         guidePlate.raycastTarget = false;
 
         GameObject guideGo = new GameObject("GuideText");
         guideGo.transform.SetParent(panel.transform, false);
         RectTransform grt = guideGo.AddComponent<RectTransform>();
-        grt.anchorMin = new Vector2(0.04f, 0.08f);
-        grt.anchorMax = new Vector2(0.96f, 0.92f);
-        grt.offsetMin = Vector2.zero;
-        grt.offsetMax = Vector2.zero;
+        grt.anchorMin = Vector2.zero;
+        grt.anchorMax = Vector2.one;
+        grt.offsetMin = new Vector2(18f, 10f);
+        grt.offsetMax = new Vector2(-18f, -10f);
         guideText = guideGo.AddComponent<TextMeshProUGUI>();
         guideText.alignment = TextAlignmentOptions.Center;
-        guideText.fontSize = 0.32f;
-        guideText.fontSizeMin = 0.22f;
-        guideText.fontSizeMax = 0.42f;
-        guideText.enableAutoSizing = true;
+        guideText.enableAutoSizing = false;
+        guideText.fontSize = guideFontSize;
         guideText.color = Color.white;
+        guideText.alpha = 1f;
         guideText.text = string.Empty;
         guideText.textWrappingMode = TextWrappingModes.Normal;
+        guideText.overflowMode = TextOverflowModes.Truncate;
         guideText.fontStyle = FontStyles.Bold;
-        Outline outline = guideGo.AddComponent<Outline>();
-        outline.effectColor = new Color(0f, 0f, 0f, 0.95f);
-        outline.effectDistance = new Vector2(2f, -2f);
+        guideText.outlineWidth = 0.2f;
+        guideText.outlineColor = new Color(0f, 0f, 0f, 0.95f);
 
-        // Slimmer letterbox so guide plate has room.
         if (letterboxTop != null)
         {
             RectTransform trt = letterboxTop.rectTransform;
-            trt.anchorMin = new Vector2(0f, 0.88f);
+            trt.anchorMin = new Vector2(0f, 0.90f);
             trt.anchorMax = new Vector2(1f, 1f);
+            trt.offsetMin = Vector2.zero;
+            trt.offsetMax = Vector2.zero;
         }
         if (letterboxBottom != null)
         {
             RectTransform brt = letterboxBottom.rectTransform;
             brt.anchorMin = new Vector2(0f, 0f);
-            brt.anchorMax = new Vector2(1f, 0.12f);
+            brt.anchorMax = new Vector2(1f, 0.035f);
+            brt.offsetMin = Vector2.zero;
+            brt.offsetMax = Vector2.zero;
         }
 
+        canvasGo.SetActive(true);
         SetLetterbox(0f);
         SetGuide(string.Empty);
     }
@@ -503,14 +560,18 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     {
         if (dialoguePadCollider != null)
             dialoguePadCollider.enabled = false;
-        if (dialoguePadVisual != null)
-            dialoguePadVisual.SetActive(false);
+
+        // Hide the scene Dialogue circle entirely after step-on.
         if (dialogueZone != null)
         {
             ObjectPlacementDialoguePadPulse pulse = dialogueZone.GetComponent<ObjectPlacementDialoguePadPulse>();
             if (pulse != null)
                 pulse.enabled = false;
             dialogueZone.SetActive(false);
+        }
+        else if (dialoguePadVisual != null)
+        {
+            dialoguePadVisual.SetActive(false);
         }
     }
 
@@ -638,6 +699,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (conveyor != null)
             conveyor.StopConveyors();
 
+        // Final beat: lift sorted boxes onto the front conveyor, then end.
+        yield return PlayBoxDeliveryDemo();
+
         if (rivera != null)
         {
             rivera.Agree();
@@ -649,6 +713,14 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         yield return AnimateLetterbox(0f, 0.4f);
         yield return Fade(1f);
 
+        // Restore boxes while screen is black so Phase I starts with crates at home.
+        if (hasPendingBoxRestore)
+        {
+            RestoreBoxState(station != null ? station.yellowBox : null, pendingYellowRestore);
+            RestoreBoxState(station != null ? station.redBox : null, pendingRedRestore);
+            hasPendingBoxRestore = false;
+        }
+
         EndCinemaView();
         RestoreRivera();
         ClearGuide();
@@ -659,6 +731,229 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
         yield return Fade(0f);
         cutsceneRunning = false;
+    }
+
+    IEnumerator PlayBoxDeliveryDemo()
+    {
+        if (station == null)
+            yield break;
+
+        // Scene station refs: Yellow Box / Red Box + front BeltSurface under Conveyor.
+        Transform yellow = station.yellowBox;
+        Transform red = station.redBox;
+        Transform frontBelt = station.beltSurface != null ? station.beltSurface : station.conveyor;
+        if (frontBelt == null || (yellow == null && red == null))
+            yield break;
+
+        if (rivera != null)
+        {
+            rivera.Point();
+            yield return new WaitForSeconds(0.45f);
+            rivera.SetTalking(true);
+        }
+
+        yield return ShowGuide("After sorting, lift the boxes\nand place them on the front conveyor.", beatPause);
+
+        BoxAnimState yState = CaptureBoxState(yellow);
+        BoxAnimState rState = CaptureBoxState(red);
+
+        // Yellow seat (already correct): SortBox convention local.y = 0.12 on BeltSurface.
+        const float YellowAlongLocalX = -0.35f;
+        Vector3 yellowSeat = GetFrontBeltSeat(frontBelt, YellowAlongLocalX);
+
+        if (conveyor != null)
+            conveyor.StartConveyors();
+
+        if (yellow != null)
+        {
+            PrepareBoxForAnim(yellow);
+            PulseBox(yellow, true);
+            DetachBoxPreserveScale(yellow, yState);
+            yield return MoveTransformArc(yellow, yellowSeat, toBoxSeconds + 0.25f);
+            SeatBoxOnBeltPreserveScale(yellow, frontBelt, yellowSeat, yState);
+            PulseBox(yellow, false);
+            yield return new WaitForSeconds(0.4f);
+        }
+
+        // Red beside yellow — use yellow's final world seat as reference (do not move yellow).
+        Vector3 redSeat = yellow != null
+            ? GetAdjacentBeltSeat(frontBelt, yellow, yellow.position)
+            : GetFrontBeltSeat(frontBelt, YellowAlongLocalX + 0.55f);
+
+        if (red != null)
+        {
+            PrepareBoxForAnim(red);
+            PulseBox(red, true);
+            DetachBoxPreserveScale(red, rState);
+            yield return MoveTransformArc(red, redSeat, toBoxSeconds + 0.25f);
+            SeatBoxOnBeltPreserveScale(red, frontBelt, redSeat, rState);
+            PulseBox(red, false);
+            yield return new WaitForSeconds(0.55f);
+        }
+
+        yield return ShowGuide("Both boxes are on the front conveyor.\nDemo complete.", beatPause);
+
+        if (conveyor != null)
+            conveyor.StopConveyors();
+
+        // Keep boxes seated until fade-to-black; restore happens in RunCinematicDemo.
+        yield return new WaitForSeconds(0.9f);
+        pendingYellowRestore = yState;
+        pendingRedRestore = rState;
+        hasPendingBoxRestore = true;
+    }
+
+    struct BoxAnimState
+    {
+        public bool valid;
+        public Transform parent;
+        public Vector3 localPos;
+        public Quaternion localRot;
+        public Vector3 localScale;
+        public Vector3 worldPos;
+        public Quaternion worldRot;
+        public Vector3 lossyScale;
+        public Rigidbody body;
+        public bool wasKinematic;
+        public bool usedGravity;
+        public bool detectCollisions;
+    }
+
+    static BoxAnimState CaptureBoxState(Transform box)
+    {
+        BoxAnimState s = new BoxAnimState();
+        if (box == null)
+            return s;
+        s.valid = true;
+        s.parent = box.parent;
+        s.localPos = box.localPosition;
+        s.localRot = box.localRotation;
+        s.localScale = box.localScale;
+        s.worldPos = box.position;
+        s.worldRot = box.rotation;
+        s.lossyScale = box.lossyScale;
+        s.body = box.GetComponent<Rigidbody>();
+        if (s.body != null)
+        {
+            s.wasKinematic = s.body.isKinematic;
+            s.usedGravity = s.body.useGravity;
+            s.detectCollisions = s.body.detectCollisions;
+        }
+        return s;
+    }
+
+    static void PrepareBoxForAnim(Transform box)
+    {
+        if (box == null)
+            return;
+        Rigidbody body = box.GetComponent<Rigidbody>();
+        if (body == null)
+            return;
+        body.linearVelocity = Vector3.zero;
+        body.angularVelocity = Vector3.zero;
+        body.isKinematic = true;
+        body.useGravity = false;
+        body.detectCollisions = false;
+    }
+
+    /// <summary>
+    /// Unparent without inheriting belt non-uniform scale. Keep original world size.
+    /// </summary>
+    static void DetachBoxPreserveScale(Transform box, BoxAnimState s)
+    {
+        if (box == null || !s.valid)
+            return;
+        box.SetParent(null, true);
+        // Parent is identity — localScale must equal original lossyScale.
+        box.localScale = s.lossyScale;
+    }
+
+    static void RestoreBoxState(Transform box, BoxAnimState s)
+    {
+        if (box == null || !s.valid)
+            return;
+        box.SetParent(s.parent, false);
+        box.localPosition = s.localPos;
+        box.localRotation = s.localRot;
+        box.localScale = s.localScale;
+        if (s.body != null)
+        {
+            s.body.isKinematic = s.wasKinematic;
+            s.body.useGravity = s.usedGravity;
+            s.body.detectCollisions = s.detectCollisions;
+            s.body.linearVelocity = Vector3.zero;
+            s.body.angularVelocity = Vector3.zero;
+        }
+    }
+
+    /// <summary>
+    /// Seat point on the scene front BeltSurface using the same local.y as SortBox ride seating.
+    /// </summary>
+    static Vector3 GetFrontBeltSeat(Transform belt, float alongLocalX)
+    {
+        Vector3 local = new Vector3(alongLocalX, 0.12f, 0f);
+        return belt.TransformPoint(local);
+    }
+
+    /// <summary>
+    /// Place red beside yellow on the belt: same height, offset along belt.right by yellow footprint + gap.
+    /// </summary>
+    static Vector3 GetAdjacentBeltSeat(Transform belt, Transform yellowBox, Vector3 yellowWorldSeat)
+    {
+        float footprint = GetBoundsSizeAlong(yellowBox, belt.right);
+        if (footprint < 0.15f)
+            footprint = 0.45f;
+        float gap = 0.08f;
+        Vector3 along = belt.right;
+        along.y = 0f;
+        if (along.sqrMagnitude < 0.0001f)
+            along = Vector3.right;
+        along.Normalize();
+
+        Vector3 seat = yellowWorldSeat + along * (footprint + gap);
+        // Keep on belt top height (SortBox local.y = 0.12).
+        Vector3 local = belt.InverseTransformPoint(seat);
+        local.y = 0.12f;
+        local.z = 0f;
+        // Clamp along belt length so the crate stays on the surface.
+        float halfLen = 0.95f;
+        local.x = Mathf.Clamp(local.x, -halfLen, halfLen);
+        return belt.TransformPoint(local);
+    }
+
+    static float GetBoundsSizeAlong(Transform target, Vector3 worldAxis)
+    {
+        if (target == null)
+            return 0.45f;
+        Renderer[] renderers = target.GetComponentsInChildren<Renderer>();
+        if (renderers == null || renderers.Length == 0)
+            return 0.45f;
+
+        Bounds b = renderers[0].bounds;
+        for (int i = 1; i < renderers.Length; i++)
+            b.Encapsulate(renderers[i].bounds);
+
+        Vector3 axis = worldAxis.normalized;
+        Vector3 ext = b.extents;
+        // Project AABB extents onto axis (conservative footprint).
+        float size = Mathf.Abs(axis.x) * ext.x * 2f
+                   + Mathf.Abs(axis.y) * ext.y * 2f
+                   + Mathf.Abs(axis.z) * ext.z * 2f;
+        return Mathf.Max(0.2f, size);
+    }
+
+    /// <summary>
+    /// Seat on belt in world space — do NOT parent under BeltSurface (non-uniform scale stretches crates).
+    /// </summary>
+    static void SeatBoxOnBeltPreserveScale(Transform box, Transform belt, Vector3 worldSeat, BoxAnimState s)
+    {
+        if (box == null || belt == null)
+            return;
+        if (box.parent != null)
+            box.SetParent(null, true);
+        box.position = worldSeat;
+        box.rotation = Quaternion.Euler(0f, belt.eulerAngles.y, 0f);
+        box.localScale = s.valid ? s.lossyScale : box.localScale;
     }
 
     IEnumerator PlayDemoBeat(DemoBeat beat)
@@ -841,6 +1136,11 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         FrameCinemaCamera(0f);
         // Snap HMD cam to cinema framing (tracking disabled).
         hmdCamera.transform.SetPositionAndRotation(cinemaCam.transform.position, cinemaCam.transform.rotation);
+
+        // Subtitles bind to the active HMD/camera used by Screen Space - Camera.
+        EnsureEffectsUi();
+        if (effectsCanvas != null)
+            effectsCanvas.worldCamera = hmdCamera;
     }
 
     void EndCinemaView()
@@ -1051,8 +1351,15 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     {
         if (prop == null)
             yield break;
-        Vector3 start = prop.transform.position;
-        Vector3 mid = Vector3.Lerp(start, end, 0.5f) + Vector3.up * 0.4f;
+        yield return MoveTransformArc(prop.transform, end, duration, spin: true);
+    }
+
+    IEnumerator MoveTransformArc(Transform target, Vector3 end, float duration, bool spin = false)
+    {
+        if (target == null)
+            yield break;
+        Vector3 start = target.position;
+        Vector3 mid = Vector3.Lerp(start, end, 0.5f) + Vector3.up * 0.45f;
         float t = 0f;
         while (t < duration)
         {
@@ -1061,11 +1368,12 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             float e = u * u * (3f - 2f * u);
             Vector3 a = Vector3.Lerp(start, mid, e);
             Vector3 b = Vector3.Lerp(mid, end, e);
-            prop.transform.position = Vector3.Lerp(a, b, e);
-            prop.transform.Rotate(0f, 110f * Time.deltaTime, 0f, Space.World);
+            target.position = Vector3.Lerp(a, b, e);
+            if (spin)
+                target.Rotate(0f, 110f * Time.deltaTime, 0f, Space.World);
             yield return null;
         }
-        prop.transform.position = end;
+        target.position = end;
     }
 
     IEnumerator TypeLine(string line)
@@ -1075,17 +1383,157 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             yield return new WaitForSeconds(Mathf.Max(1.4f, line.Length / Mathf.Max(1f, typeCharsPerSecond)));
             yield break;
         }
-        talkText.text = string.Empty;
+
+        talkText.enableAutoSizing = false;
+        talkText.fontSize = talkFontSize;
+        talkText.textWrappingMode = TextWrappingModes.Normal;
+        talkText.overflowMode = TextOverflowModes.Truncate;
+
+        List<string> pages = BuildDialoguePages(line);
+        if (pages.Count == 0)
+            pages.Add(string.Empty);
+
         float delay = 1f / Mathf.Max(8f, typeCharsPerSecond);
-        for (int i = 0; i < line.Length; i++)
+        for (int p = 0; p < pages.Count; p++)
         {
-            talkText.text = line.Substring(0, i + 1);
-            yield return new WaitForSeconds(delay);
+            string page = pages[p];
+            talkText.text = string.Empty;
+            for (int i = 0; i < page.Length; i++)
+            {
+                talkText.text = page.Substring(0, i + 1);
+                yield return new WaitForSeconds(delay);
+            }
+
+            // Page hold = existing dialogue continuation beat (no auto-shrink).
+            if (p < pages.Count - 1)
+                yield return new WaitForSeconds(pageHoldSeconds);
         }
+    }
+
+    /// <summary>
+    /// Split dialogue into pages that fit the Talk Text (TMP) rect at a fixed font size.
+    /// Words are never cut mid-word; overflow becomes the next page.
+    /// </summary>
+    List<string> BuildDialoguePages(string fullText)
+    {
+        List<string> pages = new List<string>();
+        if (talkText == null || string.IsNullOrEmpty(fullText))
+            return pages;
+
+        // Preserve explicit newlines as paragraph breaks.
+        string[] paragraphs = fullText.Replace("\r\n", "\n").Split('\n');
+        string page = string.Empty;
+
+        for (int p = 0; p < paragraphs.Length; p++)
+        {
+            string paragraph = paragraphs[p];
+            if (p > 0)
+            {
+                // Prefer keeping paragraph break on current page if it fits.
+                string withBreak = string.IsNullOrEmpty(page) ? string.Empty : page + "\n";
+                if (!string.IsNullOrEmpty(page) && !TextFitsTalk(withBreak + paragraph.TrimStart()))
+                {
+                    pages.Add(page.TrimEnd());
+                    page = string.Empty;
+                }
+                else if (!string.IsNullOrEmpty(page))
+                    page += "\n";
+            }
+
+            string[] words = paragraph.Split(new[] { ' ' }, System.StringSplitOptions.RemoveEmptyEntries);
+            for (int w = 0; w < words.Length; w++)
+            {
+                string word = words[w];
+                string candidate = string.IsNullOrEmpty(page) ? word : page + " " + word;
+                if (TextFitsTalk(candidate))
+                {
+                    page = candidate;
+                    continue;
+                }
+
+                if (!string.IsNullOrEmpty(page))
+                {
+                    pages.Add(page.TrimEnd());
+                    page = string.Empty;
+                }
+
+                // Single oversized word: hard-wrap by characters into pages (last resort).
+                if (!TextFitsTalk(word))
+                {
+                    foreach (string chunk in SplitOversizedWord(word))
+                        pages.Add(chunk);
+                    page = string.Empty;
+                }
+                else
+                {
+                    page = word;
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(page))
+            pages.Add(page.TrimEnd());
+
+        return pages;
+    }
+
+    bool TextFitsTalk(string candidate)
+    {
+        if (talkText == null)
+            return true;
+
+        string previous = talkText.text;
+        talkText.enableAutoSizing = false;
+        talkText.fontSize = talkFontSize;
+        talkText.text = candidate ?? string.Empty;
+        talkText.ForceMeshUpdate(true);
+
+        bool overflowing = talkText.isTextOverflowing;
+        // Also guard by preferred height vs rect when overflow flag is unreliable.
+        if (!overflowing)
+        {
+            Vector2 pref = talkText.GetPreferredValues(candidate, talkText.rectTransform.rect.width, 0f);
+            float maxH = talkText.rectTransform.rect.height;
+            if (maxH > 0.001f && pref.y > maxH + 0.01f)
+                overflowing = true;
+        }
+
+        talkText.text = previous;
+        talkText.ForceMeshUpdate(true);
+        return !overflowing;
+    }
+
+    List<string> SplitOversizedWord(string word)
+    {
+        List<string> chunks = new List<string>();
+        if (string.IsNullOrEmpty(word))
+            return chunks;
+
+        string current = string.Empty;
+        for (int i = 0; i < word.Length; i++)
+        {
+            string next = current + word[i];
+            if (TextFitsTalk(next))
+            {
+                current = next;
+            }
+            else
+            {
+                if (!string.IsNullOrEmpty(current))
+                    chunks.Add(current);
+                current = word[i].ToString();
+            }
+        }
+        if (!string.IsNullOrEmpty(current))
+            chunks.Add(current);
+        return chunks;
     }
 
     IEnumerator ShowGuide(string text, float hold)
     {
+        EnsureEffectsUi();
+        if (effectsCanvas != null && hmdCamera != null)
+            effectsCanvas.worldCamera = hmdCamera;
         SetGuide(text);
         yield return new WaitForSeconds(hold);
     }
@@ -1093,10 +1541,30 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     void SetGuide(string text)
     {
         bool has = !string.IsNullOrEmpty(text);
+        if (effectsCanvas != null)
+        {
+            effectsCanvas.enabled = true;
+            if (hmdCamera != null)
+                effectsCanvas.worldCamera = hmdCamera;
+            effectsCanvas.gameObject.SetActive(true);
+        }
         if (guidePlate != null)
-            guidePlate.enabled = has;
+        {
+            guidePlate.enabled = true;
+            guidePlate.gameObject.SetActive(has);
+            Color c = guidePlate.color;
+            c.a = has ? 0.78f : 0f;
+            guidePlate.color = c;
+        }
         if (guideText != null)
+        {
+            guideText.gameObject.SetActive(has);
+            guideText.enableAutoSizing = false;
+            guideText.fontSize = guideFontSize;
+            guideText.color = Color.white;
+            guideText.alpha = 1f;
             guideText.text = text ?? string.Empty;
+        }
     }
 
     void ClearGuide() => SetGuide(string.Empty);
@@ -1156,84 +1624,83 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
     void SetPadVisible(bool on)
     {
-        if (dialogueStarted && !on)
+        if (dialogueStarted || HasCompleted)
         {
+            // Once stepped on / completed, never show again this session.
             ConsumeDialoguePad();
             return;
         }
 
-        if (dialogueZone != null)
-            dialogueZone.SetActive(on);
-        if (dialoguePadVisual != null)
-            dialoguePadVisual.SetActive(on);
+        if (dialogueZone == null)
+            return;
+
+        dialogueZone.SetActive(on);
         if (dialoguePadCollider != null)
             dialoguePadCollider.enabled = on;
     }
 }
 
-/// <summary>Soft pulse on the STEP HERE pad.</summary>
+/// <summary>Emission pulse on Dialogue circle — does not scale (keeps trigger world size stable).</summary>
 public class ObjectPlacementDialoguePadPulse : MonoBehaviour
 {
-    Transform visual;
-    Vector3 baseScale;
     Material mat;
     Color baseColor;
+    bool ready;
 
     void Awake()
     {
-        Transform v = transform.Find("DialoguePadVisual");
-        if (v == null)
+        MeshRenderer mr = GetComponent<MeshRenderer>();
+        if (mr == null)
             return;
-        visual = v;
-        baseScale = visual.localScale;
-        MeshRenderer mr = visual.GetComponent<MeshRenderer>();
-        if (mr != null)
-        {
-            mat = mr.material;
-            if (mat.HasProperty("_EmissionColor"))
-                baseColor = mat.GetColor("_EmissionColor");
-            else if (mat.HasProperty("_BaseColor"))
-                baseColor = mat.GetColor("_BaseColor");
-        }
+        mat = mr.material;
+        if (mat.HasProperty("_EmissionColor"))
+            baseColor = mat.GetColor("_EmissionColor");
+        else if (mat.HasProperty("_BaseColor"))
+            baseColor = mat.GetColor("_BaseColor");
+        else
+            return;
+        ready = true;
     }
 
     void Update()
     {
-        if (visual == null)
+        if (!ready || mat == null)
             return;
-        float w = 1f + Mathf.Sin(Time.time * 2.6f) * 0.045f;
-        visual.localScale = new Vector3(baseScale.x * w, baseScale.y, baseScale.z * w);
-        if (mat != null && mat.HasProperty("_EmissionColor"))
-        {
-            float e = 1.4f + Mathf.Sin(Time.time * 2.6f) * 0.45f;
+        float e = 1.35f + Mathf.Sin(Time.time * 2.6f) * 0.4f;
+        if (mat.HasProperty("_EmissionColor"))
             mat.SetColor("_EmissionColor", baseColor * e);
-        }
     }
 }
 
-/// <summary>Proximity trigger on the Dialogue pad.</summary>
+/// <summary>Trigger on the scene Dialogue circle CapsuleCollider.</summary>
 public class ObjectPlacementDialogueTrigger : MonoBehaviour
 {
     ObjectPlacementIntroDirector director;
+    bool fired;
 
-    public void Bind(ObjectPlacementIntroDirector host) => director = host;
+    public void Bind(ObjectPlacementIntroDirector host)
+    {
+        director = host;
+        fired = false;
+    }
 
     void OnTriggerEnter(Collider other)
     {
-        if (director == null || other == null || !IsPlayer(other))
+        if (fired || director == null || other == null || !IsPlayer(other))
             return;
+        fired = true;
         director.OnPlayerEnteredDialogue();
     }
 
     static bool IsPlayer(Collider other)
     {
-        if (other.CompareTag("Player"))
-            return true;
-        if (other.GetComponentInParent<XROrigin>() != null)
+        // Primary: CharacterController used by ColorSortWalk on XR Origin.
+        if (other.GetComponent<CharacterController>() != null)
             return true;
         if (other.GetComponentInParent<CharacterController>() != null)
             return true;
-        return other.name.IndexOf("XR", System.StringComparison.OrdinalIgnoreCase) >= 0
-               || other.name.IndexOf("Camera", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        if (other.CompareTag("Player"))
+            return true;
+        return false;
     }
 }

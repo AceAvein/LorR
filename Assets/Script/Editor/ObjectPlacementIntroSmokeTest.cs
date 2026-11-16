@@ -32,7 +32,9 @@ public static class ObjectPlacementIntroSmokeTest
         }
 
         Check(log, ref fails, GameObject.Find("Dr. Rivera") != null, "Dr. Rivera exists");
-        Check(log, ref fails, GameObject.Find("Dialogue") != null, "Dialogue zone exists");
+        Check(log, ref fails, GameObject.Find("Dialogue circle") != null, "Dialogue circle exists");
+        Check(log, ref fails, GameObject.Find("Dialogue") == null,
+            "No orphan GameObject named Dialogue");
         Check(log, ref fails, GameObject.Find("ObjectiveScreen") != null, "ObjectiveScreen exists");
 
         GameObject rivera = GameObject.Find("Dr. Rivera");
@@ -73,17 +75,18 @@ public static class ObjectPlacementIntroSmokeTest
         Check(log, ref fails, MonoScriptFromType(typeof(DrRiveraAnimator)) != null,
             "DrRiveraAnimator script present");
 
-        // Dialogue scale warning (informational)
-        GameObject dialogue = GameObject.Find("Dialogue");
+        // Dialogue circle scale warning (informational)
+        GameObject dialogue = GameObject.Find("Dialogue circle");
+        if (dialogue == null)
+            dialogue = GameObject.Find("Dialogue");
         if (dialogue != null)
         {
             Vector3 s = dialogue.transform.lossyScale;
             bool skewed = s.y < 0.5f || Mathf.Abs(s.x - s.y) > 0.2f;
-            // Informational only — runtime IntroTrigger counters parent scale.
             Check(log, ref fails, true,
                 skewed
-                    ? "Dialogue scale skewed (OK — IntroTrigger counters) scale=" + s
-                    : "Dialogue scale OK");
+                    ? "Dialogue circle scale flat (OK — IntroTrigger counters) scale=" + s
+                    : "Dialogue circle scale OK");
         }
 
         string summary = fails == 0
