@@ -36,7 +36,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     [SerializeField] float fadeSeconds = 0.65f;
     [SerializeField] float beltRideSeconds = 2.4f;
     [SerializeField] float toBoxSeconds = 1.15f;
-    [SerializeField] float beatPause = 1.35f;
+    [SerializeField] float beatPause = 2.0f;
     [SerializeField] float camBlendSeconds = 1.1f;
 
     ObjectPlacementStation station;
@@ -56,8 +56,10 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     Image letterboxTop;
     Image letterboxBottom;
     Image vignetteImage;
+    Image guidePlate;
     TMP_Text guideText;
     Canvas effectsCanvas;
+    CapsuleCollider dialoguePadCollider;
 
     Camera cinemaCam;
     Transform cinemaRig;
@@ -132,6 +134,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
         ResolveRivera();
         ResolveTalkUi();
+        ObjectPlacementItemLibrary.EnsureLoaded();
         SetupDialoguePad();
         EnsureEffectsUi();
         EnsureCinemaCamera();
@@ -219,22 +222,26 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (dialogueZone == null)
             return;
 
-        // Flatten marker to floor.
+        // Flatten marker to floor — this object IS the step circle.
         Vector3 p = dialogueZone.transform.position;
         p.y = 0.02f;
         dialogueZone.transform.position = p;
         dialogueZone.transform.rotation = Quaternion.identity;
         dialogueZone.transform.localScale = Vector3.one;
 
+        // Remove old mesh / extra triggers — circle only.
         MeshRenderer oldMr = dialogueZone.GetComponent<MeshRenderer>();
         if (oldMr != null)
             oldMr.enabled = false;
         MeshFilter oldMf = dialogueZone.GetComponent<MeshFilter>();
         if (oldMf != null)
-            oldMf.mesh = null;
-        CapsuleCollider legacy = dialogueZone.GetComponent<CapsuleCollider>();
-        if (legacy != null)
-            legacy.enabled = false;
+            Destroy(oldMf);
+        CapsuleCollider[] oldCaps = dialogueZone.GetComponents<CapsuleCollider>();
+        for (int i = 0; i < oldCaps.Length; i++)
+            Destroy(oldCaps[i]);
+        Transform oldProbe = dialogueZone.transform.Find("IntroTrigger");
+        if (oldProbe != null)
+            Destroy(oldProbe.gameObject);
 
         Transform visual = dialogueZone.transform.Find("DialoguePadVisual");
         if (visual == null)
@@ -242,21 +249,24 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             ring.name = "DialoguePadVisual";
             ring.transform.SetParent(dialogueZone.transform, false);
-            ring.transform.localPosition = new Vector3(0f, 0.015f, 0f);
-            ring.transform.localScale = new Vector3(1.35f, 0.02f, 1.35f);
-            Object.Destroy(ring.GetComponent<Collider>());
+            ring.transform.localPosition = new Vector3(0f, 0.02f, 0f);
+            ring.transform.localScale = new Vector3(1.4f, 0.025f, 1.4f);
+            // Collider stays on the circle mesh — convert to trigger on parent instead.
+            Collider ringCol = ring.GetComponent<Collider>();
+            if (ringCol != null)
+                Destroy(ringCol);
             MeshRenderer mr = ring.GetComponent<MeshRenderer>();
             mr.sharedMaterial = MakePadMaterial();
             dialoguePadVisual = ring;
 
             GameObject labelGo = new GameObject("PadLabel");
             labelGo.transform.SetParent(ring.transform, false);
-            labelGo.transform.localPosition = new Vector3(0f, 1.8f, 0f);
+            labelGo.transform.localPosition = new Vector3(0f, 1.6f, 0f);
             labelGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            labelGo.transform.localScale = Vector3.one * 0.12f;
+            labelGo.transform.localScale = Vector3.one * 0.14f;
             TextMeshPro tmp = labelGo.AddComponent<TextMeshPro>();
             tmp.text = "STEP HERE";
-            tmp.fontSize = 8f;
+            tmp.fontSize = 9f;
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = new Color(0.05f, 0.12f, 0.22f, 1f);
             tmp.textWrappingMode = TextWrappingModes.NoWrap;
@@ -264,28 +274,24 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         else
         {
             dialoguePadVisual = visual.gameObject;
+            Collider ringCol = dialoguePadVisual.GetComponent<Collider>();
+            if (ringCol != null)
+                Destroy(ringCol);
         }
 
-        Transform probe = dialogueZone.transform.Find("IntroTrigger");
-        GameObject probeGo = probe != null ? probe.gameObject : new GameObject("IntroTrigger");
-        if (probe == null)
-            probeGo.transform.SetParent(dialogueZone.transform, false);
-        probeGo.transform.localPosition = Vector3.zero;
-        probeGo.transform.localRotation = Quaternion.identity;
-        probeGo.transform.localScale = Vector3.one;
+        // Single trigger on the Dialogue circle root (matches the visible pad).
+        dialoguePadCollider = dialogueZone.GetComponent<CapsuleCollider>();
+        if (dialoguePadCollider == null)
+            dialoguePadCollider = dialogueZone.AddComponent<CapsuleCollider>();
+        dialoguePadCollider.isTrigger = true;
+        dialoguePadCollider.direction = 1;
+        dialoguePadCollider.radius = 0.75f;
+        dialoguePadCollider.height = 2.0f;
+        dialoguePadCollider.center = new Vector3(0f, 1.0f, 0f);
 
-        CapsuleCollider col = probeGo.GetComponent<CapsuleCollider>();
-        if (col == null)
-            col = probeGo.AddComponent<CapsuleCollider>();
-        col.isTrigger = true;
-        col.direction = 1;
-        col.radius = 0.85f;
-        col.height = 2.2f;
-        col.center = new Vector3(0f, 1.0f, 0f);
-
-        ObjectPlacementDialogueTrigger trigger = probeGo.GetComponent<ObjectPlacementDialogueTrigger>();
+        ObjectPlacementDialogueTrigger trigger = dialogueZone.GetComponent<ObjectPlacementDialogueTrigger>();
         if (trigger == null)
-            trigger = probeGo.AddComponent<ObjectPlacementDialogueTrigger>();
+            trigger = dialogueZone.AddComponent<ObjectPlacementDialogueTrigger>();
         trigger.Bind(this);
 
         if (dialogueZone.GetComponent<ObjectPlacementDialoguePadPulse>() == null)
@@ -330,35 +336,19 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             effectsCanvas = canvasGo.AddComponent<Canvas>();
             effectsCanvas.renderMode = RenderMode.WorldSpace;
             effectsCanvas.sortingOrder = 1000;
-            RectTransform rt = canvasGo.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(2f, 2f);
-            rt.localPosition = new Vector3(0f, 0f, 0.22f);
-            rt.localScale = Vector3.one * 0.5f;
 
             fadeImage = MakeFullImage(canvasGo.transform, "Fade", new Color(0f, 0f, 0f, 0f), 0);
             vignetteImage = MakeFullImage(canvasGo.transform, "Vignette", new Color(0f, 0f, 0f, 0f), 1);
-            // Soft vignette via center-transparent look is approximated with dark edges later if needed.
             letterboxTop = MakeBar(canvasGo.transform, "LetterboxTop", true);
             letterboxBottom = MakeBar(canvasGo.transform, "LetterboxBottom", false);
-
-            GameObject guideGo = new GameObject("GuideText");
-            guideGo.transform.SetParent(canvasGo.transform, false);
-            RectTransform grt = guideGo.AddComponent<RectTransform>();
-            grt.anchorMin = new Vector2(0.08f, 0.18f);
-            grt.anchorMax = new Vector2(0.92f, 0.38f);
-            grt.offsetMin = Vector2.zero;
-            grt.offsetMax = Vector2.zero;
-            guideText = guideGo.AddComponent<TextMeshProUGUI>();
-            guideText.alignment = TextAlignmentOptions.Center;
-            guideText.fontSize = 0.12f;
-            guideText.color = Color.white;
-            guideText.text = string.Empty;
-            guideText.enableAutoSizing = false;
-            guideText.textWrappingMode = TextWrappingModes.Normal;
-            Outline outline = guideGo.AddComponent<Outline>();
-            outline.effectColor = new Color(0f, 0f, 0f, 0.85f);
-            outline.effectDistance = new Vector2(1.2f, -1.2f);
         }
+
+        RectTransform canvasRt = canvasGo.GetComponent<RectTransform>();
+        if (canvasRt == null)
+            canvasRt = canvasGo.AddComponent<RectTransform>();
+        canvasRt.sizeDelta = new Vector2(2f, 2f);
+        canvasRt.localPosition = new Vector3(0f, 0f, 0.28f);
+        canvasRt.localScale = Vector3.one * 0.55f;
 
         if (fadeImage == null)
             fadeImage = canvasGo.transform.Find("Fade")?.GetComponent<Image>();
@@ -366,8 +356,61 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             letterboxTop = canvasGo.transform.Find("LetterboxTop")?.GetComponent<Image>();
         if (letterboxBottom == null)
             letterboxBottom = canvasGo.transform.Find("LetterboxBottom")?.GetComponent<Image>();
-        if (guideText == null)
-            guideText = canvasGo.GetComponentInChildren<TMP_Text>(true);
+
+        // Always rebuild guide plate so text stays readable (old tiny text gets replaced).
+        Transform oldGuide = canvasGo.transform.Find("GuidePanel");
+        if (oldGuide != null)
+            Destroy(oldGuide.gameObject);
+        Transform oldGuideText = canvasGo.transform.Find("GuideText");
+        if (oldGuideText != null)
+            Destroy(oldGuideText.gameObject);
+
+        GameObject panel = new GameObject("GuidePanel");
+        panel.transform.SetParent(canvasGo.transform, false);
+        RectTransform prt = panel.AddComponent<RectTransform>();
+        // Centered, above letterbox — large readable band.
+        prt.anchorMin = new Vector2(0.06f, 0.30f);
+        prt.anchorMax = new Vector2(0.94f, 0.52f);
+        prt.offsetMin = Vector2.zero;
+        prt.offsetMax = Vector2.zero;
+        guidePlate = panel.AddComponent<Image>();
+        guidePlate.color = new Color(0f, 0f, 0f, 0.72f);
+        guidePlate.raycastTarget = false;
+
+        GameObject guideGo = new GameObject("GuideText");
+        guideGo.transform.SetParent(panel.transform, false);
+        RectTransform grt = guideGo.AddComponent<RectTransform>();
+        grt.anchorMin = new Vector2(0.04f, 0.08f);
+        grt.anchorMax = new Vector2(0.96f, 0.92f);
+        grt.offsetMin = Vector2.zero;
+        grt.offsetMax = Vector2.zero;
+        guideText = guideGo.AddComponent<TextMeshProUGUI>();
+        guideText.alignment = TextAlignmentOptions.Center;
+        guideText.fontSize = 0.32f;
+        guideText.fontSizeMin = 0.22f;
+        guideText.fontSizeMax = 0.42f;
+        guideText.enableAutoSizing = true;
+        guideText.color = Color.white;
+        guideText.text = string.Empty;
+        guideText.textWrappingMode = TextWrappingModes.Normal;
+        guideText.fontStyle = FontStyles.Bold;
+        Outline outline = guideGo.AddComponent<Outline>();
+        outline.effectColor = new Color(0f, 0f, 0f, 0.95f);
+        outline.effectDistance = new Vector2(2f, -2f);
+
+        // Slimmer letterbox so guide plate has room.
+        if (letterboxTop != null)
+        {
+            RectTransform trt = letterboxTop.rectTransform;
+            trt.anchorMin = new Vector2(0f, 0.88f);
+            trt.anchorMax = new Vector2(1f, 1f);
+        }
+        if (letterboxBottom != null)
+        {
+            RectTransform brt = letterboxBottom.rectTransform;
+            brt.anchorMin = new Vector2(0f, 0f);
+            brt.anchorMax = new Vector2(1f, 0.12f);
+        }
 
         SetLetterbox(0f);
         SetGuide(string.Empty);
@@ -396,13 +439,13 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         RectTransform rt = go.AddComponent<RectTransform>();
         if (top)
         {
-            rt.anchorMin = new Vector2(0f, 0.82f);
+            rt.anchorMin = new Vector2(0f, 0.88f);
             rt.anchorMax = new Vector2(1f, 1f);
         }
         else
         {
             rt.anchorMin = new Vector2(0f, 0f);
-            rt.anchorMax = new Vector2(1f, 0.18f);
+            rt.anchorMax = new Vector2(1f, 0.12f);
         }
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
@@ -451,8 +494,24 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
         dialogueStarted = true;
         ColorSortWalk.MovementLocked = true;
-        SetPadVisible(false);
+        // Circle was stepped on — remove it (visual + trigger).
+        ConsumeDialoguePad();
         StartCoroutine(WelcomeThenCutscene());
+    }
+
+    void ConsumeDialoguePad()
+    {
+        if (dialoguePadCollider != null)
+            dialoguePadCollider.enabled = false;
+        if (dialoguePadVisual != null)
+            dialoguePadVisual.SetActive(false);
+        if (dialogueZone != null)
+        {
+            ObjectPlacementDialoguePadPulse pulse = dialogueZone.GetComponent<ObjectPlacementDialoguePadPulse>();
+            if (pulse != null)
+                pulse.enabled = false;
+            dialogueZone.SetActive(false);
+        }
     }
 
     IEnumerator WelcomeThenCutscene()
@@ -545,28 +604,28 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         {
             new DemoBeat
             {
-                id = "banana",
+                id = "Fruit_banana",
                 kind = ObjectPlacementGroceryKind.Fruit,
                 guide = "YELLOW = FRUITS\nUse GRIP to pick up",
                 tip = "Place fruits into the yellow box."
             },
             new DemoBeat
             {
-                id = "lemon",
+                id = "Fruit_lemon",
                 kind = ObjectPlacementGroceryKind.Fruit,
                 guide = "Another fruit — same rule.\nGRIP → Yellow box",
                 tip = "Watch it ride to the end first."
             },
             new DemoBeat
             {
-                id = "tomato",
+                id = "Veg_tomato",
                 kind = ObjectPlacementGroceryKind.Vegetable,
                 guide = "RED = VEGETABLES\nUse TRIGGER to pick up",
                 tip = "Place vegetables into the red box."
             },
             new DemoBeat
             {
-                id = "chili",
+                id = "Veg_carrot",
                 kind = ObjectPlacementGroceryKind.Vegetable,
                 guide = "Same for every red item.\nTRIGGER → Red box",
                 tip = "Check the category before you place."
@@ -626,12 +685,12 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         Vector3 side = beat.kind == ObjectPlacementGroceryKind.Fruit ? Vector3.forward * 0.04f : Vector3.back * 0.04f;
         GameObject prop = SpawnDemoProp(beat.id, beat.kind, spawn + side);
 
-        yield return ShowGuide("Riding the conveyor…", 0.35f);
+        yield return ShowGuide("Riding the conveyor…", 0.9f);
         yield return MovePropLinear(prop, stopper + side, beltRideSeconds);
-        yield return ShowGuide("Stop at the end of the belt.", 0.85f);
-        yield return ShowGuide(beat.tip, 1.0f);
+        yield return ShowGuide("Stops at the end of the belt.", 1.4f);
+        yield return ShowGuide(beat.tip, 1.6f);
         yield return MovePropArc(prop, boxTarget, toBoxSeconds);
-        yield return new WaitForSeconds(0.45f);
+        yield return new WaitForSeconds(0.55f);
 
         if (prop != null)
             Destroy(prop);
@@ -904,8 +963,22 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
     GameObject SpawnDemoProp(string id, ObjectPlacementGroceryKind kind, Vector3 worldPos)
     {
-        GameObject go = ObjectPlacementGroceryFactory.Create(id, kind);
+        ObjectPlacementItemLibrary.EnsureLoaded();
+        GameObject template = FindItemTemplate(id, kind);
+        GameObject go;
+        if (template != null)
+            go = ObjectPlacementItemLibrary.Spawn(template, kind, null);
+        else
+            go = null;
+
+        if (go == null)
+        {
+            string fallback = id.Replace("Fruit_", string.Empty).Replace("Veg_", string.Empty);
+            go = ObjectPlacementGroceryFactory.Create(fallback, kind);
+        }
+
         go.name = "IntroDemo_" + id;
+        go.transform.SetParent(null, true);
         go.transform.position = worldPos;
         go.transform.rotation = Quaternion.identity;
 
@@ -916,17 +989,45 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (grab != null)
             Destroy(grab);
 
-        Collider[] cols = go.GetComponentsInChildren<Collider>();
+        Collider[] cols = go.GetComponentsInChildren<Collider>(true);
         for (int i = 0; i < cols.Length; i++)
             cols[i].enabled = false;
 
         Rigidbody rb = go.GetComponent<Rigidbody>();
+        if (rb == null)
+            rb = go.GetComponentInChildren<Rigidbody>();
         if (rb != null)
         {
             rb.isKinematic = true;
             rb.useGravity = false;
         }
         return go;
+    }
+
+    static GameObject FindItemTemplate(string id, ObjectPlacementGroceryKind kind)
+    {
+        GameObject[] pool = kind == ObjectPlacementGroceryKind.Fruit
+            ? ObjectPlacementItemLibrary.Fruits
+            : ObjectPlacementItemLibrary.Vegetables;
+        if (pool == null || pool.Length == 0)
+            return null;
+
+        for (int i = 0; i < pool.Length; i++)
+        {
+            if (pool[i] != null && pool[i].name == id)
+                return pool[i];
+        }
+
+        // Partial match (e.g. "banana" inside "Fruit_banana").
+        string key = id.Replace("Fruit_", string.Empty).Replace("Veg_", string.Empty);
+        for (int i = 0; i < pool.Length; i++)
+        {
+            if (pool[i] != null &&
+                pool[i].name.IndexOf(key, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                return pool[i];
+        }
+
+        return pool[0];
     }
 
     IEnumerator MovePropLinear(GameObject prop, Vector3 end, float duration)
@@ -991,6 +1092,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
     void SetGuide(string text)
     {
+        bool has = !string.IsNullOrEmpty(text);
+        if (guidePlate != null)
+            guidePlate.enabled = has;
         if (guideText != null)
             guideText.text = text ?? string.Empty;
     }
@@ -1052,10 +1156,18 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
     void SetPadVisible(bool on)
     {
+        if (dialogueStarted && !on)
+        {
+            ConsumeDialoguePad();
+            return;
+        }
+
+        if (dialogueZone != null)
+            dialogueZone.SetActive(on);
         if (dialoguePadVisual != null)
             dialoguePadVisual.SetActive(on);
-        if (dialogueZone != null && !dialogueStarted)
-            dialogueZone.SetActive(true);
+        if (dialoguePadCollider != null)
+            dialoguePadCollider.enabled = on;
     }
 }
 
