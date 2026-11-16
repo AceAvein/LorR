@@ -1,14 +1,19 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using Unity.XR.CoreUtils;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem.XR;
+#endif
 
 /// <summary>
-/// Color Sort / Object Placement intro:
-/// Btn_Start → unlock walk → Dialogue trigger → Rivera welcome (Talk canvas + Talking)
-/// → VR in-world cutscene (head free, move locked) → arm Phase I training.
+/// Color Sort intro:
+/// Btn_Start → unlock walk → visible Dialogue pad → Rivera welcome
+/// → cinematic cam cutscene (player body stays) with letterbox/fade/guides
+/// → longer conveyor demos → back to HMD → arm Phase I.
 /// </summary>
 [DefaultExecutionOrder(200)]
 [DisallowMultipleComponent]
@@ -20,34 +25,64 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     const string WelcomeTraining =
         "Now, let us begin your non-dominant hand training. Check the item's category and the corresponding box color. Use the controller button indicated on the instruction prompt to pick up the item, move it to the correct box, and release it inside.";
 
-    const string CutsceneLine =
-        "Watch closely — yellow fruits use Grip into the yellow box. Red vegetables use Trigger into the red box.";
-
     static ObjectPlacementIntroDirector instance;
 
     public static bool HasCompleted { get; private set; }
 
     [Header("Timing")]
-    [SerializeField] float typeCharsPerSecond = 42f;
-    [SerializeField] float pauseBetweenLines = 1.15f;
-    [SerializeField] float greetHoldSeconds = 1.35f;
-    [SerializeField] float fadeSeconds = 0.55f;
-    [SerializeField] float demoMoveSeconds = 1.35f;
-    [SerializeField] float demoHoldSeconds = 0.85f;
+    [SerializeField] float typeCharsPerSecond = 44f;
+    [SerializeField] float pauseBetweenLines = 1.1f;
+    [SerializeField] float greetHoldSeconds = 1.25f;
+    [SerializeField] float fadeSeconds = 0.65f;
+    [SerializeField] float beltRideSeconds = 2.4f;
+    [SerializeField] float toBoxSeconds = 1.15f;
+    [SerializeField] float beatPause = 1.35f;
+    [SerializeField] float camBlendSeconds = 1.1f;
 
     ObjectPlacementStation station;
     ObjectPlacementConveyorController conveyor;
     ObjectPlacementPhaseIRound phaseRound;
     DrRiveraAnimator rivera;
+    Transform riveraRoot;
+    XROrigin xrOrigin;
+    Camera hmdCamera;
     GameObject objectiveScreen;
     GameObject talkCanvas;
     TMP_Text talkText;
     GameObject dialogueZone;
+    GameObject dialoguePadVisual;
+
     Image fadeImage;
+    Image letterboxTop;
+    Image letterboxBottom;
+    Image vignetteImage;
+    TMP_Text guideText;
+    Canvas effectsCanvas;
+
+    Camera cinemaCam;
+    Transform cinemaRig;
+    readonly List<Behaviour> disabledPoseDrivers = new List<Behaviour>();
+    readonly List<Renderer> highlightRenderers = new List<Renderer>();
+    readonly List<Color> highlightRestore = new List<Color>();
+
+    Vector3 riveraSavedPos;
+    Quaternion riveraSavedRot;
+    Vector3 camSavedWorldPos;
+    Quaternion camSavedWorldRot;
+    bool camPoseSaved;
+    bool cinemaActive;
 
     bool startConsumed;
     bool dialogueStarted;
     bool cutsceneRunning;
+
+    struct DemoBeat
+    {
+        public string id;
+        public ObjectPlacementGroceryKind kind;
+        public string guide;
+        public string tip;
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -57,19 +92,14 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         TryCreate(SceneManager.GetActiveScene());
     }
 
-    static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        TryCreate(scene);
-    }
+    static void OnSceneLoaded(Scene scene, LoadSceneMode mode) => TryCreate(scene);
 
     static void TryCreate(Scene scene)
     {
         if (!scene.IsValid() || !ModuleScenes.IsColorSort(scene.name) || ModuleScenes.IsGuided(scene.name))
             return;
-
         if (Object.FindAnyObjectByType<ObjectPlacementStation>() == null)
             return;
-
         if (Object.FindAnyObjectByType<ObjectPlacementIntroDirector>() != null)
             return;
 
@@ -79,7 +109,6 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         host.AddComponent<ObjectPlacementIntroDirector>();
     }
 
-    /// <summary>Phase I Btn_Start routes here until intro finishes.</summary>
     public static bool TryConsumeStartButton()
     {
         if (HasCompleted || instance == null)
@@ -96,21 +125,26 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         station = Object.FindAnyObjectByType<ObjectPlacementStation>();
         if (station != null)
             conveyor = station.GetComponent<ObjectPlacementConveyorController>();
-
         phaseRound = Object.FindAnyObjectByType<ObjectPlacementPhaseIRound>();
         objectiveScreen = GameObject.Find("ObjectiveScreen");
+        xrOrigin = Object.FindFirstObjectByType<XROrigin>();
+        hmdCamera = xrOrigin != null && xrOrigin.Camera != null ? xrOrigin.Camera : Camera.main;
 
         ResolveRivera();
         ResolveTalkUi();
-        SetupDialogueZone();
-        EnsureFadeOverlay();
+        SetupDialoguePad();
+        EnsureEffectsUi();
+        EnsureCinemaCamera();
         SetTalkVisible(false);
+        SetPadVisible(true);
     }
 
     void OnDestroy()
     {
         if (instance == this)
             instance = null;
+        RestorePoseDrivers();
+        RestoreHighlights();
     }
 
     bool HandleStartPressed()
@@ -123,13 +157,11 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             objectiveScreen.SetActive(false);
 
         ColorSortWalk.MovementLocked = false;
-
         if (station != null)
-            station.SetScreenText("MEET DR. RIVERA");
-
+            station.SetScreenText("STEP ON THE CIRCLE");
         if (rivera != null)
             rivera.Wave();
-
+        SetPadVisible(true);
         return true;
     }
 
@@ -138,11 +170,10 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         GameObject riveraGo = GameObject.Find("Dr. Rivera");
         if (riveraGo == null)
             return;
-
+        riveraRoot = riveraGo.transform;
         rivera = riveraGo.GetComponent<DrRiveraAnimator>();
         if (rivera == null)
             rivera = riveraGo.AddComponent<DrRiveraAnimator>();
-
         Animator anim = riveraGo.GetComponent<Animator>();
         if (anim != null)
             anim.applyRootMotion = false;
@@ -150,126 +181,267 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
     void ResolveTalkUi()
     {
-        if (rivera == null)
+        if (riveraRoot == null)
             return;
-
-        Transform talk = rivera.transform.Find("Talk");
+        Transform talk = riveraRoot.Find("Talk");
         if (talk == null)
         {
-            Transform[] kids = rivera.GetComponentsInChildren<Transform>(true);
-            for (int i = 0; i < kids.Length; i++)
+            foreach (Transform t in riveraRoot.GetComponentsInChildren<Transform>(true))
             {
-                if (kids[i].name == "Talk")
+                if (t.name == "Talk")
                 {
-                    talk = kids[i];
+                    talk = t;
                     break;
                 }
             }
         }
-
         if (talk == null)
             return;
-
         talkCanvas = talk.gameObject;
         talkText = talk.GetComponentInChildren<TMP_Text>(true);
         if (talkText != null)
             talkText.text = string.Empty;
     }
 
-    void SetupDialogueZone()
+    void SetupDialoguePad()
     {
         dialogueZone = GameObject.Find("Dialogue");
-        if (dialogueZone == null && rivera != null)
+        if (dialogueZone == null && riveraRoot != null)
         {
             dialogueZone = new GameObject("Dialogue");
-            dialogueZone.transform.position = rivera.transform.position + rivera.transform.forward * 0.85f + Vector3.up * 0.9f;
+            Vector3 flatFwd = riveraRoot.forward;
+            flatFwd.y = 0f;
+            if (flatFwd.sqrMagnitude < 0.01f)
+                flatFwd = Vector3.forward;
+            flatFwd.Normalize();
+            dialogueZone.transform.position = riveraRoot.position + flatFwd * 1.05f;
         }
-
         if (dialogueZone == null)
             return;
 
-        // Soften the marker so it reads as a pad, not a solid prop.
-        MeshRenderer mr = dialogueZone.GetComponent<MeshRenderer>();
-        if (mr != null)
-            mr.enabled = false;
+        // Flatten marker to floor.
+        Vector3 p = dialogueZone.transform.position;
+        p.y = 0.02f;
+        dialogueZone.transform.position = p;
+        dialogueZone.transform.rotation = Quaternion.identity;
+        dialogueZone.transform.localScale = Vector3.one;
 
-        // Avoid tiny/skewed parent scale — put an unscaled world trigger child.
+        MeshRenderer oldMr = dialogueZone.GetComponent<MeshRenderer>();
+        if (oldMr != null)
+            oldMr.enabled = false;
+        MeshFilter oldMf = dialogueZone.GetComponent<MeshFilter>();
+        if (oldMf != null)
+            oldMf.mesh = null;
         CapsuleCollider legacy = dialogueZone.GetComponent<CapsuleCollider>();
         if (legacy != null)
             legacy.enabled = false;
+
+        Transform visual = dialogueZone.transform.Find("DialoguePadVisual");
+        if (visual == null)
+        {
+            GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            ring.name = "DialoguePadVisual";
+            ring.transform.SetParent(dialogueZone.transform, false);
+            ring.transform.localPosition = new Vector3(0f, 0.015f, 0f);
+            ring.transform.localScale = new Vector3(1.35f, 0.02f, 1.35f);
+            Object.Destroy(ring.GetComponent<Collider>());
+            MeshRenderer mr = ring.GetComponent<MeshRenderer>();
+            mr.sharedMaterial = MakePadMaterial();
+            dialoguePadVisual = ring;
+
+            GameObject labelGo = new GameObject("PadLabel");
+            labelGo.transform.SetParent(ring.transform, false);
+            labelGo.transform.localPosition = new Vector3(0f, 1.8f, 0f);
+            labelGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            labelGo.transform.localScale = Vector3.one * 0.12f;
+            TextMeshPro tmp = labelGo.AddComponent<TextMeshPro>();
+            tmp.text = "STEP HERE";
+            tmp.fontSize = 8f;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.color = new Color(0.05f, 0.12f, 0.22f, 1f);
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
+        }
+        else
+        {
+            dialoguePadVisual = visual.gameObject;
+        }
 
         Transform probe = dialogueZone.transform.Find("IntroTrigger");
         GameObject probeGo = probe != null ? probe.gameObject : new GameObject("IntroTrigger");
         if (probe == null)
             probeGo.transform.SetParent(dialogueZone.transform, false);
-
         probeGo.transform.localPosition = Vector3.zero;
         probeGo.transform.localRotation = Quaternion.identity;
-        // Counter parent scale so radius/height stay in meters.
-        Vector3 parentScale = dialogueZone.transform.lossyScale;
-        probeGo.transform.localScale = new Vector3(
-            parentScale.x != 0f ? 1f / parentScale.x : 1f,
-            parentScale.y != 0f ? 1f / parentScale.y : 1f,
-            parentScale.z != 0f ? 1f / parentScale.z : 1f);
+        probeGo.transform.localScale = Vector3.one;
 
         CapsuleCollider col = probeGo.GetComponent<CapsuleCollider>();
         if (col == null)
             col = probeGo.AddComponent<CapsuleCollider>();
         col.isTrigger = true;
         col.direction = 1;
-        col.radius = 1.25f;
-        col.height = 2.6f;
+        col.radius = 0.85f;
+        col.height = 2.2f;
         col.center = new Vector3(0f, 1.0f, 0f);
 
         ObjectPlacementDialogueTrigger trigger = probeGo.GetComponent<ObjectPlacementDialogueTrigger>();
         if (trigger == null)
             trigger = probeGo.AddComponent<ObjectPlacementDialogueTrigger>();
         trigger.Bind(this);
+
+        if (dialogueZone.GetComponent<ObjectPlacementDialoguePadPulse>() == null)
+            dialogueZone.AddComponent<ObjectPlacementDialoguePadPulse>();
     }
 
-    void EnsureFadeOverlay()
+    static Material MakePadMaterial()
     {
-        XROrigin origin = Object.FindFirstObjectByType<XROrigin>();
-        Camera cam = origin != null && origin.Camera != null
-            ? origin.Camera
-            : Camera.main;
-        if (cam == null)
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+        if (shader == null)
+            shader = Shader.Find("Standard");
+        Material mat = new Material(shader);
+        Color c = new Color(0.15f, 0.85f, 1f, 0.85f);
+        if (mat.HasProperty("_BaseColor"))
+            mat.SetColor("_BaseColor", c);
+        if (mat.HasProperty("_Color"))
+            mat.SetColor("_Color", c);
+        if (mat.HasProperty("_EmissionColor"))
+        {
+            mat.EnableKeyword("_EMISSION");
+            mat.SetColor("_EmissionColor", c * 1.8f);
+        }
+        return mat;
+    }
+
+    void EnsureEffectsUi()
+    {
+        if (hmdCamera == null)
             return;
 
-        Transform existing = cam.transform.Find("IntroFadeCanvas");
+        Transform existing = hmdCamera.transform.Find("IntroEffectsCanvas");
         GameObject canvasGo;
         if (existing != null)
         {
             canvasGo = existing.gameObject;
+            effectsCanvas = canvasGo.GetComponent<Canvas>();
         }
         else
         {
-            canvasGo = new GameObject("IntroFadeCanvas");
-            canvasGo.transform.SetParent(cam.transform, false);
-            Canvas canvas = canvasGo.AddComponent<Canvas>();
-            canvas.renderMode = RenderMode.WorldSpace;
-            canvas.sortingOrder = 999;
+            canvasGo = new GameObject("IntroEffectsCanvas");
+            canvasGo.transform.SetParent(hmdCamera.transform, false);
+            effectsCanvas = canvasGo.AddComponent<Canvas>();
+            effectsCanvas.renderMode = RenderMode.WorldSpace;
+            effectsCanvas.sortingOrder = 1000;
             RectTransform rt = canvasGo.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(2f, 2f);
-            rt.localPosition = new Vector3(0f, 0f, 0.35f);
-            rt.localScale = Vector3.one * 0.25f;
+            rt.localPosition = new Vector3(0f, 0f, 0.22f);
+            rt.localScale = Vector3.one * 0.5f;
 
-            GameObject imageGo = new GameObject("Fade");
-            imageGo.transform.SetParent(canvasGo.transform, false);
-            RectTransform irt = imageGo.AddComponent<RectTransform>();
-            irt.anchorMin = Vector2.zero;
-            irt.anchorMax = Vector2.one;
-            irt.offsetMin = Vector2.zero;
-            irt.offsetMax = Vector2.zero;
-            fadeImage = imageGo.AddComponent<Image>();
-            fadeImage.color = new Color(0f, 0f, 0f, 0f);
-            fadeImage.raycastTarget = false;
+            fadeImage = MakeFullImage(canvasGo.transform, "Fade", new Color(0f, 0f, 0f, 0f), 0);
+            vignetteImage = MakeFullImage(canvasGo.transform, "Vignette", new Color(0f, 0f, 0f, 0f), 1);
+            // Soft vignette via center-transparent look is approximated with dark edges later if needed.
+            letterboxTop = MakeBar(canvasGo.transform, "LetterboxTop", true);
+            letterboxBottom = MakeBar(canvasGo.transform, "LetterboxBottom", false);
+
+            GameObject guideGo = new GameObject("GuideText");
+            guideGo.transform.SetParent(canvasGo.transform, false);
+            RectTransform grt = guideGo.AddComponent<RectTransform>();
+            grt.anchorMin = new Vector2(0.08f, 0.18f);
+            grt.anchorMax = new Vector2(0.92f, 0.38f);
+            grt.offsetMin = Vector2.zero;
+            grt.offsetMax = Vector2.zero;
+            guideText = guideGo.AddComponent<TextMeshProUGUI>();
+            guideText.alignment = TextAlignmentOptions.Center;
+            guideText.fontSize = 0.12f;
+            guideText.color = Color.white;
+            guideText.text = string.Empty;
+            guideText.enableAutoSizing = false;
+            guideText.textWrappingMode = TextWrappingModes.Normal;
+            Outline outline = guideGo.AddComponent<Outline>();
+            outline.effectColor = new Color(0f, 0f, 0f, 0.85f);
+            outline.effectDistance = new Vector2(1.2f, -1.2f);
+        }
+
+        if (fadeImage == null)
+            fadeImage = canvasGo.transform.Find("Fade")?.GetComponent<Image>();
+        if (letterboxTop == null)
+            letterboxTop = canvasGo.transform.Find("LetterboxTop")?.GetComponent<Image>();
+        if (letterboxBottom == null)
+            letterboxBottom = canvasGo.transform.Find("LetterboxBottom")?.GetComponent<Image>();
+        if (guideText == null)
+            guideText = canvasGo.GetComponentInChildren<TMP_Text>(true);
+
+        SetLetterbox(0f);
+        SetGuide(string.Empty);
+    }
+
+    static Image MakeFullImage(Transform parent, string name, Color color, int sibling)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.SetSiblingIndex(sibling);
+        RectTransform rt = go.AddComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        Image img = go.AddComponent<Image>();
+        img.color = color;
+        img.raycastTarget = false;
+        return img;
+    }
+
+    static Image MakeBar(Transform parent, string name, bool top)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        RectTransform rt = go.AddComponent<RectTransform>();
+        if (top)
+        {
+            rt.anchorMin = new Vector2(0f, 0.82f);
+            rt.anchorMax = new Vector2(1f, 1f);
+        }
+        else
+        {
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(1f, 0.18f);
+        }
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+        Image img = go.AddComponent<Image>();
+        img.color = new Color(0f, 0f, 0f, 0f);
+        img.raycastTarget = false;
+        return img;
+    }
+
+    void EnsureCinemaCamera()
+    {
+        GameObject existing = GameObject.Find("IntroCinemaRig");
+        if (existing != null)
+        {
+            cinemaRig = existing.transform;
+            cinemaCam = existing.GetComponentInChildren<Camera>(true);
+            if (cinemaCam != null)
+                cinemaCam.enabled = false;
             return;
         }
 
-        fadeImage = canvasGo.GetComponentInChildren<Image>(true);
-        if (fadeImage != null)
-            fadeImage.color = new Color(0f, 0f, 0f, 0f);
+        GameObject rig = new GameObject("IntroCinemaRig");
+        cinemaRig = rig.transform;
+        GameObject camGo = new GameObject("IntroCinemaCamera");
+        camGo.transform.SetParent(rig.transform, false);
+        cinemaCam = camGo.AddComponent<Camera>();
+        cinemaCam.enabled = false;
+        cinemaCam.nearClipPlane = 0.05f;
+        cinemaCam.farClipPlane = 80f;
+        cinemaCam.fieldOfView = 50f;
+        if (hmdCamera != null)
+        {
+            cinemaCam.clearFlags = hmdCamera.clearFlags;
+            cinemaCam.backgroundColor = hmdCamera.backgroundColor;
+            cinemaCam.cullingMask = hmdCamera.cullingMask;
+        }
+        AudioListener listener = camGo.GetComponent<AudioListener>();
+        if (listener != null)
+            Destroy(listener);
     }
 
     public void OnPlayerEnteredDialogue()
@@ -279,6 +451,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
         dialogueStarted = true;
         ColorSortWalk.MovementLocked = true;
+        SetPadVisible(false);
         StartCoroutine(WelcomeThenCutscene());
     }
 
@@ -296,19 +469,19 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         yield return TypeLine(WelcomeEnvironment);
         yield return new WaitForSeconds(pauseBetweenLines);
         yield return TypeLine(WelcomeTraining);
-        yield return new WaitForSeconds(pauseBetweenLines * 0.75f);
+        yield return new WaitForSeconds(pauseBetweenLines);
 
         if (rivera != null)
         {
             rivera.Point();
-            yield return new WaitForSeconds(0.85f);
+            yield return new WaitForSeconds(0.9f);
             rivera.SetTalking(true);
         }
 
-        yield return TypeLine(CutsceneLine);
-        yield return new WaitForSeconds(0.55f);
+        yield return TypeLine("Watch this demonstration. I will show you how sorting works on the conveyor.");
+        yield return new WaitForSeconds(0.7f);
 
-        yield return RunStationDemoCutscene();
+        yield return RunCinematicDemo();
 
         if (rivera != null)
         {
@@ -316,12 +489,19 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             rivera.PlayObserve();
         }
 
+        SetTalkVisible(true);
+        if (rivera != null)
+            rivera.SetTalking(true);
+        yield return TypeLine("Your turn. Walk to the station and press the green Start button when you are ready.");
+        yield return new WaitForSeconds(1.1f);
+
         SetTalkVisible(false);
         if (talkText != null)
             talkText.text = string.Empty;
 
         HasCompleted = true;
         ColorSortWalk.MovementLocked = false;
+        SetPadVisible(false);
 
         if (phaseRound == null)
             phaseRound = Object.FindAnyObjectByType<ObjectPlacementPhaseIRound>();
@@ -331,68 +511,395 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             station.SetScreenText("PRESS START");
     }
 
-    IEnumerator RunStationDemoCutscene()
+    IEnumerator RunCinematicDemo()
     {
         cutsceneRunning = true;
         ColorSortWalk.MovementLocked = true;
+        SetTalkVisible(false);
 
         yield return Fade(1f);
         if (station != null)
             station.SetScreenText("DEMO");
+
+        PlaceRiveraAtPresenter();
+        FrameCinemaCamera(0f);
+        BeginCinemaView();
+        yield return null;
+
         yield return Fade(0f);
+        yield return AnimateLetterbox(1f, 0.45f);
+        yield return PushInCamera(0.35f, camBlendSeconds);
 
         if (rivera != null)
-            rivera.Point();
+        {
+            rivera.ReturnToIdle();
+            rivera.SetTalking(true);
+        }
 
+        yield return ShowGuide("This is the sorting station.", beatPause);
         if (conveyor != null)
             conveyor.StartConveyors();
+        yield return ShowGuide("Items arrive on the conveyor belt.", 1.5f);
 
-        Transform yellow = station != null ? station.yellowBox : null;
-        Transform red = station != null ? station.redBox : null;
-        Transform spawn = station != null
-            ? (station.grocerySpawnPointLeft != null ? station.grocerySpawnPointLeft : station.grocerySpawnPoint)
-            : null;
+        DemoBeat[] beats =
+        {
+            new DemoBeat
+            {
+                id = "banana",
+                kind = ObjectPlacementGroceryKind.Fruit,
+                guide = "YELLOW = FRUITS\nUse GRIP to pick up",
+                tip = "Place fruits into the yellow box."
+            },
+            new DemoBeat
+            {
+                id = "lemon",
+                kind = ObjectPlacementGroceryKind.Fruit,
+                guide = "Another fruit — same rule.\nGRIP → Yellow box",
+                tip = "Watch it ride to the end first."
+            },
+            new DemoBeat
+            {
+                id = "tomato",
+                kind = ObjectPlacementGroceryKind.Vegetable,
+                guide = "RED = VEGETABLES\nUse TRIGGER to pick up",
+                tip = "Place vegetables into the red box."
+            },
+            new DemoBeat
+            {
+                id = "chili",
+                kind = ObjectPlacementGroceryKind.Vegetable,
+                guide = "Same for every red item.\nTRIGGER → Red box",
+                tip = "Check the category before you place."
+            },
+        };
 
-        Vector3 spawnPos = spawn != null
-            ? spawn.position + Vector3.up * 0.05f
-            : (yellow != null ? yellow.position + Vector3.up * 0.35f + Vector3.back * 0.4f : Vector3.zero);
-
-        GameObject fruit = SpawnDemoProp("banana", ObjectPlacementGroceryKind.Fruit, spawnPos + Vector3.left * 0.08f);
-        GameObject veg = SpawnDemoProp("tomato", ObjectPlacementGroceryKind.Vegetable, spawnPos + Vector3.right * 0.08f);
-
-        yield return new WaitForSeconds(0.35f);
-
-        Vector3 yellowTarget = yellow != null
-            ? yellow.position + Vector3.up * 0.12f
-            : spawnPos + Vector3.forward * 0.5f;
-        Vector3 redTarget = red != null
-            ? red.position + Vector3.up * 0.12f
-            : spawnPos + Vector3.forward * 0.5f + Vector3.right * 0.25f;
-
-        yield return MovePropArc(fruit, yellowTarget, demoMoveSeconds);
-        yield return new WaitForSeconds(0.2f);
-        yield return MovePropArc(veg, redTarget, demoMoveSeconds);
-        yield return new WaitForSeconds(demoHoldSeconds);
+        for (int i = 0; i < beats.Length; i++)
+            yield return PlayDemoBeat(beats[i]);
 
         if (conveyor != null)
             conveyor.StopConveyors();
 
         if (rivera != null)
+        {
             rivera.Agree();
+            yield return new WaitForSeconds(0.8f);
+            rivera.Clap();
+        }
 
-        yield return new WaitForSeconds(0.7f);
+        yield return ShowGuide("Great. Now you try.", 1.6f);
+        yield return AnimateLetterbox(0f, 0.4f);
         yield return Fade(1f);
 
-        if (fruit != null)
-            Destroy(fruit);
-        if (veg != null)
-            Destroy(veg);
+        EndCinemaView();
+        RestoreRivera();
+        ClearGuide();
+        RestoreHighlights();
 
         if (station != null)
             station.SetScreenText("PRESS START");
 
         yield return Fade(0f);
         cutsceneRunning = false;
+    }
+
+    IEnumerator PlayDemoBeat(DemoBeat beat)
+    {
+        Transform box = beat.kind == ObjectPlacementGroceryKind.Fruit
+            ? (station != null ? station.yellowBox : null)
+            : (station != null ? station.redBox : null);
+
+        if (rivera != null)
+        {
+            rivera.Point();
+            yield return new WaitForSeconds(0.55f);
+            rivera.SetTalking(true);
+        }
+
+        PulseBox(box, true);
+        yield return ShowGuide(beat.guide, beatPause);
+
+        Vector3 spawn = GetBeltSpawn();
+        Vector3 stopper = GetBeltStopper();
+        Vector3 boxTarget = box != null ? box.position + Vector3.up * 0.14f : stopper + Vector3.up * 0.2f;
+
+        // Slight lateral offset so fruit/veg don't overlap perfectly.
+        Vector3 side = beat.kind == ObjectPlacementGroceryKind.Fruit ? Vector3.forward * 0.04f : Vector3.back * 0.04f;
+        GameObject prop = SpawnDemoProp(beat.id, beat.kind, spawn + side);
+
+        yield return ShowGuide("Riding the conveyor…", 0.35f);
+        yield return MovePropLinear(prop, stopper + side, beltRideSeconds);
+        yield return ShowGuide("Stop at the end of the belt.", 0.85f);
+        yield return ShowGuide(beat.tip, 1.0f);
+        yield return MovePropArc(prop, boxTarget, toBoxSeconds);
+        yield return new WaitForSeconds(0.45f);
+
+        if (prop != null)
+            Destroy(prop);
+
+        PulseBox(box, false);
+        yield return new WaitForSeconds(0.35f);
+    }
+
+    Vector3 GetBeltSpawn()
+    {
+        if (station == null)
+            return Vector3.zero;
+        Transform spawn = station.grocerySpawnPointLeft != null
+            ? station.grocerySpawnPointLeft
+            : station.grocerySpawnPoint;
+        if (spawn != null)
+            return spawn.position + Vector3.up * 0.04f;
+        return station.transform.position + Vector3.up * 0.9f;
+    }
+
+    Vector3 GetBeltStopper()
+    {
+        if (station != null && station.beltStopperLeft != null)
+            return station.beltStopperLeft.position + Vector3.up * 0.05f;
+
+        // Fallback: end of left belt along -X (left conveyor direction in this project).
+        Vector3 spawn = GetBeltSpawn();
+        if (station != null && station.beltSurfaceLeft != null)
+        {
+            Bounds b = new Bounds(station.beltSurfaceLeft.position, Vector3.one * 0.2f);
+            Renderer r = station.beltSurfaceLeft.GetComponent<Renderer>();
+            if (r != null)
+                b = r.bounds;
+            return new Vector3(b.min.x + 0.12f, spawn.y, spawn.z);
+        }
+        return spawn + Vector3.left * 1.4f;
+    }
+
+    void PlaceRiveraAtPresenter()
+    {
+        if (riveraRoot == null || station == null)
+            return;
+
+        riveraSavedPos = riveraRoot.position;
+        riveraSavedRot = riveraRoot.rotation;
+
+        Vector3 focus = GetDemoFocus();
+        Vector3 camPos = GetCinemaStartPos(focus);
+        Vector3 side = Vector3.Cross(Vector3.up, (focus - camPos).normalized);
+        if (side.sqrMagnitude < 0.01f)
+            side = station.transform.right;
+        side.Normalize();
+
+        Vector3 stand = focus - (focus - camPos).normalized * 0.15f + side * 0.95f;
+        stand.y = station.transform.position.y;
+        Vector3 look = focus - stand;
+        look.y = 0f;
+        if (look.sqrMagnitude < 0.01f)
+            look = -side;
+        riveraRoot.SetPositionAndRotation(stand, Quaternion.LookRotation(look.normalized, Vector3.up));
+    }
+
+    void RestoreRivera()
+    {
+        if (riveraRoot == null)
+            return;
+        riveraRoot.SetPositionAndRotation(riveraSavedPos, riveraSavedRot);
+    }
+
+    Vector3 GetDemoFocus()
+    {
+        if (station == null)
+            return Vector3.zero;
+        Transform y = station.yellowBox;
+        Transform r = station.redBox;
+        if (y != null && r != null)
+            return (y.position + r.position) * 0.5f + Vector3.up * 0.2f;
+        if (station.boxesRoot != null)
+            return station.boxesRoot.position + Vector3.up * 0.25f;
+        return station.transform.position + Vector3.up * 1f;
+    }
+
+    Vector3 GetCinemaStartPos(Vector3 focus)
+    {
+        // 3/4 view: elevated, looking down at boxes + belt + Rivera presenter.
+        Vector3 toPlayer = Vector3.back;
+        if (xrOrigin != null)
+        {
+            Transform origin = xrOrigin.Origin != null ? xrOrigin.Origin.transform : xrOrigin.transform;
+            toPlayer = origin.position - focus;
+            toPlayer.y = 0f;
+        }
+        if (toPlayer.sqrMagnitude < 0.01f && station != null)
+            toPlayer = -station.transform.forward;
+        if (toPlayer.sqrMagnitude < 0.01f)
+            toPlayer = Vector3.back;
+        toPlayer.Normalize();
+
+        Vector3 right = Vector3.Cross(Vector3.up, toPlayer).normalized;
+        return focus + toPlayer * 2.35f + right * 0.85f + Vector3.up * 1.55f;
+    }
+
+    void FrameCinemaCamera(float push)
+    {
+        EnsureCinemaCamera();
+        Vector3 focus = GetDemoFocus();
+        Vector3 start = GetCinemaStartPos(focus);
+        Vector3 end = Vector3.Lerp(start, focus + Vector3.up * 1.1f, 0.22f);
+        Vector3 pos = Vector3.Lerp(start, end, Mathf.Clamp01(push));
+        if (cinemaCam != null)
+        {
+            cinemaCam.transform.position = pos;
+            cinemaCam.transform.rotation = Quaternion.LookRotation((focus + Vector3.up * 0.1f - pos).normalized, Vector3.up);
+        }
+    }
+
+    IEnumerator PushInCamera(float pushAmount, float duration)
+    {
+        Vector3 focus = GetDemoFocus();
+        Vector3 start = cinemaCam != null ? cinemaCam.transform.position : GetCinemaStartPos(focus);
+        Vector3 end = Vector3.Lerp(start, focus + Vector3.up * 1.05f, pushAmount);
+        Quaternion look = Quaternion.LookRotation((focus + Vector3.up * 0.1f - end).normalized, Vector3.up);
+        float t = 0f;
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            float u = Mathf.SmoothStep(0f, 1f, t / Mathf.Max(0.01f, duration));
+            if (cinemaCam != null)
+            {
+                cinemaCam.transform.position = Vector3.Lerp(start, end, u);
+                cinemaCam.transform.rotation = Quaternion.Slerp(cinemaCam.transform.rotation, look, u);
+            }
+            yield return null;
+        }
+    }
+
+    void BeginCinemaView()
+    {
+        if (hmdCamera == null || cinemaCam == null)
+            return;
+
+        camSavedWorldPos = hmdCamera.transform.position;
+        camSavedWorldRot = hmdCamera.transform.rotation;
+        camPoseSaved = true;
+        DisablePoseDrivers();
+        cinemaActive = true;
+        cinemaCam.enabled = false; // we drive the HMD cam instead for VR display
+        FrameCinemaCamera(0f);
+        // Snap HMD cam to cinema framing (tracking disabled).
+        hmdCamera.transform.SetPositionAndRotation(cinemaCam.transform.position, cinemaCam.transform.rotation);
+    }
+
+    void EndCinemaView()
+    {
+        cinemaActive = false;
+        if (hmdCamera != null && camPoseSaved)
+            hmdCamera.transform.SetPositionAndRotation(camSavedWorldPos, camSavedWorldRot);
+        RestorePoseDrivers();
+        camPoseSaved = false;
+        if (cinemaCam != null)
+            cinemaCam.enabled = false;
+    }
+
+    void LateUpdate()
+    {
+        if (!cinemaActive || hmdCamera == null || cinemaCam == null)
+            return;
+        // Keep HMD camera locked to cinematic pose while tracking is disabled.
+        hmdCamera.transform.SetPositionAndRotation(cinemaCam.transform.position, cinemaCam.transform.rotation);
+    }
+
+    void DisablePoseDrivers()
+    {
+        disabledPoseDrivers.Clear();
+        if (hmdCamera == null)
+            return;
+
+#if ENABLE_INPUT_SYSTEM
+        TrackedPoseDriver[] drivers = hmdCamera.GetComponentsInParent<TrackedPoseDriver>(true);
+        for (int i = 0; i < drivers.Length; i++)
+        {
+            if (drivers[i] != null && drivers[i].enabled)
+            {
+                drivers[i].enabled = false;
+                disabledPoseDrivers.Add(drivers[i]);
+            }
+        }
+#endif
+        // Also disable any XR pose drivers on camera offset.
+        MonoBehaviour[] behaviours = hmdCamera.GetComponentsInParent<MonoBehaviour>(true);
+        for (int i = 0; i < behaviours.Length; i++)
+        {
+            MonoBehaviour b = behaviours[i];
+            if (b == null || !b.enabled)
+                continue;
+            string n = b.GetType().Name;
+            if (n.IndexOf("TrackedPose", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || n.IndexOf("TrackedPoseDriver", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                if (!disabledPoseDrivers.Contains(b))
+                {
+                    b.enabled = false;
+                    disabledPoseDrivers.Add(b);
+                }
+            }
+        }
+    }
+
+    void RestorePoseDrivers()
+    {
+        for (int i = 0; i < disabledPoseDrivers.Count; i++)
+        {
+            if (disabledPoseDrivers[i] != null)
+                disabledPoseDrivers[i].enabled = true;
+        }
+        disabledPoseDrivers.Clear();
+    }
+
+    void PulseBox(Transform box, bool on)
+    {
+        if (!on)
+        {
+            RestoreHighlights();
+            return;
+        }
+        RestoreHighlights();
+        if (box == null)
+            return;
+        Renderer[] renderers = box.GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < renderers.Length; i++)
+        {
+            Renderer r = renderers[i];
+            if (r == null || r.material == null)
+                continue;
+            highlightRenderers.Add(r);
+            Color baseCol = r.material.HasProperty("_BaseColor")
+                ? r.material.GetColor("_BaseColor")
+                : (r.material.HasProperty("_Color") ? r.material.GetColor("_Color") : Color.white);
+            highlightRestore.Add(baseCol);
+            Color glow = Color.Lerp(baseCol, Color.white, 0.45f);
+            glow *= 1.35f;
+            if (r.material.HasProperty("_BaseColor"))
+                r.material.SetColor("_BaseColor", glow);
+            if (r.material.HasProperty("_Color"))
+                r.material.SetColor("_Color", glow);
+            if (r.material.HasProperty("_EmissionColor"))
+            {
+                r.material.EnableKeyword("_EMISSION");
+                r.material.SetColor("_EmissionColor", glow * 0.35f);
+            }
+        }
+    }
+
+    void RestoreHighlights()
+    {
+        for (int i = 0; i < highlightRenderers.Count; i++)
+        {
+            Renderer r = highlightRenderers[i];
+            if (r == null || r.material == null)
+                continue;
+            Color c = highlightRestore[i];
+            if (r.material.HasProperty("_BaseColor"))
+                r.material.SetColor("_BaseColor", c);
+            if (r.material.HasProperty("_Color"))
+                r.material.SetColor("_Color", c);
+        }
+        highlightRenderers.Clear();
+        highlightRestore.Clear();
     }
 
     GameObject SpawnDemoProp(string id, ObjectPlacementGroceryKind kind, Vector3 worldPos)
@@ -405,7 +912,6 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         ObjectPlacementGroceryItem item = go.GetComponent<ObjectPlacementGroceryItem>();
         if (item != null)
             Destroy(item);
-
         var grab = go.GetComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>();
         if (grab != null)
             Destroy(grab);
@@ -420,17 +926,32 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             rb.isKinematic = true;
             rb.useGravity = false;
         }
-
         return go;
+    }
+
+    IEnumerator MovePropLinear(GameObject prop, Vector3 end, float duration)
+    {
+        if (prop == null)
+            yield break;
+        Vector3 start = prop.transform.position;
+        float t = 0f;
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            float u = Mathf.SmoothStep(0f, 1f, t / Mathf.Max(0.01f, duration));
+            prop.transform.position = Vector3.Lerp(start, end, u);
+            prop.transform.Rotate(0f, 40f * Time.deltaTime, 0f, Space.World);
+            yield return null;
+        }
+        prop.transform.position = end;
     }
 
     IEnumerator MovePropArc(GameObject prop, Vector3 end, float duration)
     {
         if (prop == null)
             yield break;
-
         Vector3 start = prop.transform.position;
-        Vector3 mid = Vector3.Lerp(start, end, 0.5f) + Vector3.up * 0.35f;
+        Vector3 mid = Vector3.Lerp(start, end, 0.5f) + Vector3.up * 0.4f;
         float t = 0f;
         while (t < duration)
         {
@@ -440,10 +961,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             Vector3 a = Vector3.Lerp(start, mid, e);
             Vector3 b = Vector3.Lerp(mid, end, e);
             prop.transform.position = Vector3.Lerp(a, b, e);
-            prop.transform.Rotate(0f, 90f * Time.deltaTime, 0f, Space.World);
+            prop.transform.Rotate(0f, 110f * Time.deltaTime, 0f, Space.World);
             yield return null;
         }
-
         prop.transform.position = end;
     }
 
@@ -451,10 +971,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     {
         if (talkText == null)
         {
-            yield return new WaitForSeconds(Mathf.Max(1.5f, line.Length / Mathf.Max(1f, typeCharsPerSecond)));
+            yield return new WaitForSeconds(Mathf.Max(1.4f, line.Length / Mathf.Max(1f, typeCharsPerSecond)));
             yield break;
         }
-
         talkText.text = string.Empty;
         float delay = 1f / Mathf.Max(8f, typeCharsPerSecond);
         for (int i = 0; i < line.Length; i++)
@@ -464,10 +983,24 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         }
     }
 
+    IEnumerator ShowGuide(string text, float hold)
+    {
+        SetGuide(text);
+        yield return new WaitForSeconds(hold);
+    }
+
+    void SetGuide(string text)
+    {
+        if (guideText != null)
+            guideText.text = text ?? string.Empty;
+    }
+
+    void ClearGuide() => SetGuide(string.Empty);
+
     IEnumerator Fade(float targetAlpha)
     {
         if (fadeImage == null)
-            EnsureFadeOverlay();
+            EnsureEffectsUi();
         if (fadeImage == null)
             yield break;
 
@@ -482,9 +1015,33 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             fadeImage.color = c;
             yield return null;
         }
-
         c.a = targetAlpha;
         fadeImage.color = c;
+    }
+
+    IEnumerator AnimateLetterbox(float target, float duration)
+    {
+        float start = letterboxTop != null ? letterboxTop.color.a : 0f;
+        float t = 0f;
+        while (t < duration)
+        {
+            t += Time.deltaTime;
+            float u = Mathf.SmoothStep(0f, 1f, t / Mathf.Max(0.01f, duration));
+            SetLetterbox(Mathf.Lerp(start, target, u));
+            yield return null;
+        }
+        SetLetterbox(target);
+    }
+
+    void SetLetterbox(float alpha)
+    {
+        Color c = new Color(0f, 0f, 0f, Mathf.Clamp01(alpha));
+        if (letterboxTop != null)
+            letterboxTop.color = c;
+        if (letterboxBottom != null)
+            letterboxBottom.color = c;
+        if (vignetteImage != null)
+            vignetteImage.color = new Color(0f, 0f, 0f, Mathf.Clamp01(alpha) * 0.25f);
     }
 
     void SetTalkVisible(bool on)
@@ -492,26 +1049,67 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (talkCanvas != null)
             talkCanvas.SetActive(on);
     }
+
+    void SetPadVisible(bool on)
+    {
+        if (dialoguePadVisual != null)
+            dialoguePadVisual.SetActive(on);
+        if (dialogueZone != null && !dialogueStarted)
+            dialogueZone.SetActive(true);
+    }
 }
 
-/// <summary>Proximity trigger on the Dialogue pad in front of Dr. Rivera.</summary>
+/// <summary>Soft pulse on the STEP HERE pad.</summary>
+public class ObjectPlacementDialoguePadPulse : MonoBehaviour
+{
+    Transform visual;
+    Vector3 baseScale;
+    Material mat;
+    Color baseColor;
+
+    void Awake()
+    {
+        Transform v = transform.Find("DialoguePadVisual");
+        if (v == null)
+            return;
+        visual = v;
+        baseScale = visual.localScale;
+        MeshRenderer mr = visual.GetComponent<MeshRenderer>();
+        if (mr != null)
+        {
+            mat = mr.material;
+            if (mat.HasProperty("_EmissionColor"))
+                baseColor = mat.GetColor("_EmissionColor");
+            else if (mat.HasProperty("_BaseColor"))
+                baseColor = mat.GetColor("_BaseColor");
+        }
+    }
+
+    void Update()
+    {
+        if (visual == null)
+            return;
+        float w = 1f + Mathf.Sin(Time.time * 2.6f) * 0.045f;
+        visual.localScale = new Vector3(baseScale.x * w, baseScale.y, baseScale.z * w);
+        if (mat != null && mat.HasProperty("_EmissionColor"))
+        {
+            float e = 1.4f + Mathf.Sin(Time.time * 2.6f) * 0.45f;
+            mat.SetColor("_EmissionColor", baseColor * e);
+        }
+    }
+}
+
+/// <summary>Proximity trigger on the Dialogue pad.</summary>
 public class ObjectPlacementDialogueTrigger : MonoBehaviour
 {
     ObjectPlacementIntroDirector director;
 
-    public void Bind(ObjectPlacementIntroDirector host)
-    {
-        director = host;
-    }
+    public void Bind(ObjectPlacementIntroDirector host) => director = host;
 
     void OnTriggerEnter(Collider other)
     {
-        if (director == null || other == null)
+        if (director == null || other == null || !IsPlayer(other))
             return;
-
-        if (!IsPlayer(other))
-            return;
-
         director.OnPlayerEnteredDialogue();
     }
 
@@ -519,17 +1117,10 @@ public class ObjectPlacementDialogueTrigger : MonoBehaviour
     {
         if (other.CompareTag("Player"))
             return true;
-
         if (other.GetComponentInParent<XROrigin>() != null)
             return true;
-
         if (other.GetComponentInParent<CharacterController>() != null)
             return true;
-
-        Camera cam = Camera.main;
-        if (cam != null && other.transform.IsChildOf(cam.transform.root))
-            return true;
-
         return other.name.IndexOf("XR", System.StringComparison.OrdinalIgnoreCase) >= 0
                || other.name.IndexOf("Camera", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
