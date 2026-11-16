@@ -144,7 +144,7 @@ Transform:
   m_GameObject: {fileID: 30930152}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.8551099, z: -0, w: -0.518447}
-  m_LocalPosition: {x: 1.791, y: 1.042, z: 4.727}
+  m_LocalPosition: {x: 1.772, y: 1.042, z: 4.551}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1579,7 +1579,7 @@ MonoBehaviour:
   m_charWidthMaxAdj: 0
   m_TextWrappingMode: 1
   m_wordWrappingRatios: 0.4
-  m_overflowMode: 1
+  m_overflowMode: 3
   m_linkedTextComponent: {fileID: 0}
   parentLinkedComponent: {fileID: 0}
   m_enableKerning: 0

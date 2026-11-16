@@ -50,6 +50,8 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     [SerializeField] float guideAnchorMaxY = 0.32f;
 
     [Header("Cinema Shot Blends")]
+    [Tooltip("If true, cutscene stays on Shot_Conveyor only (no multi-angle blends — less VR nausea).")]
+    [SerializeField] bool useOnlyConveyorShot = true;
     [SerializeField] float shotBlendSeconds = 1.2f;
     [SerializeField] float cinemaFov = 55f;
     [SerializeField] CinemaShotTuning wideShot = new CinemaShotTuning
@@ -734,8 +736,8 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             station.SetScreenText("DEMO");
 
         PlaceRiveraAtPresenter();
-        // SHOT 1 — wide establish (set before cinema begins so fade-in lands on this frame).
-        SnapCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.Wide, GetWideFocus(), wideShot);
+        // Comfort: lock to Shot_Conveyor for the whole demo (no multi-angle cuts).
+        SnapCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.Conveyor, GetFrontConveyorFocus(), conveyorShot);
         BeginCinemaView();
         yield return null;
 
@@ -749,13 +751,8 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         }
 
         yield return ShowGuide("This is the sorting station.", beatPause);
-
-        // SHOT 2 — box close-up
-        yield return BlendCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.BoxCloseUp, GetBoxesFocus(), boxCloseUp, shotBlendSeconds);
         yield return ShowGuide("Yellow box = fruits. Red box = vegetables.", beatPause);
 
-        // SHOT 3 — front conveyor
-        yield return BlendCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.Conveyor, GetFrontConveyorFocus(), conveyorShot, shotBlendSeconds);
         if (conveyor != null)
             conveyor.StartConveyors();
         yield return ShowGuide("Items arrive on the conveyor belt.", 1.5f);
@@ -800,9 +797,6 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
         // SHOT 6 — final box placement onto front conveyor
         yield return PlayBoxDeliveryDemo();
-
-        // SHOT 7 — final wide
-        yield return BlendCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.FinalWide, GetWideFocus(), finalWideShot, shotBlendSeconds);
 
         if (rivera != null)
         {
@@ -854,7 +848,6 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             rivera.SetTalking(true);
         }
 
-        yield return BlendCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.FinalBoxes, GetFrontConveyorFocus(), finalBoxPlaceShot, shotBlendSeconds);
         yield return ShowGuide("After sorting, lift the boxes\nand place them on the front conveyor.", beatPause);
 
         BoxAnimState yState = CaptureBoxState(yellow);
@@ -875,12 +868,6 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             yield return MoveTransformArc(yellow, yellowSeat, toBoxSeconds + 0.25f);
             SeatBoxOnBeltPreserveScale(yellow, frontBelt, yellowSeat, yState);
             // Reframe so both crate landing spots stay visible.
-            // Keep FinalBoxes scene marker framing (user-authored); only nudge if marker missing.
-            yield return BlendCinemaShot(
-                ObjectPlacementIntroSceneSetup.ShotId.FinalBoxes,
-                yellow.position + Vector3.up * 0.1f,
-                finalBoxPlaceShot,
-                shotBlendSeconds * 0.75f);
             PulseBox(yellow, false);
             yield return new WaitForSeconds(0.35f);
         }
@@ -897,14 +884,6 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             DetachBoxPreserveScale(red, rState);
             yield return MoveTransformArc(red, redSeat, toBoxSeconds + 0.25f);
             SeatBoxOnBeltPreserveScale(red, frontBelt, redSeat, rState);
-            Vector3 both = yellow != null
-                ? (yellow.position + red.position) * 0.5f + Vector3.up * 0.1f
-                : red.position + Vector3.up * 0.1f;
-            yield return BlendCinemaShot(
-                ObjectPlacementIntroSceneSetup.ShotId.FinalBoxes,
-                both,
-                finalBoxPlaceShot,
-                shotBlendSeconds * 0.75f);
             PulseBox(red, false);
             yield return new WaitForSeconds(0.45f);
         }
@@ -1097,12 +1076,6 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         // Slight lateral offset so fruit/veg don't overlap perfectly.
         Vector3 side = beat.kind == ObjectPlacementGroceryKind.Fruit ? Vector3.forward * 0.04f : Vector3.back * 0.04f;
 
-        // SHOT 4 — item pickup / arrival close-up
-        yield return BlendCinemaShot(
-            ObjectPlacementIntroSceneSetup.ShotId.ItemPickup,
-            spawn + side + Vector3.up * 0.08f,
-            itemPickupShot,
-            shotBlendSeconds);
         GameObject prop = SpawnDemoProp(beat.id, beat.kind, spawn + side);
 
         yield return ShowGuide("Riding the conveyor…", 0.9f);
@@ -1110,15 +1083,6 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         yield return ShowGuide("Stops at the end of the belt.", 1.4f);
         yield return ShowGuide(beat.tip, 1.35f);
 
-        // SHOT 5 — item placement into target box
-        Vector3 placeFocus = box != null
-            ? (box.position + (prop != null ? prop.transform.position : boxTarget)) * 0.5f
-            : boxTarget;
-        yield return BlendCinemaShot(
-            ObjectPlacementIntroSceneSetup.ShotId.ItemPlace,
-            placeFocus,
-            itemPlaceShot,
-            shotBlendSeconds);
         yield return MovePropArc(prop, boxTarget, toBoxSeconds);
         yield return new WaitForSeconds(0.55f);
 
@@ -1299,6 +1263,13 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (sceneSetup == null)
             sceneSetup = Object.FindAnyObjectByType<ObjectPlacementIntroSceneSetup>();
 
+        if (useOnlyConveyorShot)
+        {
+            shotId = ObjectPlacementIntroSceneSetup.ShotId.Conveyor;
+            fallbackFocus = GetFrontConveyorFocus();
+            fallbackTuning = conveyorShot;
+        }
+
         if (sceneSetup != null && sceneSetup.TryGetShotPose(shotId, out pos, out rot))
             return;
 
@@ -1322,6 +1293,10 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         CinemaShotTuning fallbackTuning,
         float duration)
     {
+        // Single locked shot — no blends (avoids VR nausea).
+        if (useOnlyConveyorShot)
+            yield break;
+
         EnsureCinemaCamera();
         if (cinemaCam == null)
             yield break;
@@ -1346,20 +1321,17 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
     void FrameCinemaCamera(float push)
     {
-        // Legacy helper — maps push into a mild wide-shot push-in.
-        CinemaShotTuning t = wideShot;
-        t.distance = Mathf.Lerp(wideShot.distance, wideShot.distance * 0.78f, Mathf.Clamp01(push));
-        SnapCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.Wide, GetWideFocus(), t);
+        SnapCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.Conveyor, GetFrontConveyorFocus(), conveyorShot);
     }
 
     IEnumerator PushInCamera(float pushAmount, float duration)
     {
-        CinemaShotTuning t = wideShot;
-        t.distance = Mathf.Lerp(wideShot.distance, wideShot.distance * 0.78f, Mathf.Clamp01(pushAmount));
+        if (useOnlyConveyorShot)
+            yield break;
         yield return BlendCinemaShot(
-            ObjectPlacementIntroSceneSetup.ShotId.Wide,
-            GetWideFocus(),
-            t,
+            ObjectPlacementIntroSceneSetup.ShotId.Conveyor,
+            GetFrontConveyorFocus(),
+            conveyorShot,
             duration > 0f ? duration : camBlendSeconds);
     }
 
