@@ -97,6 +97,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     ObjectPlacementStation station;
     ObjectPlacementConveyorController conveyor;
     ObjectPlacementPhaseIRound phaseRound;
+    ObjectPlacementIntroSceneSetup sceneSetup;
     DrRiveraAnimator rivera;
     Transform riveraRoot;
     XROrigin xrOrigin;
@@ -187,6 +188,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (station != null)
             conveyor = station.GetComponent<ObjectPlacementConveyorController>();
         phaseRound = Object.FindAnyObjectByType<ObjectPlacementPhaseIRound>();
+        sceneSetup = Object.FindAnyObjectByType<ObjectPlacementIntroSceneSetup>();
         objectiveScreen = GameObject.Find("ObjectiveScreen");
         xrOrigin = Object.FindFirstObjectByType<XROrigin>();
         hmdCamera = xrOrigin != null && xrOrigin.Camera != null ? xrOrigin.Camera : Camera.main;
@@ -382,8 +384,12 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (hmdCamera == null)
             return;
 
-        // Prefer a root-level canvas so Screen Space works in VR + Game View / Device Simulator.
-        GameObject canvasGo = GameObject.Find("IntroEffectsCanvas");
+        // Prefer scene-authored canvas from IntroCutsceneControls.
+        GameObject canvasGo = null;
+        if (sceneSetup != null && sceneSetup.effectsCanvas != null)
+            canvasGo = sceneSetup.effectsCanvas.gameObject;
+        if (canvasGo == null)
+            canvasGo = GameObject.Find("IntroEffectsCanvas");
         if (canvasGo == null)
         {
             Transform underCam = hmdCamera.transform.Find("IntroEffectsCanvas");
@@ -400,8 +406,9 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             letterboxBottom = MakeBar(canvasGo.transform, "LetterboxBottom", false);
         }
 
-        // Detach from camera local space — Screen Space - Camera handles framing.
-        if (canvasGo.transform.parent != null)
+        // Keep scene parenting under IntroCutsceneControls; only detach if stuck under HMD.
+        if (canvasGo.transform.parent != null &&
+            canvasGo.transform.parent.GetComponent<Camera>() != null)
             canvasGo.transform.SetParent(null, false);
 
         effectsCanvas = canvasGo.GetComponent<Canvas>();
@@ -467,46 +474,72 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (letterboxBottom == null)
             letterboxBottom = MakeBar(canvasGo.transform, "LetterboxBottom", false);
 
-        // Rebuild subtitle band — vertical position from Inspector (higher = lower-middle FOV).
-        Transform oldGuide = canvasGo.transform.Find("GuidePanel");
-        if (oldGuide != null)
-            Destroy(oldGuide.gameObject);
+        // Prefer scene-authored GuidePanel (user-adjustable). Never destroy scene layout.
+        bool usedSceneGuide = false;
+        if (sceneSetup != null && sceneSetup.guidePanel != null)
+        {
+            guidePlate = sceneSetup.guidePlate != null
+                ? sceneSetup.guidePlate
+                : sceneSetup.guidePanel.GetComponent<Image>();
+            guideText = sceneSetup.guideText != null
+                ? sceneSetup.guideText
+                : sceneSetup.guidePanel.GetComponentInChildren<TMP_Text>(true);
+            usedSceneGuide = guideText != null;
+        }
 
-        GameObject panel = new GameObject("GuidePanel");
-        panel.transform.SetParent(canvasGo.transform, false);
-        RectTransform prt = panel.AddComponent<RectTransform>();
-        float minY = Mathf.Clamp(guideAnchorMinY, 0.02f, 0.7f);
-        float maxY = Mathf.Clamp(guideAnchorMaxY, minY + 0.08f, 0.85f);
-        float minX = Mathf.Clamp01(guideAnchorMinX);
-        float maxX = Mathf.Clamp(guideAnchorMaxX, minX + 0.1f, 1f);
-        prt.anchorMin = new Vector2(minX, minY);
-        prt.anchorMax = new Vector2(maxX, maxY);
-        prt.pivot = new Vector2(0.5f, 0.5f);
-        prt.offsetMin = Vector2.zero;
-        prt.offsetMax = Vector2.zero;
-        guidePlate = panel.AddComponent<Image>();
-        guidePlate.color = new Color(0f, 0f, 0f, 0.78f);
-        guidePlate.raycastTarget = false;
+        if (!usedSceneGuide)
+        {
+            Transform existingGuide = canvasGo.transform.Find("GuidePanel");
+            if (existingGuide != null)
+            {
+                guidePlate = existingGuide.GetComponent<Image>();
+                guideText = existingGuide.GetComponentInChildren<TMP_Text>(true);
+                usedSceneGuide = guideText != null;
+            }
+        }
 
-        GameObject guideGo = new GameObject("GuideText");
-        guideGo.transform.SetParent(panel.transform, false);
-        RectTransform grt = guideGo.AddComponent<RectTransform>();
-        grt.anchorMin = Vector2.zero;
-        grt.anchorMax = Vector2.one;
-        grt.offsetMin = new Vector2(18f, 10f);
-        grt.offsetMax = new Vector2(-18f, -10f);
-        guideText = guideGo.AddComponent<TextMeshProUGUI>();
-        guideText.alignment = TextAlignmentOptions.Center;
-        guideText.enableAutoSizing = false;
-        guideText.fontSize = guideFontSize;
-        guideText.color = Color.white;
-        guideText.alpha = 1f;
-        guideText.text = string.Empty;
-        guideText.textWrappingMode = TextWrappingModes.Normal;
-        guideText.overflowMode = TextOverflowModes.Truncate;
-        guideText.fontStyle = FontStyles.Bold;
-        guideText.outlineWidth = 0.2f;
-        guideText.outlineColor = new Color(0f, 0f, 0f, 0.95f);
+        if (!usedSceneGuide)
+        {
+            GameObject panel = new GameObject("GuidePanel");
+            panel.transform.SetParent(canvasGo.transform, false);
+            RectTransform prt = panel.AddComponent<RectTransform>();
+            float minY = Mathf.Clamp(guideAnchorMinY, 0.02f, 0.7f);
+            float maxY = Mathf.Clamp(guideAnchorMaxY, minY + 0.08f, 0.85f);
+            float minX = Mathf.Clamp01(guideAnchorMinX);
+            float maxX = Mathf.Clamp(guideAnchorMaxX, minX + 0.1f, 1f);
+            prt.anchorMin = new Vector2(minX, minY);
+            prt.anchorMax = new Vector2(maxX, maxY);
+            prt.pivot = new Vector2(0.5f, 0.5f);
+            prt.offsetMin = Vector2.zero;
+            prt.offsetMax = Vector2.zero;
+            guidePlate = panel.AddComponent<Image>();
+            guidePlate.color = new Color(0f, 0f, 0f, 0.78f);
+            guidePlate.raycastTarget = false;
+
+            GameObject guideGo = new GameObject("GuideText");
+            guideGo.transform.SetParent(panel.transform, false);
+            RectTransform grt = guideGo.AddComponent<RectTransform>();
+            grt.anchorMin = Vector2.zero;
+            grt.anchorMax = Vector2.one;
+            grt.offsetMin = new Vector2(18f, 10f);
+            grt.offsetMax = new Vector2(-18f, -10f);
+            guideText = guideGo.AddComponent<TextMeshProUGUI>();
+        }
+
+        if (guideText != null)
+        {
+            guideText.alignment = TextAlignmentOptions.Center;
+            guideText.enableAutoSizing = false;
+            guideText.fontSize = guideFontSize;
+            guideText.color = Color.white;
+            guideText.alpha = 1f;
+            guideText.text = string.Empty;
+            guideText.textWrappingMode = TextWrappingModes.Normal;
+            guideText.overflowMode = TextOverflowModes.Truncate;
+            guideText.fontStyle = FontStyles.Bold;
+            guideText.outlineWidth = 0.2f;
+            guideText.outlineColor = new Color(0f, 0f, 0f, 0.95f);
+        }
 
         if (letterboxTop != null)
         {
@@ -702,7 +735,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
         PlaceRiveraAtPresenter();
         // SHOT 1 — wide establish (set before cinema begins so fade-in lands on this frame).
-        SnapCinemaShot(GetWideFocus(), wideShot);
+        SnapCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.Wide, GetWideFocus(), wideShot);
         BeginCinemaView();
         yield return null;
 
@@ -718,11 +751,11 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         yield return ShowGuide("This is the sorting station.", beatPause);
 
         // SHOT 2 — box close-up
-        yield return BlendCinemaShot(GetBoxesFocus(), boxCloseUp, shotBlendSeconds);
+        yield return BlendCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.BoxCloseUp, GetBoxesFocus(), boxCloseUp, shotBlendSeconds);
         yield return ShowGuide("Yellow box = fruits. Red box = vegetables.", beatPause);
 
         // SHOT 3 — front conveyor
-        yield return BlendCinemaShot(GetFrontConveyorFocus(), conveyorShot, shotBlendSeconds);
+        yield return BlendCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.Conveyor, GetFrontConveyorFocus(), conveyorShot, shotBlendSeconds);
         if (conveyor != null)
             conveyor.StartConveyors();
         yield return ShowGuide("Items arrive on the conveyor belt.", 1.5f);
@@ -769,7 +802,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         yield return PlayBoxDeliveryDemo();
 
         // SHOT 7 — final wide
-        yield return BlendCinemaShot(GetWideFocus(), finalWideShot, shotBlendSeconds);
+        yield return BlendCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.FinalWide, GetWideFocus(), finalWideShot, shotBlendSeconds);
 
         if (rivera != null)
         {
@@ -821,7 +854,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             rivera.SetTalking(true);
         }
 
-        yield return BlendCinemaShot(GetFrontConveyorFocus(), finalBoxPlaceShot, shotBlendSeconds);
+        yield return BlendCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.FinalBoxes, GetFrontConveyorFocus(), finalBoxPlaceShot, shotBlendSeconds);
         yield return ShowGuide("After sorting, lift the boxes\nand place them on the front conveyor.", beatPause);
 
         BoxAnimState yState = CaptureBoxState(yellow);
@@ -842,7 +875,12 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             yield return MoveTransformArc(yellow, yellowSeat, toBoxSeconds + 0.25f);
             SeatBoxOnBeltPreserveScale(yellow, frontBelt, yellowSeat, yState);
             // Reframe so both crate landing spots stay visible.
-            yield return BlendCinemaShot(yellow.position + Vector3.up * 0.1f, finalBoxPlaceShot, shotBlendSeconds * 0.75f);
+            // Keep FinalBoxes scene marker framing (user-authored); only nudge if marker missing.
+            yield return BlendCinemaShot(
+                ObjectPlacementIntroSceneSetup.ShotId.FinalBoxes,
+                yellow.position + Vector3.up * 0.1f,
+                finalBoxPlaceShot,
+                shotBlendSeconds * 0.75f);
             PulseBox(yellow, false);
             yield return new WaitForSeconds(0.35f);
         }
@@ -862,7 +900,11 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             Vector3 both = yellow != null
                 ? (yellow.position + red.position) * 0.5f + Vector3.up * 0.1f
                 : red.position + Vector3.up * 0.1f;
-            yield return BlendCinemaShot(both, finalBoxPlaceShot, shotBlendSeconds * 0.75f);
+            yield return BlendCinemaShot(
+                ObjectPlacementIntroSceneSetup.ShotId.FinalBoxes,
+                both,
+                finalBoxPlaceShot,
+                shotBlendSeconds * 0.75f);
             PulseBox(red, false);
             yield return new WaitForSeconds(0.45f);
         }
@@ -1056,7 +1098,11 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         Vector3 side = beat.kind == ObjectPlacementGroceryKind.Fruit ? Vector3.forward * 0.04f : Vector3.back * 0.04f;
 
         // SHOT 4 — item pickup / arrival close-up
-        yield return BlendCinemaShot(spawn + side + Vector3.up * 0.08f, itemPickupShot, shotBlendSeconds);
+        yield return BlendCinemaShot(
+            ObjectPlacementIntroSceneSetup.ShotId.ItemPickup,
+            spawn + side + Vector3.up * 0.08f,
+            itemPickupShot,
+            shotBlendSeconds);
         GameObject prop = SpawnDemoProp(beat.id, beat.kind, spawn + side);
 
         yield return ShowGuide("Riding the conveyor…", 0.9f);
@@ -1068,7 +1114,11 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         Vector3 placeFocus = box != null
             ? (box.position + (prop != null ? prop.transform.position : boxTarget)) * 0.5f
             : boxTarget;
-        yield return BlendCinemaShot(placeFocus, itemPlaceShot, shotBlendSeconds);
+        yield return BlendCinemaShot(
+            ObjectPlacementIntroSceneSetup.ShotId.ItemPlace,
+            placeFocus,
+            itemPlaceShot,
+            shotBlendSeconds);
         yield return MovePropArc(prop, boxTarget, toBoxSeconds);
         yield return new WaitForSeconds(0.55f);
 
@@ -1239,15 +1289,38 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             hmdCamera.fieldOfView = cinemaFov;
     }
 
-    void SnapCinemaShot(Vector3 focus, CinemaShotTuning tuning)
+    void ResolveShotPose(
+        ObjectPlacementIntroSceneSetup.ShotId shotId,
+        Vector3 fallbackFocus,
+        CinemaShotTuning fallbackTuning,
+        out Vector3 pos,
+        out Quaternion rot)
+    {
+        if (sceneSetup == null)
+            sceneSetup = Object.FindAnyObjectByType<ObjectPlacementIntroSceneSetup>();
+
+        if (sceneSetup != null && sceneSetup.TryGetShotPose(shotId, out pos, out rot))
+            return;
+
+        ComputeCinemaPose(fallbackFocus, fallbackTuning, out pos, out rot);
+    }
+
+    void SnapCinemaShot(
+        ObjectPlacementIntroSceneSetup.ShotId shotId,
+        Vector3 fallbackFocus,
+        CinemaShotTuning fallbackTuning)
     {
         Vector3 pos;
         Quaternion rot;
-        ComputeCinemaPose(focus, tuning, out pos, out rot);
+        ResolveShotPose(shotId, fallbackFocus, fallbackTuning, out pos, out rot);
         ApplyCinemaPose(pos, rot);
     }
 
-    IEnumerator BlendCinemaShot(Vector3 focus, CinemaShotTuning tuning, float duration)
+    IEnumerator BlendCinemaShot(
+        ObjectPlacementIntroSceneSetup.ShotId shotId,
+        Vector3 fallbackFocus,
+        CinemaShotTuning fallbackTuning,
+        float duration)
     {
         EnsureCinemaCamera();
         if (cinemaCam == null)
@@ -1257,7 +1330,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         Quaternion startRot = cinemaCam.transform.rotation;
         Vector3 endPos;
         Quaternion endRot;
-        ComputeCinemaPose(focus, tuning, out endPos, out endRot);
+        ResolveShotPose(shotId, fallbackFocus, fallbackTuning, out endPos, out endRot);
 
         float d = Mathf.Max(0.05f, duration);
         float t = 0f;
@@ -1276,14 +1349,18 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         // Legacy helper — maps push into a mild wide-shot push-in.
         CinemaShotTuning t = wideShot;
         t.distance = Mathf.Lerp(wideShot.distance, wideShot.distance * 0.78f, Mathf.Clamp01(push));
-        SnapCinemaShot(GetWideFocus(), t);
+        SnapCinemaShot(ObjectPlacementIntroSceneSetup.ShotId.Wide, GetWideFocus(), t);
     }
 
     IEnumerator PushInCamera(float pushAmount, float duration)
     {
         CinemaShotTuning t = wideShot;
         t.distance = Mathf.Lerp(wideShot.distance, wideShot.distance * 0.78f, Mathf.Clamp01(pushAmount));
-        yield return BlendCinemaShot(GetWideFocus(), t, duration > 0f ? duration : camBlendSeconds);
+        yield return BlendCinemaShot(
+            ObjectPlacementIntroSceneSetup.ShotId.Wide,
+            GetWideFocus(),
+            t,
+            duration > 0f ? duration : camBlendSeconds);
     }
 
     void BeginCinemaView()

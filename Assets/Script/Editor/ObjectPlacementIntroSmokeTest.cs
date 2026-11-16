@@ -37,6 +37,16 @@ public static class ObjectPlacementIntroSmokeTest
             "No orphan GameObject named Dialogue");
         Check(log, ref fails, GameObject.Find("ObjectiveScreen") != null, "ObjectiveScreen exists");
 
+        ObjectPlacementIntroSceneSetup introSetup =
+            Object.FindAnyObjectByType<ObjectPlacementIntroSceneSetup>();
+        Check(log, ref fails, introSetup != null,
+            "IntroCutsceneControls / ObjectPlacementIntroSceneSetup exists (run LorR/NPC/Create Intro Cutscene Scene Controls if missing)");
+        if (introSetup != null)
+        {
+            Check(log, ref fails, introSetup.shotWide != null, "shotWide assigned");
+            Check(log, ref fails, introSetup.guidePanel != null, "guidePanel assigned");
+        }
+
         GameObject rivera = GameObject.Find("Dr. Rivera");
         if (rivera != null)
         {
