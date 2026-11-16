@@ -42,6 +42,58 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     [SerializeField] float pageHoldSeconds = 1.35f;
     [SerializeField] float guideFontSize = 32f;
 
+    [Header("Cutscene Dialogue UI (Screen Space)")]
+    [Tooltip("Lower-middle band. Raise Min/Max Y to move subtitles higher in VR FOV.")]
+    [SerializeField] float guideAnchorMinX = 0.06f;
+    [SerializeField] float guideAnchorMaxX = 0.94f;
+    [SerializeField] float guideAnchorMinY = 0.16f;
+    [SerializeField] float guideAnchorMaxY = 0.32f;
+
+    [Header("Cinema Shot Blends")]
+    [SerializeField] float shotBlendSeconds = 1.2f;
+    [SerializeField] float cinemaFov = 55f;
+    [SerializeField] CinemaShotTuning wideShot = new CinemaShotTuning
+    {
+        distance = 3.1f, height = 1.85f, lateral = 0.95f, lookHeight = 0.35f
+    };
+    [SerializeField] CinemaShotTuning boxCloseUp = new CinemaShotTuning
+    {
+        distance = 1.55f, height = 1.25f, lateral = 0.35f, lookHeight = 0.18f
+    };
+    [SerializeField] CinemaShotTuning conveyorShot = new CinemaShotTuning
+    {
+        distance = 2.0f, height = 1.45f, lateral = -0.55f, lookHeight = 0.12f
+    };
+    [SerializeField] CinemaShotTuning itemPickupShot = new CinemaShotTuning
+    {
+        distance = 1.25f, height = 1.15f, lateral = 0.25f, lookHeight = 0.05f
+    };
+    [SerializeField] CinemaShotTuning itemPlaceShot = new CinemaShotTuning
+    {
+        distance = 1.35f, height = 1.2f, lateral = 0.4f, lookHeight = 0.12f
+    };
+    [SerializeField] CinemaShotTuning finalBoxPlaceShot = new CinemaShotTuning
+    {
+        distance = 1.9f, height = 1.5f, lateral = 0.15f, lookHeight = 0.15f
+    };
+    [SerializeField] CinemaShotTuning finalWideShot = new CinemaShotTuning
+    {
+        distance = 3.0f, height = 1.8f, lateral = 0.75f, lookHeight = 0.3f
+    };
+
+    [System.Serializable]
+    public struct CinemaShotTuning
+    {
+        [Tooltip("Distance back from focus along the preferred view direction.")]
+        public float distance;
+        [Tooltip("Camera height above focus.")]
+        public float height;
+        [Tooltip("Side offset (positive = right of view).")]
+        public float lateral;
+        [Tooltip("Look-at height offset above focus.")]
+        public float lookHeight;
+    }
+
     ObjectPlacementStation station;
     ObjectPlacementConveyorController conveyor;
     ObjectPlacementPhaseIRound phaseRound;
@@ -74,6 +126,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     Quaternion riveraSavedRot;
     Vector3 camSavedWorldPos;
     Quaternion camSavedWorldRot;
+    float camSavedFov;
     bool camPoseSaved;
     bool cinemaActive;
 
@@ -414,7 +467,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (letterboxBottom == null)
             letterboxBottom = MakeBar(canvasGo.transform, "LetterboxBottom", false);
 
-        // Rebuild lower subtitle band with responsive anchors (not fixed pixels).
+        // Rebuild subtitle band — vertical position from Inspector (higher = lower-middle FOV).
         Transform oldGuide = canvasGo.transform.Find("GuidePanel");
         if (oldGuide != null)
             Destroy(oldGuide.gameObject);
@@ -422,9 +475,13 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         GameObject panel = new GameObject("GuidePanel");
         panel.transform.SetParent(canvasGo.transform, false);
         RectTransform prt = panel.AddComponent<RectTransform>();
-        prt.anchorMin = new Vector2(0.06f, 0.045f);
-        prt.anchorMax = new Vector2(0.94f, 0.20f);
-        prt.pivot = new Vector2(0.5f, 0f);
+        float minY = Mathf.Clamp(guideAnchorMinY, 0.02f, 0.7f);
+        float maxY = Mathf.Clamp(guideAnchorMaxY, minY + 0.08f, 0.85f);
+        float minX = Mathf.Clamp01(guideAnchorMinX);
+        float maxX = Mathf.Clamp(guideAnchorMaxX, minX + 0.1f, 1f);
+        prt.anchorMin = new Vector2(minX, minY);
+        prt.anchorMax = new Vector2(maxX, maxY);
+        prt.pivot = new Vector2(0.5f, 0.5f);
         prt.offsetMin = Vector2.zero;
         prt.offsetMax = Vector2.zero;
         guidePlate = panel.AddComponent<Image>();
@@ -532,12 +589,14 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         cinemaCam.enabled = false;
         cinemaCam.nearClipPlane = 0.05f;
         cinemaCam.farClipPlane = 80f;
-        cinemaCam.fieldOfView = 50f;
+        cinemaCam.fieldOfView = cinemaFov > 10f ? cinemaFov : 55f;
         if (hmdCamera != null)
         {
             cinemaCam.clearFlags = hmdCamera.clearFlags;
             cinemaCam.backgroundColor = hmdCamera.backgroundColor;
             cinemaCam.cullingMask = hmdCamera.cullingMask;
+            if (hmdCamera.nearClipPlane > 0.01f)
+                cinemaCam.nearClipPlane = Mathf.Min(cinemaCam.nearClipPlane, hmdCamera.nearClipPlane);
         }
         AudioListener listener = camGo.GetComponent<AudioListener>();
         if (listener != null)
@@ -642,13 +701,13 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             station.SetScreenText("DEMO");
 
         PlaceRiveraAtPresenter();
-        FrameCinemaCamera(0f);
+        // SHOT 1 — wide establish (set before cinema begins so fade-in lands on this frame).
+        SnapCinemaShot(GetWideFocus(), wideShot);
         BeginCinemaView();
         yield return null;
 
         yield return Fade(0f);
         yield return AnimateLetterbox(1f, 0.45f);
-        yield return PushInCamera(0.35f, camBlendSeconds);
 
         if (rivera != null)
         {
@@ -657,6 +716,13 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         }
 
         yield return ShowGuide("This is the sorting station.", beatPause);
+
+        // SHOT 2 — box close-up
+        yield return BlendCinemaShot(GetBoxesFocus(), boxCloseUp, shotBlendSeconds);
+        yield return ShowGuide("Yellow box = fruits. Red box = vegetables.", beatPause);
+
+        // SHOT 3 — front conveyor
+        yield return BlendCinemaShot(GetFrontConveyorFocus(), conveyorShot, shotBlendSeconds);
         if (conveyor != null)
             conveyor.StartConveyors();
         yield return ShowGuide("Items arrive on the conveyor belt.", 1.5f);
@@ -699,8 +765,11 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (conveyor != null)
             conveyor.StopConveyors();
 
-        // Final beat: lift sorted boxes onto the front conveyor, then end.
+        // SHOT 6 — final box placement onto front conveyor
         yield return PlayBoxDeliveryDemo();
+
+        // SHOT 7 — final wide
+        yield return BlendCinemaShot(GetWideFocus(), finalWideShot, shotBlendSeconds);
 
         if (rivera != null)
         {
@@ -752,6 +821,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             rivera.SetTalking(true);
         }
 
+        yield return BlendCinemaShot(GetFrontConveyorFocus(), finalBoxPlaceShot, shotBlendSeconds);
         yield return ShowGuide("After sorting, lift the boxes\nand place them on the front conveyor.", beatPause);
 
         BoxAnimState yState = CaptureBoxState(yellow);
@@ -771,8 +841,10 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             DetachBoxPreserveScale(yellow, yState);
             yield return MoveTransformArc(yellow, yellowSeat, toBoxSeconds + 0.25f);
             SeatBoxOnBeltPreserveScale(yellow, frontBelt, yellowSeat, yState);
+            // Reframe so both crate landing spots stay visible.
+            yield return BlendCinemaShot(yellow.position + Vector3.up * 0.1f, finalBoxPlaceShot, shotBlendSeconds * 0.75f);
             PulseBox(yellow, false);
-            yield return new WaitForSeconds(0.4f);
+            yield return new WaitForSeconds(0.35f);
         }
 
         // Red beside yellow — use yellow's final world seat as reference (do not move yellow).
@@ -787,8 +859,12 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             DetachBoxPreserveScale(red, rState);
             yield return MoveTransformArc(red, redSeat, toBoxSeconds + 0.25f);
             SeatBoxOnBeltPreserveScale(red, frontBelt, redSeat, rState);
+            Vector3 both = yellow != null
+                ? (yellow.position + red.position) * 0.5f + Vector3.up * 0.1f
+                : red.position + Vector3.up * 0.1f;
+            yield return BlendCinemaShot(both, finalBoxPlaceShot, shotBlendSeconds * 0.75f);
             PulseBox(red, false);
-            yield return new WaitForSeconds(0.55f);
+            yield return new WaitForSeconds(0.45f);
         }
 
         yield return ShowGuide("Both boxes are on the front conveyor.\nDemo complete.", beatPause);
@@ -978,12 +1054,21 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
         // Slight lateral offset so fruit/veg don't overlap perfectly.
         Vector3 side = beat.kind == ObjectPlacementGroceryKind.Fruit ? Vector3.forward * 0.04f : Vector3.back * 0.04f;
+
+        // SHOT 4 — item pickup / arrival close-up
+        yield return BlendCinemaShot(spawn + side + Vector3.up * 0.08f, itemPickupShot, shotBlendSeconds);
         GameObject prop = SpawnDemoProp(beat.id, beat.kind, spawn + side);
 
         yield return ShowGuide("Riding the conveyor…", 0.9f);
         yield return MovePropLinear(prop, stopper + side, beltRideSeconds);
         yield return ShowGuide("Stops at the end of the belt.", 1.4f);
-        yield return ShowGuide(beat.tip, 1.6f);
+        yield return ShowGuide(beat.tip, 1.35f);
+
+        // SHOT 5 — item placement into target box
+        Vector3 placeFocus = box != null
+            ? (box.position + (prop != null ? prop.transform.position : boxTarget)) * 0.5f
+            : boxTarget;
+        yield return BlendCinemaShot(placeFocus, itemPlaceShot, shotBlendSeconds);
         yield return MovePropArc(prop, boxTarget, toBoxSeconds);
         yield return new WaitForSeconds(0.55f);
 
@@ -1032,8 +1117,10 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         riveraSavedPos = riveraRoot.position;
         riveraSavedRot = riveraRoot.rotation;
 
-        Vector3 focus = GetDemoFocus();
-        Vector3 camPos = GetCinemaStartPos(focus);
+        Vector3 focus = GetWideFocus();
+        Vector3 camPos;
+        Quaternion camRot;
+        ComputeCinemaPose(focus, wideShot, out camPos, out camRot);
         Vector3 side = Vector3.Cross(Vector3.up, (focus - camPos).normalized);
         if (side.sqrMagnitude < 0.01f)
             side = station.transform.right;
@@ -1055,7 +1142,17 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         riveraRoot.SetPositionAndRotation(riveraSavedPos, riveraSavedRot);
     }
 
-    Vector3 GetDemoFocus()
+    Vector3 GetDemoFocus() => GetBoxesFocus();
+
+    Vector3 GetWideFocus()
+    {
+        Vector3 boxes = GetBoxesFocus();
+        Vector3 belt = GetFrontConveyorFocus();
+        Vector3 riveraPos = riveraRoot != null ? riveraRoot.position + Vector3.up * 1.2f : boxes;
+        return (boxes + belt + riveraPos) / 3f;
+    }
+
+    Vector3 GetBoxesFocus()
     {
         if (station == null)
             return Vector3.zero;
@@ -1063,14 +1160,31 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         Transform r = station.redBox;
         if (y != null && r != null)
             return (y.position + r.position) * 0.5f + Vector3.up * 0.2f;
+        if (y != null)
+            return y.position + Vector3.up * 0.2f;
+        if (r != null)
+            return r.position + Vector3.up * 0.2f;
         if (station.boxesRoot != null)
             return station.boxesRoot.position + Vector3.up * 0.25f;
         return station.transform.position + Vector3.up * 1f;
     }
 
-    Vector3 GetCinemaStartPos(Vector3 focus)
+    Vector3 GetFrontConveyorFocus()
     {
-        // 3/4 view: elevated, looking down at boxes + belt + Rivera presenter.
+        if (station == null)
+            return GetBoxesFocus();
+        Transform belt = station.beltSurface != null ? station.beltSurface : station.conveyor;
+        if (belt != null)
+            return belt.position + Vector3.up * 0.15f;
+        return GetBoxesFocus();
+    }
+
+    /// <summary>
+    /// Preferred view direction: from player/XR origin toward the station (flat).
+    /// Keeps shots on the same side of the room so blends stay comfortable.
+    /// </summary>
+    Vector3 GetPreferredViewDir(Vector3 focus)
+    {
         Vector3 toPlayer = Vector3.back;
         if (xrOrigin != null)
         {
@@ -1079,47 +1193,97 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             toPlayer.y = 0f;
         }
         if (toPlayer.sqrMagnitude < 0.01f && station != null)
+        {
             toPlayer = -station.transform.forward;
+            toPlayer.y = 0f;
+        }
         if (toPlayer.sqrMagnitude < 0.01f)
             toPlayer = Vector3.back;
-        toPlayer.Normalize();
+        return toPlayer.normalized;
+    }
 
-        Vector3 right = Vector3.Cross(Vector3.up, toPlayer).normalized;
-        return focus + toPlayer * 2.35f + right * 0.85f + Vector3.up * 1.55f;
+    void ComputeCinemaPose(Vector3 focus, CinemaShotTuning tuning, out Vector3 pos, out Quaternion rot)
+    {
+        Vector3 viewDir = GetPreferredViewDir(focus);
+        Vector3 right = Vector3.Cross(Vector3.up, viewDir);
+        if (right.sqrMagnitude < 0.0001f)
+            right = Vector3.right;
+        right.Normalize();
+
+        float dist = Mathf.Max(0.6f, tuning.distance);
+        float height = tuning.height;
+        float lateral = tuning.lateral;
+        pos = focus - viewDir * dist + right * lateral + Vector3.up * height;
+
+        // Soft floor clamp — avoid clipping through the ground plane.
+        float minY = station != null ? station.transform.position.y + 0.55f : 0.55f;
+        if (pos.y < minY)
+            pos.y = minY;
+
+        Vector3 lookAt = focus + Vector3.up * tuning.lookHeight;
+        Vector3 look = lookAt - pos;
+        if (look.sqrMagnitude < 0.0001f)
+            look = -viewDir;
+        rot = Quaternion.LookRotation(look.normalized, Vector3.up);
+    }
+
+    void ApplyCinemaPose(Vector3 pos, Quaternion rot)
+    {
+        EnsureCinemaCamera();
+        if (cinemaCam == null)
+            return;
+        cinemaCam.transform.SetPositionAndRotation(pos, rot);
+        if (cinemaFov > 10f)
+            cinemaCam.fieldOfView = cinemaFov;
+        if (hmdCamera != null && cinemaActive)
+            hmdCamera.fieldOfView = cinemaFov;
+    }
+
+    void SnapCinemaShot(Vector3 focus, CinemaShotTuning tuning)
+    {
+        Vector3 pos;
+        Quaternion rot;
+        ComputeCinemaPose(focus, tuning, out pos, out rot);
+        ApplyCinemaPose(pos, rot);
+    }
+
+    IEnumerator BlendCinemaShot(Vector3 focus, CinemaShotTuning tuning, float duration)
+    {
+        EnsureCinemaCamera();
+        if (cinemaCam == null)
+            yield break;
+
+        Vector3 startPos = cinemaCam.transform.position;
+        Quaternion startRot = cinemaCam.transform.rotation;
+        Vector3 endPos;
+        Quaternion endRot;
+        ComputeCinemaPose(focus, tuning, out endPos, out endRot);
+
+        float d = Mathf.Max(0.05f, duration);
+        float t = 0f;
+        while (t < d)
+        {
+            t += Time.deltaTime;
+            float u = Mathf.SmoothStep(0f, 1f, t / d);
+            ApplyCinemaPose(Vector3.Lerp(startPos, endPos, u), Quaternion.Slerp(startRot, endRot, u));
+            yield return null;
+        }
+        ApplyCinemaPose(endPos, endRot);
     }
 
     void FrameCinemaCamera(float push)
     {
-        EnsureCinemaCamera();
-        Vector3 focus = GetDemoFocus();
-        Vector3 start = GetCinemaStartPos(focus);
-        Vector3 end = Vector3.Lerp(start, focus + Vector3.up * 1.1f, 0.22f);
-        Vector3 pos = Vector3.Lerp(start, end, Mathf.Clamp01(push));
-        if (cinemaCam != null)
-        {
-            cinemaCam.transform.position = pos;
-            cinemaCam.transform.rotation = Quaternion.LookRotation((focus + Vector3.up * 0.1f - pos).normalized, Vector3.up);
-        }
+        // Legacy helper — maps push into a mild wide-shot push-in.
+        CinemaShotTuning t = wideShot;
+        t.distance = Mathf.Lerp(wideShot.distance, wideShot.distance * 0.78f, Mathf.Clamp01(push));
+        SnapCinemaShot(GetWideFocus(), t);
     }
 
     IEnumerator PushInCamera(float pushAmount, float duration)
     {
-        Vector3 focus = GetDemoFocus();
-        Vector3 start = cinemaCam != null ? cinemaCam.transform.position : GetCinemaStartPos(focus);
-        Vector3 end = Vector3.Lerp(start, focus + Vector3.up * 1.05f, pushAmount);
-        Quaternion look = Quaternion.LookRotation((focus + Vector3.up * 0.1f - end).normalized, Vector3.up);
-        float t = 0f;
-        while (t < duration)
-        {
-            t += Time.deltaTime;
-            float u = Mathf.SmoothStep(0f, 1f, t / Mathf.Max(0.01f, duration));
-            if (cinemaCam != null)
-            {
-                cinemaCam.transform.position = Vector3.Lerp(start, end, u);
-                cinemaCam.transform.rotation = Quaternion.Slerp(cinemaCam.transform.rotation, look, u);
-            }
-            yield return null;
-        }
+        CinemaShotTuning t = wideShot;
+        t.distance = Mathf.Lerp(wideShot.distance, wideShot.distance * 0.78f, Mathf.Clamp01(pushAmount));
+        yield return BlendCinemaShot(GetWideFocus(), t, duration > 0f ? duration : camBlendSeconds);
     }
 
     void BeginCinemaView()
@@ -1129,12 +1293,17 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
         camSavedWorldPos = hmdCamera.transform.position;
         camSavedWorldRot = hmdCamera.transform.rotation;
+        camSavedFov = hmdCamera.fieldOfView;
         camPoseSaved = true;
         DisablePoseDrivers();
         cinemaActive = true;
-        cinemaCam.enabled = false; // we drive the HMD cam instead for VR display
-        FrameCinemaCamera(0f);
-        // Snap HMD cam to cinema framing (tracking disabled).
+        cinemaCam.enabled = false; // drive HMD cam from cinema pose (no separate VR camera conflict)
+        if (cinemaFov > 10f)
+        {
+            cinemaCam.fieldOfView = cinemaFov;
+            hmdCamera.fieldOfView = cinemaFov;
+        }
+        // Snap HMD cam to current cinema framing (tracking disabled for comfort-controlled shots).
         hmdCamera.transform.SetPositionAndRotation(cinemaCam.transform.position, cinemaCam.transform.rotation);
 
         // Subtitles bind to the active HMD/camera used by Screen Space - Camera.
@@ -1147,7 +1316,10 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     {
         cinemaActive = false;
         if (hmdCamera != null && camPoseSaved)
+        {
             hmdCamera.transform.SetPositionAndRotation(camSavedWorldPos, camSavedWorldRot);
+            hmdCamera.fieldOfView = camSavedFov;
+        }
         RestorePoseDrivers();
         camPoseSaved = false;
         if (cinemaCam != null)
