@@ -9,6 +9,9 @@ using UnityEngine.XR.Interaction.Toolkit.Samples.StarterAssets;
 [DefaultExecutionOrder(30000)]
 public class ReactionLightWalk : MonoBehaviour
 {
+    /// <summary>When true, stick move/turn are ignored (intro / cutscene).</summary>
+    public static bool MovementLocked { get; set; }
+
     [SerializeField] float moveSpeed = 3.5f;
     [SerializeField] float gravity = -9.81f;
     [SerializeField] float stickDeadzone = 0.15f;
@@ -84,7 +87,7 @@ public class ReactionLightWalk : MonoBehaviour
 
     void Update()
     {
-        if (GamePauseMenu.IsFrozen)
+        if (GamePauseMenu.IsFrozen || MovementLocked)
             return;
 
         ResolveRig();

@@ -50,7 +50,7 @@ public class ReactionLightResults : MonoBehaviour
         AddValue(panel, report.accuracy.ToString("0") + "%", 0.734f);
         AddValue(panel, report.averageReaction.ToString("0.0") + "s", 0.701f);
         AddValue(panel, report.greenHits.ToString(), 0.668f);
-        AddValue(panel, report.yellowPresses.ToString(), 0.635f);
+        // Yellow distractors removed — leave sprite row blank.
         AddValue(panel, report.redPresses.ToString(), 0.602f);
         AddValue(panel, report.timeAdded + "s", 0.569f);
         AddValue(panel, report.timeUsed + "s", 0.536f);

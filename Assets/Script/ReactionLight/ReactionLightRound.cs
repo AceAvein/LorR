@@ -11,7 +11,6 @@ public class ReactionLightRound : MonoBehaviour
     public static ReactionLightRound Instance { get; private set; }
 
     public int greenHits { get; private set; }
-    public int yellowHits { get; private set; }
     public int redHits { get; private set; }
     public int setsCleared { get; private set; }
     public int timeLeft { get; private set; }
@@ -26,8 +25,7 @@ public class ReactionLightRound : MonoBehaviour
     enum LightKind
     {
         Red,
-        Green,
-        Yellow
+        Green
     }
 
     class Target
@@ -71,7 +69,6 @@ public class ReactionLightRound : MonoBehaviour
 
     static readonly Color Red = new Color(0.85f, 0.08f, 0.08f);
     static readonly Color Green = new Color(0.1f, 0.9f, 0.2f);
-    static readonly Color Yellow = new Color(1f, 0.85f, 0.1f);
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -180,12 +177,21 @@ public class ReactionLightRound : MonoBehaviour
         if (running || countingDown)
             return;
 
+        // First Start unlocks Dialogue circle (Color Sort / Ball Drop pattern).
+        if (ReactionLightIntroDirector.TryConsumeStartButton())
+            return;
+
+        if (!ReactionLightIntroDirector.IsTrainingUnlocked)
+            return;
+
         ScoringChecker.Ensure().TryContinue(StartFromObjectiveAfterCheck);
     }
 
     void StartFromObjectiveAfterCheck()
     {
         if (running || countingDown)
+            return;
+        if (!ReactionLightIntroDirector.IsTrainingUnlocked)
             return;
 
         ProfileManager.TryGetNonDominantLeft(out bool leftHand);
@@ -273,7 +279,6 @@ public class ReactionLightRound : MonoBehaviour
     void StartRound()
     {
         greenHits = 0;
-        yellowHits = 0;
         redHits = 0;
         setsCleared = 0;
         setIndex = 0;
@@ -308,7 +313,6 @@ public class ReactionLightRound : MonoBehaviour
         greenBalls.Clear();
 
         int greens = GreensForSet(setIndex);
-        int yellows = YellowsForSet(setIndex);
         float duration = DurationForSet(setIndex);
         int tier = setIndex / 10;
         if (tier != announcedTier)
@@ -318,22 +322,15 @@ public class ReactionLightRound : MonoBehaviour
             BallDropSky.ApplyCurrent(tier);
         }
 
+        // Green targets only — idle board stays red; no yellow distractors.
         List<Target> pool = new List<Target>(balls);
-        for (int i = 0; i < greens + yellows && pool.Count > 0; i++)
+        for (int i = 0; i < greens && pool.Count > 0; i++)
         {
             int pick = Random.Range(0, pool.Count);
             Target ball = pool[pick];
             pool.RemoveAt(pick);
-
-            if (i < greens)
-            {
-                Paint(ball, LightKind.Green);
-                greenBalls.Add(ball);
-            }
-            else
-            {
-                Paint(ball, LightKind.Yellow);
-            }
+            Paint(ball, LightKind.Green);
+            greenBalls.Add(ball);
         }
 
         greensLeft = greenBalls.Count;
@@ -458,7 +455,7 @@ public class ReactionLightRound : MonoBehaviour
         report.accuracy = records.Count == 0 ? 0f : setsCleared * 100f / records.Count;
         report.averageReaction = reactionCount == 0 ? 0f : reactionSum / reactionCount;
         report.greenHits = greenHits;
-        report.yellowPresses = yellowHits;
+        report.yellowPresses = 0;
         report.redPresses = redHits;
         report.timeAdded = Mathf.RoundToInt(setsCleared * SetBonus);
         report.timeUsed = Mathf.Max(0, Mathf.RoundToInt(Time.time - roundStartedAt));
@@ -524,14 +521,7 @@ public class ReactionLightRound : MonoBehaviour
             return;
         }
 
-        if (ball.kind == LightKind.Yellow)
-        {
-            yellowHits++;
-            ShowWord("Oops");
-            ReactionLightSounds.PlayOops();
-            return;
-        }
-
+        // Red (idle / non-target) = error.
         redHits++;
         ShowWord("Wrong");
         BallDropSounds.PlayMiss();
@@ -587,7 +577,8 @@ public class ReactionLightRound : MonoBehaviour
     void FindBalls()
     {
         balls.Clear();
-        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        // Include inactive: Awake hides lights, and intro must still rediscover them.
+        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < transforms.Length; i++)
         {
             string objectName = transforms[i].name;
@@ -841,11 +832,7 @@ public class ReactionLightRound : MonoBehaviour
         if (ball.material == null)
             return;
 
-        Color color = Red;
-        if (kind == LightKind.Green)
-            color = Green;
-        else if (kind == LightKind.Yellow)
-            color = Yellow;
+        Color color = kind == LightKind.Green ? Green : Red;
 
         if (ball.material.HasProperty("_BaseColor"))
             ball.material.SetColor("_BaseColor", color);
@@ -867,14 +854,69 @@ public class ReactionLightRound : MonoBehaviour
         return 3;
     }
 
-    static int YellowsForSet(int index)
+    /// <summary>Intro cutscene: show board, all red idle.</summary>
+    public void PrepareBoardForIntro()
     {
-        int tier = index / 10;
-        if (tier <= 0)
-            return 0;
-        if (tier == 1)
-            return 1;
-        return 2;
+        // Do not full-rescan every call — FindObjectsByType on all Transforms can freeze/crash the Editor.
+        if (balls.Count == 0 || AnyBallMissing())
+            FindBalls();
+        SetBallsVisible(true);
+        PaintAll(LightKind.Red);
+    }
+
+    bool AnyBallMissing()
+    {
+        for (int i = 0; i < balls.Count; i++)
+        {
+            if (balls[i].transform == null)
+                return true;
+        }
+        return false;
+    }
+
+    public Transform GetLightTransform(int index)
+    {
+        if (balls.Count == 0)
+            FindBalls();
+        if (index < 0 || index >= balls.Count)
+            return balls.Count > 0 ? balls[0].transform : null;
+        return balls[index].transform;
+    }
+
+    public int IntroLightCount
+    {
+        get
+        {
+            if (balls.Count == 0)
+                FindBalls();
+            return balls.Count;
+        }
+    }
+
+    public void SetIntroLightGreen(int index, bool green)
+    {
+        if (balls.Count == 0)
+            FindBalls();
+        if (index < 0 || index >= balls.Count)
+            return;
+        Paint(balls[index], green ? LightKind.Green : LightKind.Red);
+    }
+
+    /// <summary>
+    /// Intro-only visual feedback matching Press() (Great/Wrong + SFX) without score or timer changes.
+    /// </summary>
+    public void ShowIntroFeedback(bool success)
+    {
+        if (success)
+        {
+            ShowWord("Great");
+            BallDropSounds.PlayCatch();
+        }
+        else
+        {
+            ShowWord("Wrong");
+            BallDropSounds.PlayMiss();
+        }
     }
 
     static float DurationForSet(int index)
