@@ -59,10 +59,14 @@ public static class PenTraceIntroSceneSetupBuilder
 
         setup.tableFocus = EnsureEmpty(shotsRoot, "TableFocus", tableFocus);
         setup.penSelectFocus = EnsureEmpty(shotsRoot, "PenSelectFocus", penFocus);
+
+        // Front-centered (no left/right offset) — matches desk/station facing.
+        Vector3 deskApproach = FrontApproach(GameObject.Find("TraceDesk Easy"));
+        Vector3 penApproach = FrontApproach(GameObject.Find("PenSelectStation"));
         setup.shotTableOverview = EnsureShot(shotsRoot, "Shot_TableOverview",
-            tableFocus + Vector3.back * 1.45f + Vector3.up * 0.65f + Vector3.right * 0.35f, tableFocus);
+            tableFocus + deskApproach * 1.2f + Vector3.up * 1.05f, tableFocus, force: true);
         setup.shotPenSelect = EnsureShot(shotsRoot, "Shot_PenSelect",
-            penFocus + Vector3.back * 1.2f + Vector3.up * 0.5f + Vector3.left * 0.25f, penFocus);
+            penFocus + penApproach * 1.4f + Vector3.up * 0.55f, penFocus, force: true);
 
         // Presenter mark beside TraceDesk Easy so Rivera stays in the Set1 paper shot.
         Vector3 riveraPos = tableFocus + Vector3.right * 0.75f + Vector3.back * 0.15f;
@@ -138,14 +142,26 @@ public static class PenTraceIntroSceneSetupBuilder
         return t;
     }
 
-    static Transform EnsureShot(Transform parent, string name, Vector3 position, Vector3 lookAt)
+    static Vector3 FrontApproach(GameObject subject)
+    {
+        if (subject == null)
+            return Vector3.back;
+        Vector3 facing = Vector3.ProjectOnPlane(subject.transform.forward, Vector3.up);
+        if (facing.sqrMagnitude < 0.001f)
+            facing = Vector3.ProjectOnPlane(subject.transform.right, Vector3.up);
+        if (facing.sqrMagnitude < 0.001f)
+            return Vector3.back;
+        return -facing.normalized;
+    }
+
+    static Transform EnsureShot(Transform parent, string name, Vector3 position, Vector3 lookAt, bool force = false)
     {
         Transform existing = parent.Find(name);
         GameObject go = existing != null ? existing.gameObject : new GameObject(name);
         if (existing == null)
             go.transform.SetParent(parent, false);
 
-        bool place = existing == null
+        bool place = force || existing == null
                      || (go.transform.localPosition == Vector3.zero && go.transform.position.sqrMagnitude < 0.01f);
         if (place)
         {

@@ -4,7 +4,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Scene-authored cutscene controls for Pen Control Tracing intro.
-/// Edit Shot_TableOverview in Scene View — full position + rotation used as-is.
+/// Edit Shot_PenSelect and Shot_TableOverview in Scene View — two cutscene cameras.
 /// </summary>
 [DisallowMultipleComponent]
 public class PenTraceIntroSceneSetup : MonoBehaviour

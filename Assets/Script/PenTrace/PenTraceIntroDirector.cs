@@ -11,8 +11,8 @@ using UnityEngine.InputSystem.XR;
 
 /// <summary>
 /// Pen Control Tracing intro: Objective Start → Dialogue circle → Rivera dialogue (from docs)
-/// → cinema: PenSelectStation → TraceDesk Easy / TracingBoard_Set1 (GeneratedGuide on paper)
-/// → unlock PenSelect gameplay. Reuses scene Dialogue circle + Dr. Rivera (no duplicates).
+/// → cinema (2 cameras): PenSelectStation shot → TraceDesk Easy top view / Set1 paper demo
+/// → 2nd path shows wrong draw + Tracing Error line → unlock gameplay.
 /// </summary>
 [DisallowMultipleComponent]
 public class PenTraceIntroDirector : MonoBehaviour
@@ -30,6 +30,10 @@ public class PenTraceIntroDirector : MonoBehaviour
     public const string YourTurnLine =
         "Your turn. Select a pen, then trace each path carefully with your non-dominant hand. Press Start when you are ready.";
 
+    // Docs/LorR_VR_Pen_Trace_Dialogue.md — Tracing Error
+    public const string TracingErrorLine =
+        "You moved outside the tracing path. Slow down and guide the pen back toward the line. Focus on controlled movement rather than rushing.";
+
     static PenTraceIntroDirector instance;
 
     [Header("Timing")]
@@ -41,12 +45,14 @@ public class PenTraceIntroDirector : MonoBehaviour
     [SerializeField] float patternHoldSeconds = 0.9f;
     [SerializeField] float patternTraceSeconds = 4.5f;
     [SerializeField] float pencilPickSeconds = 1.1f;
+    [SerializeField] float shotCutFadeSeconds = 0.35f;
     [SerializeField] float talkFontSize = 0.55f;
     [SerializeField] float guideFontSize = 30f;
     [SerializeField] float cinemaFov = 58f;
 
     [Header("Demo on TracingBoard_Set1 (Easy desk)")]
     [SerializeField] int demoPathCount = 3;
+    [SerializeField] float wrongPathDrift = 0.055f;
     [SerializeField] float riveraStationSide = 0.55f;
     [SerializeField] float riveraStationForward = 0.15f;
     [SerializeField] float riveraDeskSide = 0.7f;
@@ -230,6 +236,13 @@ public class PenTraceIntroDirector : MonoBehaviour
         StopTalk();
         yield return new WaitForSeconds(pauseBetweenLines);
 
+        if (rivera != null)
+            rivera.SetTalking(true);
+        yield return TypeLine(PenSelectLine);
+        StopTalk();
+        yield return new WaitForSeconds(pauseBetweenLines);
+
+        // All spoken intro lines done — cinema is visual + talk anim only (except Tracing Error beat).
         SetTalkVisible(false);
         yield return RunCinematicDemo();
 
@@ -267,10 +280,13 @@ public class PenTraceIntroDirector : MonoBehaviour
         if (patternManager != null)
             patternManager.HideIntroDemoPath();
 
-        // --- Shot 1: PenSelectStation + Rivera explaining ---
+        // Camera 1 — PenSelectStation
         PlaceRiveraBeside(GetPenSelectFocus(), riveraStationSide, riveraStationForward);
         yield return Fade(1f);
-        SnapShotFramed(PenTraceIntroSceneSetup.ShotId.PenSelect, GetPenSelectFocus());
+        Vector3 penPos;
+        Quaternion penRot;
+        ResolvePenSelectPose(out penPos, out penRot);
+        ApplyCinemaPose(penPos, penRot);
         BeginCinemaView();
         yield return null;
         yield return Fade(0f);
@@ -282,44 +298,56 @@ public class PenTraceIntroDirector : MonoBehaviour
             rivera.SetTalking(true);
         }
 
-        SetTalkVisible(true);
-        yield return TypeLine(PenSelectLine);
-        StopTalk();
-        yield return ShowGuide("PenSelectStation — Pencil, Ballpen, or Highlighter.\nDemo uses the PENCIL.", beatPause);
-        if (rivera != null)
-            rivera.PlayObserve();
-
+        yield return ShowGuide("PenSelectStation — Pencil, Ballpen, or Highlighter", 0.85f);
+        SetGuideVisible(false);
         yield return DemonstratePencilPickup();
 
-        // --- Shot 2: TraceDesk Easy / TracingBoard_Set1 + Rivera ---
-        yield return Fade(0.4f);
+        // Camera 2 — TraceDesk Easy top view (hard cut via short fade)
+        yield return FadeTo(1f, shotCutFadeSeconds);
         PlaceRiveraBeside(GetTableFocus(), riveraDeskSide, riveraDeskForward);
-        SnapShotFramed(PenTraceIntroSceneSetup.ShotId.TableOverview, GetTableFocus());
-        yield return null;
-        yield return Fade(0f);
-
         if (rivera != null)
         {
             rivera.ReturnToIdle();
             rivera.SetTalking(true);
         }
 
-        SetTalkVisible(true);
-        yield return TypeLine(WelcomeTraining);
-        StopTalk();
-        yield return ShowGuide("TraceDesk Easy — TracingBoard_Set1\nPattern appears on the paper.", beatPause);
+        Vector3 deskPos;
+        Quaternion deskRot;
+        ResolveDeskTopPose(out deskPos, out deskRot);
+        ApplyCinemaPose(deskPos, deskRot);
+        yield return null;
+        yield return FadeTo(0f, shotCutFadeSeconds);
+
+        yield return ShowGuide("TraceDesk Easy — path on TracingBoard_Set1", 0.9f);
         SetGuideVisible(false);
 
-        int count = Mathf.Clamp(demoPathCount, 1, 3);
+        int count = Mathf.Clamp(demoPathCount, 2, 3);
         for (int i = 0; i < count; i++)
         {
-            yield return ShowGuide("Path " + (i + 1) + " of " + count, 0.75f);
+            bool wrongBeat = i == 1;
+            yield return ShowGuide(wrongBeat ? "Watch carefully…" : ("Path " + (i + 1) + " of " + count), 0.65f);
             SetGuideVisible(false);
-            yield return DemonstrateSet1Path(i, i + 1);
+
+            if (wrongBeat)
+                yield return DemonstrateWrongSet1Path(i);
+            else
+                yield return DemonstrateSet1Path(i, i + 1);
+
+            if (wrongBeat)
+            {
+                if (rivera != null)
+                    rivera.SetTalking(true);
+                SetTalkVisible(true);
+                yield return TypeLine(TracingErrorLine);
+                StopTalk();
+                SetTalkVisible(false);
+                SetDemoInkColor(new Color(0.15f, 0.15f, 0.15f, 1f));
+            }
+
             yield return new WaitForSeconds(patternHoldSeconds);
         }
 
-        yield return ShowGuide("Hold Trigger to draw. Stay on the path.", 1.2f);
+        yield return ShowGuide("Hold Trigger to draw. Stay on the path.", 1.1f);
 
         yield return Fade(1f);
         yield return AnimateLetterbox(0f, 0.35f);
@@ -366,8 +394,7 @@ public class PenTraceIntroDirector : MonoBehaviour
         }
 
         EnsureDemoInk();
-        yield return ShowGuide("Pencil selected for the demonstration.", 0.9f);
-        SetGuideVisible(false);
+        yield return new WaitForSeconds(0.35f);
     }
 
     IEnumerator DemonstrateSet1Path(int variant, int displayNumber)
@@ -382,6 +409,7 @@ public class PenTraceIntroDirector : MonoBehaviour
         }
 
         EnsureDemoInk();
+        SetDemoInkColor(new Color(0.15f, 0.15f, 0.15f, 1f));
         demoInk.positionCount = 0;
 
         PlacePencilTipAt(demoPathWorld[0]);
@@ -419,7 +447,82 @@ public class PenTraceIntroDirector : MonoBehaviour
         demoInk.positionCount = inkPts.Count;
         if (inkPts.Count > 0)
             demoInk.SetPositions(inkPts.ToArray());
-        yield return ShowGuide("Path " + displayNumber + " complete.", 0.7f);
+        yield return ShowGuide("Path " + displayNumber + " — correct.", 0.65f);
+        SetGuideVisible(false);
+    }
+
+    IEnumerator DemonstrateWrongSet1Path(int variant)
+    {
+        if (patternManager == null || demoPencil == null)
+            yield break;
+
+        if (!patternManager.TryPrepareIntroDemoPath(variant, demoPathWorld) || demoPathWorld.Count < 2)
+        {
+            Debug.LogError("PenTraceIntroDirector: Failed to place wrong-path demo on TracingBoard_Set1.");
+            yield break;
+        }
+
+        EnsureDemoInk();
+        SetDemoInkColor(new Color(0.85f, 0.18f, 0.15f, 1f));
+        demoInk.positionCount = 0;
+
+        PlacePencilTipAt(demoPathWorld[0]);
+        yield return new WaitForSeconds(0.3f);
+
+        float duration = Mathf.Max(1.5f, patternTraceSeconds);
+        float traveled = 0f;
+        float total = PathLength(demoPathWorld);
+        if (total < 0.001f)
+            yield break;
+
+        Vector3 paperNormal = Vector3.up;
+        Transform paper = PenTraceBoards.FindSet(0);
+        if (paper != null)
+            paperNormal = PenTraceBoards.BoardNormal(paper);
+
+        List<Vector3> inkPts = new List<Vector3>();
+        Vector3 start = demoPathWorld[0];
+        inkPts.Add(start);
+        demoInk.positionCount = 1;
+        demoInk.SetPosition(0, start);
+
+        while (traveled < total)
+        {
+            traveled += Time.deltaTime * (total / duration);
+            float clamped = Mathf.Min(traveled, total);
+            float u = total > 0.0001f ? clamped / total : 1f;
+            Vector3 onPath = PointAlong(demoPathWorld, clamped);
+
+            // Drift off the guide in the middle third so the mistake is obvious.
+            float drift = 0f;
+            if (u > 0.22f && u < 0.78f)
+            {
+                float mid = (u - 0.22f) / 0.56f;
+                drift = Mathf.Sin(mid * Mathf.PI) * wrongPathDrift;
+            }
+
+            Vector3 tangent = PointAlong(demoPathWorld, Mathf.Min(total, clamped + 0.02f)) - onPath;
+            if (tangent.sqrMagnitude < 0.000001f)
+                tangent = Vector3.right;
+            Vector3 side = Vector3.Cross(paperNormal, tangent.normalized);
+            if (side.sqrMagnitude < 0.000001f)
+                side = Vector3.Cross(Vector3.up, tangent.normalized);
+            side.Normalize();
+
+            Vector3 tip = onPath + side * drift;
+            PlacePencilTipAt(tip);
+
+            if (inkPts.Count == 0 || Vector3.Distance(inkPts[inkPts.Count - 1], tip) >= 0.004f)
+            {
+                inkPts.Add(tip);
+                demoInk.positionCount = inkPts.Count;
+                demoInk.SetPositions(inkPts.ToArray());
+            }
+
+            yield return null;
+        }
+
+        yield return ShowGuide("Incorrect — outside the path.", 0.85f);
         SetGuideVisible(false);
     }
 
@@ -485,6 +588,15 @@ public class PenTraceIntroDirector : MonoBehaviour
         demoInk.endColor = new Color(0.15f, 0.15f, 0.15f, 1f);
         demoInk.positionCount = 0;
         demoProps.Add(go);
+    }
+
+    void SetDemoInkColor(Color color)
+    {
+        EnsureDemoInk();
+        if (demoInk == null)
+            return;
+        demoInk.startColor = color;
+        demoInk.endColor = color;
     }
 
     static void StripGameplay(GameObject root)
@@ -695,51 +807,73 @@ public class PenTraceIntroDirector : MonoBehaviour
             Destroy(al);
     }
 
-    void SnapShotFramed(PenTraceIntroSceneSetup.ShotId id, Vector3 focus)
+    void ResolvePenSelectPose(out Vector3 pos, out Quaternion rot)
     {
-        Vector3 lookTarget = focus;
-        if (riveraRoot != null && riveraPoseSaved)
+        // Always front-centered on PenSelectStation (ignore side-offset authored shots).
+        Vector3 focus = GetPenSelectFocus();
+        Transform station = ResolvePenSelectStation();
+        Vector3 approach = FrontApproach(station);
+        pos = focus + approach * 1.4f + Vector3.up * 0.55f;
+        rot = Quaternion.LookRotation((focus - pos).normalized, Vector3.up);
+
+        if (sceneSetup != null && sceneSetup.shotPenSelect != null)
+            sceneSetup.shotPenSelect.SetPositionAndRotation(pos, rot);
+    }
+
+    void ResolveDeskTopPose(out Vector3 pos, out Quaternion rot)
+    {
+        // Front-centered elevated view of TraceDesk Easy / TracingBoard_Set1.
+        Vector3 focus = GetTableFocus();
+        Transform desk = ResolveEasyDesk();
+        Vector3 approach = FrontApproach(desk);
+        pos = focus + approach * 1.2f + Vector3.up * 1.05f;
+        rot = Quaternion.LookRotation((focus - pos).normalized, Vector3.up);
+
+        if (sceneSetup != null && sceneSetup.shotTableOverview != null)
+            sceneSetup.shotTableOverview.SetPositionAndRotation(pos, rot);
+    }
+
+    static Transform ResolvePenSelectStation()
+    {
+        GameObject go = GameObject.Find("PenSelectStation");
+        return go != null ? go.transform : null;
+    }
+
+    static Transform ResolveEasyDesk()
+    {
+        GameObject go = GameObject.Find("TraceDesk Easy");
+        if (go != null)
+            return go.transform;
+        Transform paper = PenTraceBoards.FindSet(0);
+        return paper != null ? (paper.parent != null ? paper.parent : paper) : null;
+    }
+
+    /// <summary>
+    /// Stand centered in front of the table (desk/station facing), never off to the side.
+    /// </summary>
+    static Vector3 FrontApproach(Transform subject)
+    {
+        Vector3 facing = Vector3.zero;
+        if (subject != null)
         {
-            Vector3 riveraChest = riveraRoot.position + Vector3.up * 1.35f;
-            lookTarget = Vector3.Lerp(focus, riveraChest, 0.38f);
+            facing = Vector3.ProjectOnPlane(subject.forward, Vector3.up);
+            if (facing.sqrMagnitude < 0.001f)
+                facing = Vector3.ProjectOnPlane(subject.right, Vector3.up);
         }
 
-        Vector3 pos;
-        Quaternion rot;
-        if (sceneSetup != null && sceneSetup.TryGetShotPose(id, out pos, out rot))
+        if (facing.sqrMagnitude < 0.001f)
         {
-            Vector3 back = -(rot * Vector3.forward);
-            back.y = 0f;
-            if (back.sqrMagnitude < 0.001f)
-                back = Vector3.back;
-            back.Normalize();
-            pos += back * 0.35f + Vector3.up * 0.08f;
-
-            if (riveraRoot != null)
-            {
-                Vector3 toRivera = riveraRoot.position - focus;
-                toRivera.y = 0f;
-                if (toRivera.sqrMagnitude > 0.01f)
-                    pos -= toRivera.normalized * 0.28f;
-            }
-
-            Vector3 aim = lookTarget - pos;
-            if (aim.sqrMagnitude > 0.0001f)
-                rot = Quaternion.LookRotation(aim.normalized, Vector3.up);
-            ApplyCinemaPose(pos, rot);
-            return;
+            Transform paper = PenTraceBoards.FindSet(0);
+            if (paper != null)
+                facing = PenTraceBoards.BoardFacing(paper);
         }
 
-        pos = focus + Vector3.back * 1.55f + Vector3.up * 0.5f;
-        if (riveraRoot != null)
-        {
-            Vector3 toRivera = riveraRoot.position - focus;
-            toRivera.y = 0f;
-            if (toRivera.sqrMagnitude > 0.01f)
-                pos -= toRivera.normalized * 0.3f;
-        }
-        rot = Quaternion.LookRotation((lookTarget - pos).normalized, Vector3.up);
-        ApplyCinemaPose(pos, rot);
+        if (facing.sqrMagnitude < 0.001f)
+            facing = Vector3.forward;
+
+        facing.Normalize();
+        // In front of the furniture = opposite of its forward (player side).
+        return -facing;
     }
 
     Vector3 GetPenSelectFocus()
@@ -1045,13 +1179,18 @@ public class PenTraceIntroDirector : MonoBehaviour
 
     IEnumerator Fade(float target)
     {
+        yield return FadeTo(target, fadeSeconds);
+    }
+
+    IEnumerator FadeTo(float target, float duration)
+    {
         EnsureEffectsUi();
         if (fadeImage == null)
             yield break;
         Color c = fadeImage.color;
         float start = c.a;
         float t = 0f;
-        float d = Mathf.Max(0.05f, fadeSeconds);
+        float d = Mathf.Max(0.05f, duration);
         while (t < d)
         {
             t += Time.deltaTime;
