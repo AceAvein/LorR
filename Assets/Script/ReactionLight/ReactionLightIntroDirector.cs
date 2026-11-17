@@ -240,7 +240,7 @@ public class ReactionLightIntroDirector : MonoBehaviour
         string ndh = "non-dominant";
         if (ProfileManager.TryGetNonDominantLeft(out bool leftNdh))
             ndh = leftNdh ? "left (non-dominant)" : "right (non-dominant)";
-        yield return TypeLine("Your turn. In training, poke green lights with your " + ndh + " hand only. Press Start when ready.");
+        yield return TypeLine("Your turn. In training, poke green lights with your " + ndh + " hand only. Poke the green Start button when ready.");
         StopTalk();
         yield return new WaitForSeconds(1.0f);
 
@@ -324,7 +324,7 @@ public class ReactionLightIntroDirector : MonoBehaviour
             ? (left ? "LEFT" : "RIGHT")
             : "NON-DOMINANT";
         yield return ShowGuide(
-            "In play, use your " + ndh + " hand only.\nGrip + index poke on GREEN.",
+            "In play, use your " + ndh + " hand only.\nPoke the green Start button, then poke GREEN lights.",
             1.8f);
 
         if (round != null)

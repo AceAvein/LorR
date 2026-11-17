@@ -118,6 +118,7 @@ public class ReactionLightRound : MonoBehaviour
         PaintAll(LightKind.Red);
         SetBallsVisible(false);
         WireButtons();
+        EnsureWorldStartButton();
         HideWord();
         SetNamedActive("ResultsScreen", false);
         ShowObjective();
@@ -184,17 +185,27 @@ public class ReactionLightRound : MonoBehaviour
         if (running || countingDown)
             return;
 
-        // First Start unlocks Dialogue circle (Color Sort / Ball Drop pattern).
+        // UI Btn_Start: first press only starts intro (Dialogue circle). Gameplay starts from Btn_Start_World.
         if (ReactionLightIntroDirector.TryConsumeStartButton())
             return;
 
+        // After intro, ignore UI Start — player must poke Btn_Start_World.
+    }
+
+    /// <summary>World Btn_Start_World poke — starts countdown + round after intro unlock.</summary>
+    public void StartFromWorldButton()
+    {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+        if (running || countingDown)
+            return;
         if (!ReactionLightIntroDirector.IsTrainingUnlocked)
             return;
 
-        ScoringChecker.Ensure().TryContinue(StartFromObjectiveAfterCheck);
+        ScoringChecker.Ensure().TryContinue(StartFromWorldAfterCheck);
     }
 
-    void StartFromObjectiveAfterCheck()
+    void StartFromWorldAfterCheck()
     {
         if (running || countingDown)
             return;
@@ -1054,6 +1065,14 @@ public class ReactionLightRound : MonoBehaviour
                 countdownText = countdownScreen.GetComponentInChildren<TMP_Text>(true);
             }
         }
+    }
+
+    void EnsureWorldStartButton()
+    {
+        ReactionLightStartButton worldStart = GetComponent<ReactionLightStartButton>();
+        if (worldStart == null)
+            worldStart = gameObject.AddComponent<ReactionLightStartButton>();
+        worldStart.Bind(this);
     }
 
     void WireButtons()
