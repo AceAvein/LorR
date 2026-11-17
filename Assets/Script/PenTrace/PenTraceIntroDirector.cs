@@ -44,7 +44,8 @@ public class PenTraceIntroDirector : MonoBehaviour
     [SerializeField] float beatPause = 1.15f;
     [SerializeField] float patternHoldSeconds = 0.9f;
     [SerializeField] float patternTraceSeconds = 4.5f;
-    [SerializeField] float pencilPickSeconds = 1.1f;
+    [SerializeField] float pencilPickSeconds = 1.6f;
+    [SerializeField] float penSelectHoldSeconds = 1.35f;
     [SerializeField] float shotCutFadeSeconds = 0.35f;
     [SerializeField] float talkFontSize = 0.55f;
     [SerializeField] float guideFontSize = 30f;
@@ -53,8 +54,8 @@ public class PenTraceIntroDirector : MonoBehaviour
     [Header("Demo on TracingBoard_Set1 (Easy desk)")]
     [SerializeField] int demoPathCount = 3;
     [SerializeField] float wrongPathDrift = 0.055f;
-    [SerializeField] float riveraStationSide = 0.55f;
-    [SerializeField] float riveraStationForward = 0.15f;
+    [SerializeField] float riveraStationSide = 1.05f;
+    [SerializeField] float riveraStationBack = 0.2f;
     [SerializeField] float riveraDeskSide = 0.7f;
     [SerializeField] float riveraDeskForward = 0.2f;
 
@@ -172,6 +173,8 @@ public class PenTraceIntroDirector : MonoBehaviour
         ClearDemoProps();
         if (patternManager != null)
             patternManager.HideIntroDemoPath();
+        if (penSelect != null)
+            penSelect.HideStationPensAfterIntro();
         PenTraceWalk.MovementLocked = false;
     }
 
@@ -236,13 +239,7 @@ public class PenTraceIntroDirector : MonoBehaviour
         StopTalk();
         yield return new WaitForSeconds(pauseBetweenLines);
 
-        if (rivera != null)
-            rivera.SetTalking(true);
-        yield return TypeLine(PenSelectLine);
-        StopTalk();
-        yield return new WaitForSeconds(pauseBetweenLines);
-
-        // All spoken intro lines done — cinema is visual + talk anim only (except Tracing Error beat).
+        // Pen-select explanation happens on camera at the station (pens visible).
         SetTalkVisible(false);
         yield return RunCinematicDemo();
 
@@ -280,13 +277,16 @@ public class PenTraceIntroDirector : MonoBehaviour
         if (patternManager != null)
             patternManager.HideIntroDemoPath();
 
-        // Camera 1 — PenSelectStation
-        PlaceRiveraBeside(GetPenSelectFocus(), riveraStationSide, riveraStationForward);
+        // Camera 1 — PenSelectStation (show pens + explain pencil sample)
+        if (penSelect != null)
+            penSelect.ShowStationPensForIntro();
+
         yield return Fade(1f);
         Vector3 penPos;
         Quaternion penRot;
         ResolvePenSelectPose(out penPos, out penRot);
         ApplyCinemaPose(penPos, penRot);
+        PlaceRiveraBesidePenSelectStation();
         BeginCinemaView();
         yield return null;
         yield return Fade(0f);
@@ -298,12 +298,20 @@ public class PenTraceIntroDirector : MonoBehaviour
             rivera.SetTalking(true);
         }
 
-        yield return ShowGuide("PenSelectStation — Pencil, Ballpen, or Highlighter", 0.85f);
+        yield return ShowGuide("PenSelectStation — Pencil, Ballpen, or Highlighter", penSelectHoldSeconds);
+        SetTalkVisible(true);
+        yield return TypeLine(PenSelectLine);
+        StopTalk();
+        SetTalkVisible(false);
+        yield return ShowGuide("Sample pen for this demo: PENCIL", penSelectHoldSeconds);
         SetGuideVisible(false);
         yield return DemonstratePencilPickup();
+        yield return new WaitForSeconds(0.55f);
 
         // Camera 2 — TraceDesk Easy top view (hard cut via short fade)
         yield return FadeTo(1f, shotCutFadeSeconds);
+        if (penSelect != null)
+            penSelect.HideStationPensAfterIntro();
         PlaceRiveraBeside(GetTableFocus(), riveraDeskSide, riveraDeskForward);
         if (rivera != null)
         {
@@ -369,10 +377,21 @@ public class PenTraceIntroDirector : MonoBehaviour
             yield break;
         }
 
-        // Highlight source briefly, then spawn a demo clone for tracing.
+        source.SetActive(true);
         Vector3 home = source.transform.position;
         Quaternion homeRot = source.transform.rotation;
-        source.SetActive(true);
+
+        // Brief pulse so the chosen pencil is obvious before it lifts.
+        Vector3 pulseUp = home + Vector3.up * 0.04f;
+        float pulseT = 0f;
+        while (pulseT < 0.45f)
+        {
+            pulseT += Time.deltaTime;
+            float u = Mathf.PingPong(pulseT * 2f, 1f);
+            source.transform.position = Vector3.Lerp(home, pulseUp, u);
+            yield return null;
+        }
+        source.transform.SetPositionAndRotation(home, homeRot);
 
         GameObject clone = Object.Instantiate(source);
         clone.name = "Demo_Pencil";
@@ -381,10 +400,12 @@ public class PenTraceIntroDirector : MonoBehaviour
         demoPencil.SetPositionAndRotation(home, homeRot);
         demoProps.Add(clone);
 
-        // Lift toward viewer / table as "selected".
-        Vector3 lift = home + Vector3.up * 0.18f;
+        // Soft-hide the table pencil while the demo clone is selected.
+        source.SetActive(false);
+
+        Vector3 lift = home + Vector3.up * 0.22f;
         float t = 0f;
-        float d = Mathf.Max(0.2f, pencilPickSeconds);
+        float d = Mathf.Max(0.35f, pencilPickSeconds);
         while (t < d)
         {
             t += Time.deltaTime;
@@ -393,8 +414,26 @@ public class PenTraceIntroDirector : MonoBehaviour
             yield return null;
         }
 
+        if (rivera != null)
+            rivera.SetTalking(true);
+        yield return ShowGuide("Pencil selected — watch the tip on the tracing path.", 1.25f);
+        if (rivera != null)
+            rivera.SetTalking(false);
+        SetGuideVisible(false);
         EnsureDemoInk();
-        yield return new WaitForSeconds(0.35f);
+    }
+
+    GameObject ResolvePencilSource()
+    {
+        if (penSelect != null)
+        {
+            GameObject stationPen = penSelect.FindStationPen(PenGrabKind.Pencil);
+            if (stationPen != null)
+                return stationPen;
+            if (penSelect.pencil != null)
+                return penSelect.pencil;
+        }
+        return GameObject.Find("Pencil");
     }
 
     IEnumerator DemonstrateSet1Path(int variant, int displayNumber)
@@ -562,13 +601,6 @@ public class PenTraceIntroDirector : MonoBehaviour
             walked += seg;
         }
         return points[points.Count - 1];
-    }
-
-    GameObject ResolvePencilSource()
-    {
-        if (penSelect != null && penSelect.pencil != null)
-            return penSelect.pencil;
-        return GameObject.Find("Pencil");
     }
 
     void EnsureDemoInk()
@@ -901,17 +933,34 @@ public class PenTraceIntroDirector : MonoBehaviour
         return new Vector3(0f, 1.0f, 1.2f);
     }
 
+    void PlaceRiveraBesidePenSelectStation()
+    {
+        if (riveraRoot == null)
+            return;
+
+        SaveRiveraPoseIfNeeded();
+
+        Transform station = ResolvePenSelectStation();
+        Vector3 focus = GetPenSelectFocus();
+        Vector3 approach = FrontApproach(station);
+        // Camera-right side of the table, slightly toward the back — clears the pen view.
+        Vector3 side = Vector3.Cross(Vector3.up, approach).normalized;
+        Vector3 stand = focus + side * riveraStationSide - approach * riveraStationBack;
+        stand.y = riveraSavedPos.y;
+
+        Vector3 look = focus - stand;
+        look.y = 0f;
+        if (look.sqrMagnitude < 0.001f)
+            look = -side;
+        riveraRoot.SetPositionAndRotation(stand, Quaternion.LookRotation(look.normalized, Vector3.up));
+    }
+
     void PlaceRiveraBeside(Vector3 focus, float sideOffset, float forwardOffset)
     {
         if (riveraRoot == null)
             return;
 
-        if (!riveraPoseSaved)
-        {
-            riveraSavedPos = riveraRoot.position;
-            riveraSavedRot = riveraRoot.rotation;
-            riveraPoseSaved = true;
-        }
+        SaveRiveraPoseIfNeeded();
 
         if (sceneSetup != null && sceneSetup.riveraPresenterMark != null
             && Vector3.Distance(focus, GetTableFocus()) < 0.35f)
@@ -933,7 +982,7 @@ public class PenTraceIntroDirector : MonoBehaviour
             towardViewer.y = 0f;
         }
         if (towardViewer.sqrMagnitude < 0.001f)
-            towardViewer = Vector3.back;
+            towardViewer = FrontApproach(ResolveEasyDesk());
         towardViewer.Normalize();
 
         Vector3 side = Vector3.Cross(Vector3.up, towardViewer).normalized;
@@ -945,6 +994,15 @@ public class PenTraceIntroDirector : MonoBehaviour
         if (look.sqrMagnitude < 0.001f)
             look = -towardViewer;
         riveraRoot.SetPositionAndRotation(stand, Quaternion.LookRotation(look.normalized, Vector3.up));
+    }
+
+    void SaveRiveraPoseIfNeeded()
+    {
+        if (riveraPoseSaved || riveraRoot == null)
+            return;
+        riveraSavedPos = riveraRoot.position;
+        riveraSavedRot = riveraRoot.rotation;
+        riveraPoseSaved = true;
     }
 
     void RestoreRivera()

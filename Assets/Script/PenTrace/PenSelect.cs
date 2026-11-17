@@ -272,6 +272,30 @@ public class PenSelect : MonoBehaviour
         }
     }
 
+    /// <summary>Intro cutscene: show Pencil / Ballpen / Highlighter on the station table.</summary>
+    public void ShowStationPensForIntro()
+    {
+        SetGrabsVisible(true);
+    }
+
+    /// <summary>Hide table pens again after the pen-select intro beat.</summary>
+    public void HideStationPensAfterIntro()
+    {
+        SetGrabsVisible(false);
+        ShowOnly(null);
+    }
+
+    public GameObject FindStationPen(PenGrabKind kind)
+    {
+        ResolveGrabs();
+        for (int i = 0; i < grabs.Length; i++)
+        {
+            if (grabs[i] != null && grabs[i].Kind == kind)
+                return grabs[i].gameObject;
+        }
+        return PenFor(kind);
+    }
+
     void SetGrabsVisible(bool visible)
     {
         ResolveGrabs();
