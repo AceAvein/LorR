@@ -52,10 +52,125 @@ public class PatternManager : MonoBehaviour
         if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
             return;
 
+        // Intro cutscene owns the first board reveal — defer live path until unlock.
+        if (PenTraceIntroDirector.InstancePending())
+        {
+            for (int i = 0; i < patterns.Length; i++)
+            {
+                if (patterns[i] != null)
+                    patterns[i].SetActive(false);
+            }
+            return;
+        }
+
         if (generateRandomPatterns)
             ShowGenerated(true);
         else
             ShowPattern(currentPattern);
+    }
+
+    /// <summary>
+    /// Called after intro unlock so Set1 gets a real playable GeneratedGuide.
+    /// </summary>
+    public void BeginTrainingPaths()
+    {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
+        if (generateRandomPatterns)
+            ShowGenerated(true);
+        else
+            ShowPattern(0);
+    }
+
+    /// <summary>
+    /// Build an Easy (Set1) path on TracingBoard_Set1 for the intro demo.
+    /// Does not wire PathManager scoring or tier announcements.
+    /// </summary>
+    public bool TryPrepareIntroDemoPath(int variant, List<Vector3> worldOut)
+    {
+        if (worldOut == null)
+            return false;
+        worldOut.Clear();
+
+        if (patterns == null || patterns.Length == 0)
+            return false;
+
+        for (int i = 0; i < patterns.Length; i++)
+        {
+            if (patterns[i] != null)
+                patterns[i].SetActive(false);
+        }
+
+        EnsureGeneratedGuide();
+        // Force CurrentSetIndex = 0 (TracingBoard_Set1 / TraceDesk Easy).
+        nextRecipe = 1;
+
+        Recipe recipe = IntroRecipe(variant);
+        FillRecipe(recipe);
+        generatedPath.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+
+        PlaceIntroTracingAreaOnSet1();
+        FitPointsToActivePaper();
+
+        generatedPath.gameObject.SetActive(true);
+        generatedPath.positionCount = generatedPoints.Count;
+        generatedPath.SetPositions(generatedPoints.ToArray());
+
+        PlaceLabel(startLabel, 0);
+        PlaceLabel(endLabel, generatedPoints.Count - 1);
+        if (startLabel != null)
+            startLabel.gameObject.SetActive(true);
+        if (endLabel != null)
+            endLabel.gameObject.SetActive(true);
+        PlaceStars(0);
+
+        BuildWorldPath();
+        worldOut.AddRange(worldPoints);
+        return worldOut.Count >= 2;
+    }
+
+    public void HideIntroDemoPath()
+    {
+        if (generatedPath != null)
+        {
+            generatedPath.gameObject.SetActive(false);
+            PlaceStars(0);
+        }
+        if (startLabel != null)
+            startLabel.gameObject.SetActive(false);
+        if (endLabel != null)
+            endLabel.gameObject.SetActive(false);
+
+        Countdown countdown = FindFirstObjectByType<Countdown>(FindObjectsInactive.Include);
+        TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
+        if (countdown != null && countdown.tracingArea != null
+            && (timer == null || !timer.IsRunning))
+            countdown.tracingArea.SetActive(false);
+    }
+
+    void PlaceIntroTracingAreaOnSet1()
+    {
+        Countdown countdown = FindFirstObjectByType<Countdown>(FindObjectsInactive.Include);
+        if (countdown == null)
+            return;
+
+        countdown.PlaceTracingArea();
+        if (countdown.tracingArea != null)
+            countdown.tracingArea.SetActive(true);
+    }
+
+    static Recipe IntroRecipe(int variant)
+    {
+        switch (Mathf.Abs(variant) % 3)
+        {
+            case 1:
+                return new Recipe { kind = 1, count = 2, amp = 0.09f, span = 0.22f, passes = 1, stars = 0 };
+            case 2:
+                return new Recipe { kind = 3, count = 2, amp = 0.08f, span = 0.22f, passes = 1, stars = 0 };
+            default:
+                return new Recipe { kind = 0, count = 2, amp = 0.09f, span = 0.22f, passes = 1, stars = 0 };
+        }
     }
 
     public void ShowGuidedPath()

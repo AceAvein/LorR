@@ -9,6 +9,9 @@ using UnityEngine.XR.Interaction.Toolkit.Samples.StarterAssets;
 [DefaultExecutionOrder(30000)]
 public class PenTraceWalk : MonoBehaviour
 {
+    /// <summary>Intro director locks locomotion until dialogue/cutscene finish.</summary>
+    public static bool MovementLocked { get; set; }
+
     [SerializeField] float moveSpeed = 3.5f;
     [SerializeField] float gravity = -9.81f;
     [SerializeField] float stickDeadzone = 0.15f;
@@ -241,6 +244,8 @@ public class PenTraceWalk : MonoBehaviour
 
     static bool IsMovementLocked()
     {
+        if (MovementLocked)
+            return true;
         return PenTracePortal.Instance != null && PenTracePortal.Instance.IsLocked;
     }
 }

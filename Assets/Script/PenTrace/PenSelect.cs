@@ -63,6 +63,12 @@ public class PenSelect : MonoBehaviour
         if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
             return;
 
+        // UI Start: first press starts intro (Dialogue circle). Gameplay only after cutscene unlock.
+        if (PenTraceIntroDirector.TryConsumeStartButton())
+            return;
+        if (!PenTraceIntroDirector.IsTrainingUnlocked)
+            return;
+
         ScoringChecker.Ensure().TryContinue(OpenAfterCheck);
     }
 
@@ -129,6 +135,8 @@ public class PenSelect : MonoBehaviour
     public bool TryEquipFromGrab(PenGrabKind kind, bool rightHand)
     {
         if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return false;
+        if (!PenTraceIntroDirector.IsTrainingUnlocked)
             return false;
 
         // Switching pens must use the other hand.
