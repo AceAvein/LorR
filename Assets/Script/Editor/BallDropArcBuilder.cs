@@ -178,7 +178,7 @@ public static class BallDropArcBuilder
             }
         }
 
-        // Big start button below cluster
+        // Big start button below cluster — keep collider for poke / editor click
         GameObject start = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
         start.name = "StartButton";
         start.transform.SetParent(parent, false);
@@ -186,7 +186,6 @@ public static class BallDropArcBuilder
         start.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         start.transform.localScale = new Vector3(0.08f, 0.02f, 0.08f);
         ApplyMat(start, buttonMat);
-        Object.DestroyImmediate(start.GetComponent<Collider>());
 
         GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
         plate.name = "KeyPlate";

@@ -14,6 +14,8 @@ public class BallDropWalk : MonoBehaviour
     [SerializeField] float stickDeadzone = 0.15f;
     [SerializeField] float snapTurnDegrees = 45f;
     [SerializeField] float snapTurnCooldown = 0.35f;
+    [SerializeField] Vector3 stancePosition = new Vector3(-0.7199211f, 0.0399997f, 1.869362f);
+    [SerializeField] Vector3 stanceEuler = Vector3.zero;
 
     XROrigin xrOrigin;
     CharacterController character;
@@ -22,6 +24,9 @@ public class BallDropWalk : MonoBehaviour
     InputAction rightStick;
     float verticalVelocity;
     float nextSnapTime;
+    bool walkLocked;
+
+    public bool WalkLocked => walkLocked;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -89,8 +94,50 @@ public class BallDropWalk : MonoBehaviour
 
         ResolveRig();
         MuteXriMoveConflicts();
+
+        if (walkLocked)
+            return;
+
         TurnFromRightStick();
         MoveFromLeftStick();
+    }
+
+    public void SetWalkLocked(bool locked)
+    {
+        walkLocked = locked;
+        verticalVelocity = 0f;
+    }
+
+    /// <summary>
+    /// Snap XR Origin to training stance and lock walk/turn until unlocked.
+    /// </summary>
+    public void SnapToStanceAndLock()
+    {
+        SnapToStance(stancePosition, Quaternion.Euler(stanceEuler));
+        SetWalkLocked(true);
+    }
+
+    public void SnapToStance(Vector3 worldPos, Quaternion worldRot)
+    {
+        ResolveRig();
+        if (xrOrigin == null)
+            return;
+
+        Transform origin = xrOrigin.Origin != null ? xrOrigin.Origin.transform : xrOrigin.transform;
+        bool hadCharacter = character != null && character.enabled;
+        if (hadCharacter)
+            character.enabled = false;
+
+        origin.SetPositionAndRotation(worldPos, worldRot);
+        verticalVelocity = 0f;
+
+        if (hadCharacter)
+            character.enabled = true;
+    }
+
+    public static BallDropWalk FindActive()
+    {
+        return FindFirstObjectByType<BallDropWalk>(FindObjectsInactive.Include);
     }
 
     void MoveFromLeftStick()
