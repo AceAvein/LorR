@@ -9,11 +9,13 @@ public class PenTraceLights : MonoBehaviour
 
     const string LightObjectName = "LIGHT";
 
-    [SerializeField] Color glowColor = Color.white;
-    [SerializeField] float emissionStrength = 3.5f;
-    [SerializeField] float lightIntensity = 10f;
-    [SerializeField] float lightRange = 12f;
-    [SerializeField] float ambientIntensity = 1.35f;
+    // Match other Scene Simulation hospital lamps (LorRHospitalLightsOnGlows: ~1.35–1.55).
+    [SerializeField] Color glowColor = new Color(0.95f, 0.96f, 0.92f, 1f);
+    [SerializeField] float emissionStrength = 1.15f;
+    [SerializeField] float lightIntensity = 1.5f;
+    [SerializeField] float lightRange = 6.5f;
+    [SerializeField] bool boostAmbientFill = false;
+    [SerializeField] float ambientIntensity = 1f;
     [SerializeField] Vector3 lightLocalOffset = new Vector3(0f, -0.08f, 0f);
 
     Color savedAmbientSky;
@@ -106,7 +108,8 @@ public class PenTraceLights : MonoBehaviour
             }
         }
 
-        ApplyRoomFill(on);
+        if (boostAmbientFill)
+            ApplyRoomFill(on);
     }
 
     public void SetIntensity(float intensity)

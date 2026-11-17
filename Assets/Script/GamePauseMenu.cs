@@ -294,6 +294,12 @@ public class GamePauseMenu : MonoBehaviour
             return true;
         if (n == "Boxes" || n == "Shapes" || n == "AREA")
             return true;
+        // Intro directors must stay active — deactivating them kills cutscene coroutines permanently.
+        if (n.Contains("IntroDirector") || n.Contains("IntroCutscene") || n.Contains("IntroCinema")
+            || n == "PenTraceLights" || n == "GamePauseMenu")
+            return true;
+        if (n == "Dr. Rivera" || n.Contains("Rivera"))
+            return true;
         if (n.Contains("XR Origin") || n.Contains("XR Rig") || n.Contains("OVR") || n.Contains("Camera Rig"))
             return true;
         if (go.GetComponent("XROrigin") != null)
@@ -301,6 +307,8 @@ public class GamePauseMenu : MonoBehaviour
         if (go.GetComponent<Light>() != null)
             return true;
         if (go.GetComponent<LevelMusic>() != null || n == "LevelMusic")
+            return true;
+        if (go.GetComponent<BallDropSky>() != null || n == "BallDropSky")
             return true;
         if (go.GetComponent<BallDropSystem>() != null || go.GetComponent<BallDropRound>() != null)
             return true;
@@ -326,6 +334,18 @@ public class GamePauseMenu : MonoBehaviour
             return true;
         if (go.GetComponent<TracingTimer>() != null || go.GetComponent<Countdown>() != null)
             return true;
+        if (go.GetComponent<PenSelect>() != null || go.GetComponent<PenTraceLights>() != null)
+            return true;
+        if (go.GetComponent<PenTraceIntroDirector>() != null
+            || go.GetComponent<BallDropIntroDirector>() != null
+            || go.GetComponent<ReactionLightIntroDirector>() != null
+            || go.GetComponent<ObjectPlacementIntroDirector>() != null)
+            return true;
+        if (go.GetComponent<PenTraceIntroSceneSetup>() != null
+            || go.GetComponent<BallDropIntroSceneSetup>() != null
+            || go.GetComponent<ReactionLightIntroSceneSetup>() != null
+            || go.GetComponent<ObjectPlacementIntroSceneSetup>() != null)
+            return true;
         if (go.GetComponent<ColorSortRound>() != null || go.GetComponent<ReactionLightRound>() != null)
             return true;
         if (go.GetComponent<ColorSortPiece>() != null)
@@ -333,8 +353,42 @@ public class GamePauseMenu : MonoBehaviour
         if (go.GetComponent<ObjectPlacementGroceryItem>() != null)
             return true;
 
+        // Keep scene environment (classroom / hospital / desks) so pause does not black out the world.
+        if (IsEnvironmentRoot(go))
+            return true;
+
         Camera headset = Camera.main;
         if (headset != null && headset.transform.root == go.transform)
+            return true;
+
+        return false;
+    }
+
+    static bool IsEnvironmentRoot(GameObject go)
+    {
+        string n = go.name;
+        if (n.IndexOf("Classroom", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (n.IndexOf("Environment", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (n.IndexOf("Hospital", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (n.IndexOf("PenTracing", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (n.IndexOf("Pen Tracing", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (n.IndexOf("Room", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (n.IndexOf("Building", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (n.IndexOf("Backdrop", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            return true;
+        if (n == "Geometry" || n == "Static" || n == "Props" || n == "SetDressing")
+            return true;
+
+        // Large authored set roots usually carry mesh renderers for walls/floors/desks.
+        MeshRenderer[] meshes = go.GetComponentsInChildren<MeshRenderer>(true);
+        if (meshes != null && meshes.Length >= 8)
             return true;
 
         return false;
