@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Accuracy Computation — 4 Module Scenes</title>
+  <style>
+    @page { size: A4; margin: 18mm 16mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Calibri, Arial, sans-serif;
+      color: #1a1a1a;
+      line-height: 1.45;
+      font-size: 11.5pt;
+      margin: 0;
+    }
+    h1 {
+      font-size: 20pt;
+      margin: 0 0 4px;
+      color: #0f2744;
+    }
+    .subtitle {
+      color: #456;
+      font-size: 11pt;
+      margin-bottom: 18px;
+    }
+    h2 {
+      font-size: 13.5pt;
+      color: #0f2744;
+      border-bottom: 2px solid #0f2744;
+      padding-bottom: 3px;
+      margin: 18px 0 8px;
+      page-break-after: avoid;
+    }
+    h3 {
+      font-size: 11.5pt;
+      margin: 12px 0 4px;
+      color: #243b55;
+      page-break-after: avoid;
+    }
+    p { margin: 6px 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 14px;
+      font-size: 10.5pt;
+    }
+    th, td {
+      border: 1px solid #c5ced8;
+      padding: 7px 9px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th {
+      background: #0f2744;
+      color: #fff;
+    }
+    tr:nth-child(even) td { background: #f4f7fa; }
+    .formula {
+      background: #eef3f8;
+      border-left: 4px solid #0f2744;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 10.5pt;
+      page-break-inside: avoid;
+    }
+    .example {
+      background: #f7faf4;
+      border: 1px solid #cfe0c0;
+      padding: 8px 12px;
+      margin: 8px 0 10px;
+      page-break-inside: avoid;
+    }
+    .note {
+      color: #555;
+      font-size: 10pt;
+      font-style: italic;
+    }
+    ul { margin: 6px 0 10px 18px; padding: 0; }
+    li { margin: 3px 0; }
+    .summary {
+      background: #0f2744;
+      color: #fff;
+      padding: 12px 14px;
+      margin-top: 16px;
+      border-radius: 4px;
+      page-break-inside: avoid;
+    }
+    .summary strong { color: #ffd978; }
+    .footer {
+      margin-top: 22px;
+      font-size: 9.5pt;
+      color: #777;
+      border-top: 1px solid #ccc;
+      padding-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Accuracy Computation</h1>
+  <div class="subtitle">4 Module Scenes — Panelist Brief (Simple Explanation)</div>
+
+  <h2>1. Overview</h2>
+  <p>
+    Each module defines accuracy based on the skill it trains.
+    Three modules use a simple success rate. Pen Trace measures path-following closeness.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Module</th>
+        <th>What “correct” means</th>
+        <th>Core formula</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Ball Drop</strong></td>
+        <td>Catching the ball</td>
+        <td>Caught ÷ Spawned × 100%</td>
+      </tr>
+      <tr>
+        <td><strong>Color Sort</strong></td>
+        <td>Correct color placement</td>
+        <td>Correct ÷ Total placements × 100%</td>
+      </tr>
+      <tr>
+        <td><strong>Reaction Light</strong></td>
+        <td>Clearing a light set</td>
+        <td>Sets cleared ÷ Sets played × 100%</td>
+      </tr>
+      <tr>
+        <td><strong>Pen Trace</strong></td>
+        <td>Ink closeness to guide path</td>
+        <td>Average pattern closeness scores</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>2. Ball Drop</h2>
+  <p><strong>Idea:</strong> Of all balls that appeared, how many did the player catch?</p>
+  <div class="formula">Accuracy = (balls caught ÷ balls spawned) × 100%</div>
+  <div class="example"><strong>Example:</strong> 18 caught out of 20 spawned → <strong>90%</strong></div>
+  <h3>Also tracked (separate from main accuracy)</h3>
+  <ul>
+    <li><strong>Dominant-hand accuracy</strong> = dominant catches ÷ dominant balls</li>
+    <li><strong>Non-dominant-hand accuracy</strong> = non-dominant catches ÷ non-dominant balls</li>
+    <li><strong>Hand difference</strong> = dominant % − non-dominant %</li>
+  </ul>
+  <p class="note">Wrong grabs are counted separately and do not reduce the main accuracy percentage.</p>
+
+  <h2>3. Color Sort</h2>
+  <p><strong>Idea:</strong> Of all pieces the player placed, how many went into the correct color?</p>
+  <div class="formula">Accuracy = (correct placements ÷ total placements) × 100%</div>
+  <div class="example"><strong>Example:</strong> 24 correct out of 30 placements → <strong>80%</strong></div>
+  <p>
+    Every resolved piece counts as one placement. A correct placement increases the numerator.
+    A wrong placement still increases the total, so accuracy goes down.
+  </p>
+
+  <h2>4. Reaction Light</h2>
+  <p><strong>Idea:</strong> Of all light sets the player faced, how many were cleared successfully?</p>
+  <div class="formula">Accuracy = (sets cleared ÷ sets played) × 100%</div>
+  <div class="example"><strong>Example:</strong> 12 cleared out of 15 sets → <strong>80%</strong></div>
+  <p>
+    A set counts as cleared when finished correctly. Timed-out or failed sets still count as played,
+    so they lower accuracy.
+  </p>
+
+  <h2>5. Pen Trace</h2>
+  <p>
+    <strong>Idea:</strong> This is not a simple right/wrong count.
+    It measures how closely the player’s ink follows the guide line.
+  </p>
+
+  <h3>Step A — Score one pattern</h3>
+  <ol>
+    <li>Sample the guide path every <strong>1 cm</strong>.</li>
+    <li>At each sample, measure distance from the guide point to the player’s ink.</li>
+    <li>Convert that distance into a closeness score from 0 to 1:
+      <ul>
+        <li>Within <strong>0.7 cm</strong> → perfect (1.0)</li>
+        <li>From 0.7 cm to <strong>1.5 cm</strong> → score fades toward 0</li>
+        <li>Beyond 1.5 cm → 0</li>
+      </ul>
+    </li>
+    <li>Average all sample scores, then multiply by 100 → <strong>pattern accuracy %</strong></li>
+  </ol>
+  <div class="formula">Pattern Accuracy = (average closeness of all samples) × 100%</div>
+
+  <h3>Step B — Round accuracy (results screen)</h3>
+  <div class="formula">Round Accuracy = (sum of finished pattern accuracies) ÷ (number of finished patterns)</div>
+  <div class="example">
+    <strong>Example:</strong> patterns scored 92%, 85%, 88%<br />
+    Round accuracy = (92 + 85 + 88) ÷ 3 = <strong>88.3%</strong> (shown as ~88%)
+  </div>
+  <p class="note">
+    The displayed accuracy average uses finished patterns only.
+  </p>
+
+  <h3>Rating feedback</h3>
+  <ul>
+    <li>Below 60% → Fair</li>
+    <li>60% to 84% → Good</li>
+    <li>85% and above → Great</li>
+  </ul>
+
+  <div class="summary">
+    <strong>One-line takeaway for the panel:</strong><br /><br />
+    Ball Drop, Color Sort, and Reaction Light use a percentage of successful attempts.
+    Pen Trace uses a percentage of path-following closeness, then averages that across completed patterns.
+  </div>
+
+  <div class="footer">
+    Source: ModuleScenes accuracy logic in BallDropRound, ColorSortRound, ReactionLightRound, and PathManager (Pen Trace).
+  </div>
+</body>
+</html>

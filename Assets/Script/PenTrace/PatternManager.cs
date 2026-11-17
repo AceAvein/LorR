@@ -52,10 +52,125 @@ public class PatternManager : MonoBehaviour
         if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
             return;
 
+        // Intro cutscene owns the first board reveal — defer live path until unlock.
+        if (PenTraceIntroDirector.InstancePending())
+        {
+            for (int i = 0; i < patterns.Length; i++)
+            {
+                if (patterns[i] != null)
+                    patterns[i].SetActive(false);
+            }
+            return;
+        }
+
         if (generateRandomPatterns)
             ShowGenerated(true);
         else
             ShowPattern(currentPattern);
+    }
+
+    /// <summary>
+    /// Called after intro unlock so Set1 gets a real playable GeneratedGuide.
+    /// </summary>
+    public void BeginTrainingPaths()
+    {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
+        if (generateRandomPatterns)
+            ShowGenerated(true);
+        else
+            ShowPattern(0);
+    }
+
+    /// <summary>
+    /// Build an Easy (Set1) path on TracingBoard_Set1 for the intro demo.
+    /// Does not wire PathManager scoring or tier announcements.
+    /// </summary>
+    public bool TryPrepareIntroDemoPath(int variant, List<Vector3> worldOut)
+    {
+        if (worldOut == null)
+            return false;
+        worldOut.Clear();
+
+        if (patterns == null || patterns.Length == 0)
+            return false;
+
+        for (int i = 0; i < patterns.Length; i++)
+        {
+            if (patterns[i] != null)
+                patterns[i].SetActive(false);
+        }
+
+        EnsureGeneratedGuide();
+        // Force CurrentSetIndex = 0 (TracingBoard_Set1 / TraceDesk Easy).
+        nextRecipe = 1;
+
+        Recipe recipe = IntroRecipe(variant);
+        FillRecipe(recipe);
+        generatedPath.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+
+        PlaceIntroTracingAreaOnSet1();
+        FitPointsToActivePaper();
+
+        generatedPath.gameObject.SetActive(true);
+        generatedPath.positionCount = generatedPoints.Count;
+        generatedPath.SetPositions(generatedPoints.ToArray());
+
+        PlaceLabel(startLabel, 0);
+        PlaceLabel(endLabel, generatedPoints.Count - 1);
+        if (startLabel != null)
+            startLabel.gameObject.SetActive(true);
+        if (endLabel != null)
+            endLabel.gameObject.SetActive(true);
+        PlaceStars(0);
+
+        BuildWorldPath();
+        worldOut.AddRange(worldPoints);
+        return worldOut.Count >= 2;
+    }
+
+    public void HideIntroDemoPath()
+    {
+        if (generatedPath != null)
+        {
+            generatedPath.gameObject.SetActive(false);
+            PlaceStars(0);
+        }
+        if (startLabel != null)
+            startLabel.gameObject.SetActive(false);
+        if (endLabel != null)
+            endLabel.gameObject.SetActive(false);
+
+        Countdown countdown = FindFirstObjectByType<Countdown>(FindObjectsInactive.Include);
+        TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
+        if (countdown != null && countdown.tracingArea != null
+            && (timer == null || !timer.IsRunning))
+            countdown.tracingArea.SetActive(false);
+    }
+
+    void PlaceIntroTracingAreaOnSet1()
+    {
+        Countdown countdown = FindFirstObjectByType<Countdown>(FindObjectsInactive.Include);
+        if (countdown == null)
+            return;
+
+        countdown.PlaceTracingArea();
+        if (countdown.tracingArea != null)
+            countdown.tracingArea.SetActive(true);
+    }
+
+    static Recipe IntroRecipe(int variant)
+    {
+        switch (Mathf.Abs(variant) % 3)
+        {
+            case 1:
+                return new Recipe { kind = 1, count = 2, amp = 0.09f, span = 0.22f, passes = 1, stars = 0 };
+            case 2:
+                return new Recipe { kind = 3, count = 2, amp = 0.08f, span = 0.22f, passes = 1, stars = 0 };
+            default:
+                return new Recipe { kind = 0, count = 2, amp = 0.09f, span = 0.22f, passes = 1, stars = 0 };
+        }
     }
 
     public void ShowGuidedPath()
@@ -150,6 +265,18 @@ public class PatternManager : MonoBehaviour
         ShowPattern(currentPattern);
     }
 
+    public int CurrentSetIndex
+    {
+        get
+        {
+            int index = CurrentPatternIndex;
+            if (index < 0)
+                index = 0;
+
+            return Mathf.Clamp(index / PenTraceBoards.PatternsPerSet, 0, PenTraceBoards.SetCount - 1);
+        }
+    }
+
     public void ResetPatterns()
     {
         if (generateRandomPatterns)
@@ -194,8 +321,13 @@ public class PatternManager : MonoBehaviour
             patterns[i].SetActive(false);
 
         EnsureGeneratedGuide();
+        generatedPath.transform.localPosition = new Vector3(0f, 0.12f, 0f);
         Recipe recipe = DrawRecipe(newPlay);
         FillRecipe(recipe);
+
+        // Place on paper first so fit uses the correct board transform.
+        PlaceOnCurrentSet();
+        FitPointsToActivePaper();
 
         generatedPath.positionCount = generatedPoints.Count;
         generatedPath.SetPositions(generatedPoints.ToArray());
@@ -210,6 +342,24 @@ public class PatternManager : MonoBehaviour
         pathManager.ResetPattern();
         RefreshTracingHud();
         AnnounceTier(CurrentTier());
+    }
+
+    void PlaceOnCurrentSet()
+    {
+        if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
+            return;
+
+        Countdown countdown = FindFirstObjectByType<Countdown>(FindObjectsInactive.Include);
+        if (countdown == null)
+            return;
+
+        countdown.PlaceTracingArea();
+        if (countdown.tracingArea != null && !countdown.tracingArea.activeSelf)
+        {
+            TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
+            if (timer != null && timer.IsRunning)
+                countdown.tracingArea.SetActive(true);
+        }
     }
 
     void AnnounceTier(int tier)
@@ -237,7 +387,7 @@ public class PatternManager : MonoBehaviour
         Transform root = patterns[0].transform.parent;
         GameObject guide = new GameObject("GeneratedGuide");
         guide.transform.SetParent(root, false);
-        guide.transform.localPosition = new Vector3(0f, 0.63f, 0f);
+        guide.transform.localPosition = new Vector3(0f, 0.12f, 0f);
         guide.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         guide.transform.localScale = Vector3.one;
 
@@ -270,15 +420,15 @@ public class PatternManager : MonoBehaviour
 
         label.font = font;
         label.text = word;
-        label.fontSize = 1.5f;
+        label.fontSize = 0.5f;
         label.fontStyle = FontStyles.Bold;
         label.alignment = TextAlignmentOptions.Center;
-        label.color = Color.white;
+        label.color = Color.black;
         label.enableWordWrapping = false;
         label.overflowMode = TextOverflowModes.Overflow;
         label.outlineWidth = 0.2f;
         label.outlineColor = Color.black;
-        label.rectTransform.sizeDelta = new Vector2(1.4f, 0.5f);
+        label.rectTransform.sizeDelta = new Vector2(0.55f, 0.22f);
 
         Renderer textRenderer = label.renderer;
         if (textRenderer != null)
@@ -389,22 +539,80 @@ public class PatternManager : MonoBehaviour
         Transform guide = generatedPath.transform;
         Transform area = guide.parent.parent.parent;
         Vector3 onLine = guide.TransformPoint(generatedPoints[pointIndex]);
-        Vector3 towardPlayer = -area.forward;
+        Vector3 paperNormal = -area.forward;
 
         int neighbor = pointIndex == 0 ? 1 : pointIndex - 1;
         Vector3 outward = onLine - guide.TransformPoint(generatedPoints[neighbor]);
         if (outward.sqrMagnitude < 0.000001f)
             outward = guide.TransformDirection(Vector3.right);
+        outward = Vector3.ProjectOnPlane(outward, paperNormal);
+        if (outward.sqrMagnitude < 0.000001f)
+            outward = Vector3.ProjectOnPlane(area.right, paperNormal);
         outward.Normalize();
 
+        label.fontSize = 0.5f;
+        label.color = Color.black;
         label.transform.SetParent(area, false);
         label.transform.localScale = Vector3.one;
         label.ForceMeshUpdate();
-        label.transform.rotation = Quaternion.LookRotation(-towardPlayer, Vector3.up);
+
+        // Flat on the paper. TMP faces -Z, so aim +Z into the paper (front toward reader above).
+        Vector3 pageUp = Vector3.ProjectOnPlane(area.up, paperNormal);
+        if (pageUp.sqrMagnitude < 0.001f)
+            pageUp = Vector3.ProjectOnPlane(Vector3.forward, paperNormal);
+        if (pageUp.sqrMagnitude < 0.001f)
+            pageUp = Vector3.right;
+        label.transform.rotation = Quaternion.LookRotation(-paperNormal.normalized, pageUp.normalized);
 
         Vector3 halfWidth = label.transform.TransformVector(new Vector3(label.textBounds.extents.x, 0f, 0f));
-        float reach = halfWidth.magnitude + LetterThickness(label) * 0.5f;
-        label.transform.position = onLine + towardPlayer.normalized * 0.004f + outward * reach;
+        float reach = halfWidth.magnitude + 0.012f;
+        label.transform.position = onLine + paperNormal.normalized * 0.003f + outward * reach;
+    }
+
+    void FitPointsToActivePaper()
+    {
+        if (generatedPath == null || generatedPoints.Count == 0)
+            return;
+
+        Transform paper = PenTraceBoards.FindSet(CurrentSetIndex);
+        if (paper == null)
+            return;
+
+        Transform guide = generatedPath.transform;
+        Vector3 normal = PenTraceBoards.BoardNormal(paper);
+        Vector3 axisA = Vector3.ProjectOnPlane(paper.right, normal);
+        Vector3 axisB = Vector3.ProjectOnPlane(paper.forward, normal);
+        if (axisA.sqrMagnitude < 0.001f || axisB.sqrMagnitude < 0.001f)
+            return;
+
+        axisA.Normalize();
+        axisB.Normalize();
+
+        Vector3 center = PenTraceBoards.BoardCenter(paper);
+        float maxA = 0f;
+        float maxB = 0f;
+        for (int i = 0; i < generatedPoints.Count; i++)
+        {
+            Vector3 delta = guide.TransformPoint(generatedPoints[i]) - center;
+            maxA = Mathf.Max(maxA, Mathf.Abs(Vector3.Dot(delta, axisA)));
+            maxB = Mathf.Max(maxB, Mathf.Abs(Vector3.Dot(delta, axisB)));
+        }
+
+        // Unity cube paper: local ±0.5 scaled by lossyScale on X/Z.
+        const float FitMargin = 0.82f;
+        float limitA = Mathf.Abs(paper.lossyScale.x) * 0.5f * FitMargin;
+        float limitB = Mathf.Abs(paper.lossyScale.z) * 0.5f * FitMargin;
+        if (limitA < 0.01f || limitB < 0.01f)
+            return;
+
+        float scaleA = maxA > 0.0001f ? limitA / maxA : 1f;
+        float scaleB = maxB > 0.0001f ? limitB / maxB : 1f;
+        float scale = Mathf.Min(1f, Mathf.Min(scaleA, scaleB));
+        if (scale >= 0.999f)
+            return;
+
+        for (int i = 0; i < generatedPoints.Count; i++)
+            generatedPoints[i] *= scale;
     }
 
     float LetterThickness(TextMeshPro label)
@@ -588,14 +796,18 @@ public class PatternManager : MonoBehaviour
         Shuffle(moderate);
         Shuffle(hard);
 
-        easyCount = easy.Count;
-        moderateCount = moderate.Count;
-        hardCount = hard.Count;
+        // Bible: 3 sets × 3 patterns/set. Set1/2/3 map to easy/moderate/hard desks.
+        easyCount = Mathf.Min(PenTraceBoards.PatternsPerSet, easy.Count);
+        moderateCount = Mathf.Min(PenTraceBoards.PatternsPerSet, moderate.Count);
+        hardCount = Mathf.Min(PenTraceBoards.PatternsPerSet, hard.Count);
 
         deck.Clear();
-        deck.AddRange(easy);
-        deck.AddRange(moderate);
-        deck.AddRange(hard);
+        for (int i = 0; i < easyCount; i++)
+            deck.Add(easy[i]);
+        for (int i = 0; i < moderateCount; i++)
+            deck.Add(moderate[i]);
+        for (int i = 0; i < hardCount; i++)
+            deck.Add(hard[i]);
     }
 
     public int CurrentPatternIndex

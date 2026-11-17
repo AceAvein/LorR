@@ -23,6 +23,8 @@ public class TracingTimer : MonoBehaviour
     bool feedbackResolved;
 
     public float timeLimit = 10f;
+    // Bible: timer is not the primary score driver. Disabled for now.
+    public bool useTimer = false;
 
     private float timeRemaining;
     private float elapsed;
@@ -82,21 +84,24 @@ public class TracingTimer : MonoBehaviour
         if (!timerRunning)
             return;
 
-        timeRemaining -= Time.deltaTime;
         elapsed += Time.deltaTime;
 
-        if (timeRemaining <= 0f)
+        if (useTimer)
         {
-            timeRemaining = 0f;
-            timerRunning = false;
-            HideFeedback();
-            gameObject.SetActive(false);
+            timeRemaining -= Time.deltaTime;
+            if (timeRemaining <= 0f)
+            {
+                timeRemaining = 0f;
+                timerRunning = false;
+                HideFeedback();
+                gameObject.SetActive(false);
 
-            if (pathManager.finishedScreen != null)
-                pathManager.finishedScreen.SetActive(false);
-            ShowResults(false);
-            tracingBoard.SetActive(false);
-            tracingArea.SetActive(false);
+                if (pathManager.finishedScreen != null)
+                    pathManager.finishedScreen.SetActive(false);
+                ShowResults(false);
+                tracingBoard.SetActive(false);
+                tracingArea.SetActive(false);
+            }
         }
 
         UpdateTimerDisplay();
@@ -104,14 +109,21 @@ public class TracingTimer : MonoBehaviour
 
     void UpdateTimerDisplay()
     {
-        int seconds = Mathf.Max(0, Mathf.CeilToInt(timeRemaining));
-
-        if (timerText != null)
-            timerText.text = seconds.ToString();
-
         ResolveHud();
 
-        SetTexts(timerValues, seconds.ToString());
+        if (useTimer)
+        {
+            int seconds = Mathf.Max(0, Mathf.CeilToInt(timeRemaining));
+            if (timerText != null)
+                timerText.text = seconds.ToString();
+            SetTexts(timerValues, seconds.ToString());
+        }
+        else
+        {
+            if (timerText != null)
+                timerText.text = string.Empty;
+            SetTexts(timerValues, string.Empty);
+        }
 
         if (patternManager == null)
             return;
@@ -234,7 +246,7 @@ public class TracingTimer : MonoBehaviour
 
     public void AddSeconds(float amount)
     {
-        if (!timerRunning)
+        if (!timerRunning || !useTimer)
             return;
 
         timeRemaining += amount;

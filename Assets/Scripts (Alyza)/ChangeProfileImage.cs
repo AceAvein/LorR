@@ -10,7 +10,7 @@ public class ChangeProfileImage : MonoBehaviour
 
     void Awake()
     {
-        Debug.Log("[AWAKE] ChangeProfileImage on GameObject: " + gameObject.name + " | InstanceID: " + GetInstanceID());
+        Debug.Log("[AWAKE] ChangeProfileImage on GameObject: " + gameObject.name + " | EntityId: " + GetEntityId());
     }
 
     public void OnChangeProfileClicked()
@@ -26,11 +26,11 @@ public class ChangeProfileImage : MonoBehaviour
 #if UNITY_ANDROID && !UNITY_EDITOR
     void PickImageAndroid()
     {
-        NativeGalleryNamespace.NativeGallery.GetImageFromGallery((path) =>
+        NativeGallery.GetImageFromGallery((path) =>
         {
             if (path == null)
                 return;
-            Texture2D texture = NativeGalleryNamespace.NativeGallery.LoadImageAtPath(path, 1024);
+            Texture2D texture = NativeGallery.LoadImageAtPath(path, 1024);
             if (texture == null)
                 return;
             SetImage(texture, path);
@@ -67,6 +67,6 @@ public class ChangeProfileImage : MonoBehaviour
         string destination = Path.Combine(Application.persistentDataPath, fileName);
         File.Copy(originalPath, destination, true);
         SelectedImagePath = destination;
-        Debug.Log("[SETIMAGE] Called on GameObject: " + gameObject.name + " | InstanceID: " + GetInstanceID() + " | Path: " + SelectedImagePath);
+        Debug.Log("[SETIMAGE] Called on GameObject: " + gameObject.name + " | EntityId: " + GetEntityId() + " | Path: " + SelectedImagePath);
     }
 }

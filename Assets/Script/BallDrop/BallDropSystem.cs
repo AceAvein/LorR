@@ -66,13 +66,63 @@ public class BallDropSystem : MonoBehaviour
         if (transformAbove == null)
             return;
 
-        if (spawnPoints != null && spawnPoints.Length == transformAbove.childCount)
-            return;
-
-        spawnPoints = new Transform[transformAbove.childCount];
-
+        System.Collections.Generic.List<Transform> found = new System.Collections.Generic.List<Transform>();
         for (int i = 0; i < transformAbove.childCount; i++)
-            spawnPoints[i] = transformAbove.GetChild(i);
+        {
+            Transform child = transformAbove.GetChild(i);
+            if (child == null)
+                continue;
+
+            string n = child.name;
+            if (n == "SpawnPoint" || n.StartsWith("SpawnPoint"))
+            {
+                found.Add(child);
+                continue;
+            }
+
+            if (n.StartsWith("Hanger_"))
+            {
+                Transform nested = FindSpawnPointChild(child);
+                found.Add(nested != null ? nested : child);
+            }
+        }
+
+        // Fallback: treat direct children as spawn points (legacy flat layout).
+        if (found.Count == 0)
+        {
+            for (int i = 0; i < transformAbove.childCount; i++)
+                found.Add(transformAbove.GetChild(i));
+        }
+
+        if (spawnPoints != null && spawnPoints.Length == found.Count)
+        {
+            bool same = true;
+            for (int i = 0; i < found.Count; i++)
+            {
+                if (spawnPoints[i] != found[i])
+                {
+                    same = false;
+                    break;
+                }
+            }
+
+            if (same)
+                return;
+        }
+
+        spawnPoints = found.ToArray();
+    }
+
+    static Transform FindSpawnPointChild(Transform hanger)
+    {
+        for (int i = 0; i < hanger.childCount; i++)
+        {
+            Transform c = hanger.GetChild(i);
+            if (c != null && (c.name == "SpawnPoint" || c.name.StartsWith("SpawnPoint")))
+                return c;
+        }
+
+        return hanger.childCount > 0 ? hanger.GetChild(0) : null;
     }
 
     IEnumerator SpawnLoop()

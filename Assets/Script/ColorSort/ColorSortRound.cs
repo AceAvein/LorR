@@ -107,6 +107,10 @@ public class ColorSortRound : MonoBehaviour, IColorSortHost
         if (!scene.IsValid() || !ModuleScenes.IsColorSort(scene.name) || ModuleScenes.IsGuided(scene.name))
             return;
 
+        // Object Placement station uses Phase I conveyor groceries instead of legacy shapes.
+        if (FindAnyObjectByType<ObjectPlacementStation>() != null)
+            return;
+
         if (FindAnyObjectByType<ColorSortRound>() != null)
             return;
 

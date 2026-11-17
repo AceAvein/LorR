@@ -11,6 +11,8 @@ public class Countdown : MonoBehaviour
     public GameObject objectiveScreen;
     public TracingTimer tracingTimer;
 
+    const float PaperLift = 0.003f;
+
     public void StartCountdown()
     {
         if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
@@ -48,11 +50,63 @@ public class Countdown : MonoBehaviour
         tracingTimer.StartTimer();
     }
 
-    void PlaceTracingArea()
+    public void PlaceTracingArea()
     {
         if (tracingArea == null)
             return;
 
+        int setIndex = 0;
+        PatternManager patterns = FindFirstObjectByType<PatternManager>(FindObjectsInactive.Include);
+        if (patterns != null)
+            setIndex = patterns.CurrentSetIndex;
+
+        if (!PlaceOnTracingBoard(setIndex))
+            PlaceInFrontOfHeadset();
+
+        Transform board = tracingArea.transform.Find("TracingBoard");
+        if (board == null)
+            return;
+
+        TracingBoardSurface surface = board.GetComponent<TracingBoardSurface>();
+        if (surface == null)
+            surface = board.gameObject.AddComponent<TracingBoardSurface>();
+
+        surface.reachDistance = 0.02f;
+        surface.surfaceLift = 0.002f;
+        surface.edgeMargin = 0.01f;
+
+        Transform paper = PenTraceBoards.FindSet(setIndex);
+        if (paper != null)
+            surface.SetPaperBounds(paper);
+
+        // Invisible draw plane must not block CharacterController walking near desks.
+        Collider boardCollider = board.GetComponent<Collider>();
+        if (boardCollider != null)
+            boardCollider.enabled = false;
+    }
+
+    bool PlaceOnTracingBoard(int setIndex)
+    {
+        Transform paper = PenTraceBoards.FindSet(setIndex);
+        if (paper == null)
+            return false;
+
+        Vector3 normal = PenTraceBoards.BoardNormal(paper);
+        Vector3 center = PenTraceBoards.BoardCenter(paper);
+        Vector3 position = center + normal * PaperLift;
+
+        Vector3 along = PenTraceBoards.BoardFacing(paper);
+        if (along.sqrMagnitude < 0.001f)
+            return false;
+
+        // Desk-local facing (same for every TraceDesk) — matches table-1 Start-left without headset bias.
+        Quaternion rotation = Quaternion.LookRotation(-normal, along);
+        tracingArea.transform.SetPositionAndRotation(position, rotation);
+        return true;
+    }
+
+    void PlaceInFrontOfHeadset()
+    {
         Camera headset = Camera.main;
         if (headset == null)
             return;
@@ -66,9 +120,5 @@ public class Countdown : MonoBehaviour
         Vector3 position = headset.transform.position + forward * 0.45f;
         position.y = headset.transform.position.y - 0.3f;
         tracingArea.transform.SetPositionAndRotation(position, Quaternion.LookRotation(forward, Vector3.up));
-
-        Transform board = tracingArea.transform.Find("TracingBoard");
-        if (board != null && board.GetComponent<TracingBoardSurface>() == null)
-            board.gameObject.AddComponent<TracingBoardSurface>();
     }
 }

@@ -289,6 +289,10 @@ public class BallDropRound : MonoBehaviour
         StopSpawning();
         ResolveLeftovers();
 
+        BallDropWalk walk = BallDropWalk.FindActive();
+        if (walk != null)
+            walk.SetWalkLocked(false);
+
         if (gameCanvas != null)
             gameCanvas.SetActive(false);
 

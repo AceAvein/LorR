@@ -45,8 +45,17 @@ public class BallAssignController : MonoBehaviour
         round = GetComponent<BallDropRound>();
         if (round == null)
             round = gameObject.AddComponent<BallDropRound>();
+        EnsureStartButton();
         ShowObjective();
         WireButtons();
+    }
+
+    void EnsureStartButton()
+    {
+        BallDropStartButton startButton = GetComponent<BallDropStartButton>();
+        if (startButton == null)
+            startButton = gameObject.AddComponent<BallDropStartButton>();
+        startButton.Bind(this);
     }
 
     void ResolveReferences()
@@ -100,8 +109,17 @@ public class BallAssignController : MonoBehaviour
 
     void WireButtons()
     {
-        Wire(objectiveScreen, "Objective_Panel/Btn_Start", StartFromObjective);
+        Wire(objectiveScreen, "Objective_Panel/Btn_Start", OnObjectiveStartPressed);
         Wire(assignCanvas, "Btn_Start", StartGame);
+    }
+
+    void OnObjectiveStartPressed()
+    {
+        // Color Sort pattern: first Start unlocks walk + Dialogue circle; game starts later via pole StartButton.
+        if (BallDropIntroDirector.TryConsumeStartButton())
+            return;
+
+        StartFromObjective();
     }
 
     public void ShowObjective()
@@ -174,13 +192,54 @@ public class BallAssignController : MonoBehaviour
     {
         if (countingDown)
             return;
+        if (!BallDropIntroDirector.IsTrainingUnlocked)
+            return;
 
         ScoringChecker.Ensure().TryContinue(StartGameAfterCheck);
+    }
+
+    /// <summary>
+    /// World StartButton poke: apply profile hand, assign ball pair/icons, then countdown + drop.
+    /// </summary>
+    public void StartFromPoleButton()
+    {
+        if (countingDown)
+            return;
+        if (round != null && round.running)
+            return;
+        if (!BallDropIntroDirector.IsTrainingUnlocked)
+            return;
+
+        ScoringChecker.Ensure().TryContinue(StartFromPoleButtonAfterCheck);
+    }
+
+    void StartFromPoleButtonAfterCheck()
+    {
+        if (countingDown)
+            return;
+        if (round != null && round.running)
+            return;
+
+        ApplyProfileHand();
+        if (leftBall == null || rightBall == null)
+            PickPair();
+        ShowIcons();
+
+        if (objectiveScreen != null)
+            objectiveScreen.SetActive(false);
+        if (handCanvas != null)
+            handCanvas.SetActive(false);
+        if (assignCanvas != null)
+            assignCanvas.SetActive(false);
+
+        StartGameAfterCheck();
     }
 
     void StartGameAfterCheck()
     {
         if (countingDown)
+            return;
+        if (round != null && round.running)
             return;
 
         if (leftBall == null || rightBall == null)
@@ -192,6 +251,8 @@ public class BallAssignController : MonoBehaviour
             return;
         }
 
+        if (objectiveScreen != null)
+            objectiveScreen.SetActive(false);
         if (assignCanvas != null)
             assignCanvas.SetActive(false);
         if (handCanvas != null)
@@ -205,6 +266,10 @@ public class BallAssignController : MonoBehaviour
     IEnumerator CountdownThenStart()
     {
         countingDown = true;
+        BallDropWalk walk = BallDropWalk.FindActive();
+        if (walk != null)
+            walk.SnapToStanceAndLock();
+
         GameObject screen = FindNamed("CountdownScreen");
         TMP_Text label = FindLabel("Text_Countdown");
         if (screen != null)
