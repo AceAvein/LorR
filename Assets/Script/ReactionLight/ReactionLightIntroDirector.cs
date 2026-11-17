@@ -30,11 +30,17 @@ public class ReactionLightIntroDirector : MonoBehaviour
     [SerializeField] float greetHoldSeconds = 1.1f;
     [SerializeField] float fadeSeconds = 0.45f;
     [SerializeField] float beatPause = 1.1f;
-    [SerializeField] float pokeHoldSeconds = 0.85f;
-    [SerializeField] float handTravelSeconds = 0.7f;
-    [SerializeField] float cinemaFov = 55f;
+    [SerializeField] float pokeHoldSeconds = 1.15f;
+    [SerializeField] float handTravelSeconds = 0.95f;
+    [SerializeField] float explainHoldSeconds = 1.65f;
+    [SerializeField] float betweenPokePause = 0.45f;
+    [SerializeField] float cinemaFov = 60f;
     [SerializeField] float talkFontSize = 0.55f;
-    [SerializeField] float guideFontSize = 32f;
+    [SerializeField] float guideFontSize = 30f;
+
+    [Header("Rivera beside console")]
+    [SerializeField] float riveraConsoleSideOffset = 0.85f;
+    [SerializeField] float riveraConsoleForwardOffset = 0.2f;
 
     [Header("Demo")]
     [SerializeField] int demoGreenLightIndex = 5;
@@ -73,6 +79,10 @@ public class ReactionLightIntroDirector : MonoBehaviour
     Vector3 camSavedWorldPos;
     Quaternion camSavedWorldRot;
     float camSavedFov;
+    Vector3 riveraSavedPos;
+    Quaternion riveraSavedRot;
+    bool riveraPoseSaved;
+    Transform consoleRoot;
     readonly List<MonoBehaviour> disabledPoseDrivers = new List<MonoBehaviour>();
     readonly List<GameObject> demoProps = new List<GameObject>();
     Transform demoLeftHand;
@@ -139,6 +149,7 @@ public class ReactionLightIntroDirector : MonoBehaviour
     {
         if (instance == this)
             instance = null;
+        RestoreRivera();
         RestorePoseDrivers();
         ClearDemoProps();
     }
@@ -240,6 +251,8 @@ public class ReactionLightIntroDirector : MonoBehaviour
         HasCompleted = true;
         ReactionLightWalk.MovementLocked = false;
         SetPadVisible(false);
+        if (round != null)
+            round.ResetResultLabelReady();
     }
 
     IEnumerator RunCinematicDemo()
@@ -261,6 +274,8 @@ public class ReactionLightIntroDirector : MonoBehaviour
         }
 
         ResolveHandPrefabs();
+        ResolveConsole();
+        PlaceRiveraBesideConsole();
         round.PrepareBoardForIntro();
         if (round.IntroLightCount == 0)
             Debug.LogError("ReactionLightIntroDirector: no Ball lights found for intro board.");
@@ -286,45 +301,97 @@ public class ReactionLightIntroDirector : MonoBehaviour
             rivera.SetTalking(true);
         }
 
-        yield return ShowGuide("Green = poke this.\nRed = wrong — do not poke.", beatPause);
+        yield return ShowGuide(
+            "Watch carefully.\nGREEN = poke (correct).\nRED = do not poke (Wrong).",
+            Mathf.Max(beatPause, 1.4f));
         StopTalk();
         if (rivera != null)
             rivera.PlayObserve();
 
-        // Left hand: green success → red error
-        yield return ShowGuide("LEFT HAND — green success", 0.85f);
-        SetGuideVisible(false);
-        yield return DemoPoke(true, true);
-        yield return ShowGuide("LEFT HAND — red is an error", 0.85f);
-        SetGuideVisible(false);
-        yield return DemoPoke(true, false);
+        // Left hand: 3 explained pokes (green → red → green)
+        yield return DemoHandSeries(true);
         if (demoLeftHand != null)
             demoLeftHand.gameObject.SetActive(false);
 
-        // Right hand: same timing / interaction logic
-        yield return ShowGuide("RIGHT HAND — green success", 0.85f);
-        SetGuideVisible(false);
-        yield return DemoPoke(false, true);
-        yield return ShowGuide("RIGHT HAND — red is an error", 0.85f);
-        SetGuideVisible(false);
-        yield return DemoPoke(false, false);
+        // Right hand: same 3 examples
+        yield return DemoHandSeries(false);
         if (demoRightHand != null)
             demoRightHand.gameObject.SetActive(false);
 
+        if (rivera != null)
+            rivera.SetTalking(true);
         string ndh = ProfileManager.TryGetNonDominantLeft(out bool left)
             ? (left ? "LEFT" : "RIGHT")
             : "NON-DOMINANT";
-        yield return ShowGuide("In play, use your " + ndh + " hand only.", 1.35f);
+        yield return ShowGuide(
+            "In play, use your " + ndh + " hand only.\nGrip + index poke on GREEN.",
+            1.8f);
 
         if (round != null)
+        {
             round.PrepareBoardForIntro();
+            round.ResetResultLabelReady();
+        }
 
         yield return Fade(1f);
         yield return AnimateLetterbox(0f, 0.35f);
         EndCinemaView();
+        RestoreRivera();
         ClearDemoProps();
+        if (round != null)
+            round.ResetResultLabelReady();
         yield return Fade(0f);
         cutsceneRunning = false;
+    }
+
+    IEnumerator DemoHandSeries(bool leftHand)
+    {
+        string label = leftHand ? "LEFT" : "RIGHT";
+
+        // Steady poke pose for this hand's entire series (approach, contact, return).
+        if (demoLeftHand != null)
+            demoLeftHand.gameObject.SetActive(leftHand);
+        if (demoRightHand != null)
+            demoRightHand.gameObject.SetActive(!leftHand);
+        Transform hand = leftHand ? demoLeftHand : demoRightHand;
+        if (hand != null)
+            hand.gameObject.SetActive(true);
+        SetPokePose(leftHand, true);
+        yield return null;
+        yield return null;
+
+        yield return ExplainedPoke(
+            leftHand,
+            true,
+            label + " HAND — Example 1 of 3\nSqueeze GRIP, keep TRIGGER released.\nPoke GREEN with your index — correct!");
+        yield return new WaitForSeconds(betweenPokePause);
+
+        yield return ExplainedPoke(
+            leftHand,
+            false,
+            label + " HAND — Example 2 of 3\nGreen is the correct target — but the hand pokes RED.\nThis shows Wrong (time penalty in play).");
+        yield return new WaitForSeconds(betweenPokePause);
+
+        yield return ExplainedPoke(
+            leftHand,
+            true,
+            label + " HAND — Example 3 of 3\nAgain: only GREEN is a success.\nWatch the poke — fingertip to the light.");
+
+        // Stay in poke pose until the hand is hidden by the caller.
+        SetPokePose(leftHand, true);
+    }
+
+    IEnumerator ExplainedPoke(bool leftHand, bool greenTarget, string explanation)
+    {
+        if (rivera != null)
+            rivera.SetTalking(true);
+        yield return ShowGuide(explanation, explainHoldSeconds);
+        if (rivera != null)
+            rivera.PlayObserve();
+        // Keep guide visible during the longer poke so the player can read + watch.
+        yield return DemoPoke(leftHand, greenTarget);
+        SetGuideVisible(false);
+        StopTalk();
     }
 
     IEnumerator DemoPoke(bool leftHand, bool greenTarget)
@@ -343,18 +410,18 @@ public class ReactionLightIntroDirector : MonoBehaviour
             yield break;
         }
 
-        int index = greenTarget ? demoGreenLightIndex : demoRedLightIndex;
-        Transform light = round.GetLightTransform(index);
+        // Success: poke the green light. Wrong: green is lit (correct target) but hand pokes a red light.
+        int pokeIndex = greenTarget ? demoGreenLightIndex : demoRedLightIndex;
+        Transform light = round.GetLightTransform(pokeIndex);
         if (light == null)
         {
-            Debug.LogError("ReactionLightIntroDirector: light index " + index + " missing (balls=" + round.IntroLightCount + ").");
+            Debug.LogError("ReactionLightIntroDirector: light index " + pokeIndex + " missing (balls=" + round.IntroLightCount + ").");
             yield break;
         }
 
-        // Board state: all red idle; green target lit only for success demo.
-        round.PrepareBoardForIntro();
-        if (greenTarget)
-            round.SetIntroLightGreen(index, true);
+        round.PaintIntroBoardRed();
+        // Always show a green target so Wrong reads as "correct light exists, but red was poked".
+        round.SetIntroLightGreen(demoGreenLightIndex, true);
 
         if (demoLeftHand != null)
             demoLeftHand.gameObject.SetActive(leftHand);
@@ -371,32 +438,35 @@ public class ReactionLightIntroDirector : MonoBehaviour
         // Contact: tip reaches light center, nudged slightly toward viewer so contact is readable.
         Vector3 contactTip = light.position + viewer * 0.01f;
 
-        // Poke pose BEFORE travel — same Grip/Trigger + index open as gameplay HandPoseDriver.
+        // Keep poke pose the whole cutscene motion — never release mid-demo.
         SetPokePose(leftHand, true);
-        yield return null;
         yield return null;
         yield return null;
 
         // Travel hand root so index3 fingertip reaches the light center.
         yield return MoveHandSoTipReaches(hand, contactTip, handTravelSeconds);
+        SetPokePose(leftHand, true);
 
         // Readable hold at contact; reuse gameplay Great/Wrong visuals (no score/timer).
-        float hold = Mathf.Clamp(pokeHoldSeconds, 0.6f, 1.0f);
+        float hold = Mathf.Max(0.85f, pokeHoldSeconds);
         if (greenTarget)
         {
             round.ShowIntroFeedback(true);
-            round.SetIntroLightGreen(index, false); // success paints red like Press()
+            round.SetIntroLightGreen(demoGreenLightIndex, false); // success paints red like Press()
         }
         else
         {
+            // Green stays lit — Wrong = poked red while a green target was available.
             round.ShowIntroFeedback(false);
         }
 
         yield return new WaitForSeconds(hold);
 
-        SetPokePose(leftHand, false);
+        // Return while still in poke pose.
+        SetPokePose(leftHand, true);
         yield return MoveTransform(hand, rest, handTravelSeconds * 0.85f);
         hand.rotation = restRot;
+        SetPokePose(leftHand, true);
     }
 
     void SpawnDemoHands()
@@ -418,7 +488,7 @@ public class ReactionLightIntroDirector : MonoBehaviour
             demoLeftHand = left.transform;
             demoLeftAnim = left.GetComponentInChildren<Animator>();
             demoLeftPose = AttachDemoPose(left);
-            demoLeftPose.SetPoking(false);
+            demoLeftPose.SetPoking(true);
             left.SetActive(false);
             demoProps.Add(left);
         }
@@ -433,7 +503,7 @@ public class ReactionLightIntroDirector : MonoBehaviour
             demoRightHand = rightGo.transform;
             demoRightAnim = rightGo.GetComponentInChildren<Animator>();
             demoRightPose = AttachDemoPose(rightGo);
-            demoRightPose.SetPoking(false);
+            demoRightPose.SetPoking(true);
             rightGo.SetActive(false);
             demoProps.Add(rightGo);
         }
@@ -506,6 +576,21 @@ public class ReactionLightIntroDirector : MonoBehaviour
             bodies[i].isKinematic = true;
             Object.Destroy(bodies[i]);
         }
+
+        // Lighter GPU load during cinema (helps avoid D3D TDR with Scene+Game views open).
+        SkinnedMeshRenderer[] skins = root.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+        for (int i = 0; i < skins.Length; i++)
+        {
+            skins[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            skins[i].receiveShadows = false;
+            skins[i].updateWhenOffscreen = false;
+        }
+        MeshRenderer[] meshes = root.GetComponentsInChildren<MeshRenderer>(true);
+        for (int i = 0; i < meshes.Length; i++)
+        {
+            meshes[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            meshes[i].receiveShadows = false;
+        }
     }
 
     static DemoIndexPokePose AttachDemoPose(GameObject root)
@@ -533,9 +618,9 @@ public class ReactionLightIntroDirector : MonoBehaviour
         if (anim == null)
             return;
         if (HasParam(anim, "Grip"))
-            anim.SetFloat("Grip", poking ? 0.85f : 0.15f);
+            anim.SetFloat("Grip", poking ? 0.7f : 0f);
         if (HasParam(anim, "Trigger"))
-            anim.SetFloat("Trigger", poking ? 0.05f : 0.2f);
+            anim.SetFloat("Trigger", poking ? 0f : 0f);
     }
 
     static bool HasParam(Animator anim, string name)
@@ -716,7 +801,7 @@ public class ReactionLightIntroDirector : MonoBehaviour
         return mat;
     }
 
-    // --- Rivera talk ---
+    // --- Rivera talk / presenter placement ---
 
     void ResolveRivera()
     {
@@ -730,6 +815,88 @@ public class ReactionLightIntroDirector : MonoBehaviour
         Animator anim = go.GetComponent<Animator>();
         if (anim != null)
             anim.applyRootMotion = false;
+    }
+
+    void ResolveConsole()
+    {
+        if (consoleRoot != null)
+            return;
+        GameObject go = GameObject.Find("ReactionLightGeneratorConsole");
+        if (go != null)
+            consoleRoot = go.transform;
+        else
+        {
+            ReactionLightBoard board = Object.FindFirstObjectByType<ReactionLightBoard>();
+            if (board != null)
+                consoleRoot = board.transform;
+        }
+    }
+
+    void PlaceRiveraBesideConsole()
+    {
+        if (riveraRoot == null)
+            return;
+
+        ResolveConsole();
+        if (!riveraPoseSaved)
+        {
+            riveraSavedPos = riveraRoot.position;
+            riveraSavedRot = riveraRoot.rotation;
+            riveraPoseSaved = true;
+        }
+
+        // Prefer scene-authored mark when present.
+        if (sceneSetup != null && sceneSetup.riveraPresenterMark != null)
+        {
+            Transform mark = sceneSetup.riveraPresenterMark;
+            riveraRoot.SetPositionAndRotation(mark.position, mark.rotation);
+            return;
+        }
+
+        if (consoleRoot == null)
+            return;
+
+        Vector3 focus = GetBoardFocus();
+        Vector3 consolePos = consoleRoot.position;
+        Vector3 toFocus = focus - consolePos;
+        toFocus.y = 0f;
+        if (toFocus.sqrMagnitude < 0.001f)
+            toFocus = ViewerApproachFrom(focus);
+        toFocus.Normalize();
+
+        Vector3 side = Vector3.Cross(Vector3.up, toFocus).normalized;
+        // Viewer-left of console so he stays in BoardOverview with the lights.
+        Vector3 stand = consolePos + side * riveraConsoleSideOffset + toFocus * riveraConsoleForwardOffset;
+        stand.y = riveraSavedPos.y;
+
+        Vector3 look = focus - stand;
+        look.y = 0f;
+        if (look.sqrMagnitude < 0.001f)
+            look = toFocus;
+        riveraRoot.SetPositionAndRotation(stand, Quaternion.LookRotation(look.normalized, Vector3.up));
+    }
+
+    void RestoreRivera()
+    {
+        if (riveraRoot == null || !riveraPoseSaved)
+            return;
+        riveraRoot.SetPositionAndRotation(riveraSavedPos, riveraSavedRot);
+        riveraPoseSaved = false;
+    }
+
+    Vector3 GetBoardFocus()
+    {
+        if (sceneSetup != null && sceneSetup.boardFocus != null)
+            return sceneSetup.boardFocus.position;
+
+        Transform light = round != null ? round.GetLightTransform(demoGreenLightIndex) : null;
+        if (light != null)
+            return light.position;
+
+        if (consoleRoot != null)
+            return consoleRoot.position + Vector3.up * 1.35f;
+
+        return new Vector3(0.41f, 1.35f, 2.2f);
     }
 
     void ResolveTalkUi()
@@ -804,18 +971,51 @@ public class ReactionLightIntroDirector : MonoBehaviour
 
     void SnapBoardShot()
     {
+        Vector3 focus = GetBoardFocus();
+        Vector3 lookTarget = focus;
+        if (riveraRoot != null && riveraPoseSaved)
+        {
+            Vector3 riveraChest = riveraRoot.position + Vector3.up * 1.35f;
+            lookTarget = Vector3.Lerp(focus, riveraChest, 0.38f);
+        }
+
         Vector3 pos;
         Quaternion rot;
         if (sceneSetup != null && sceneSetup.TryGetShotPose(ReactionLightIntroSceneSetup.ShotId.BoardOverview, out pos, out rot))
         {
+            // Pull back / re-aim so console lights and Rivera both stay in frame.
+            Vector3 back = -(rot * Vector3.forward);
+            back.y = 0f;
+            if (back.sqrMagnitude < 0.001f)
+                back = Vector3.back;
+            back.Normalize();
+            pos += back * 0.4f + Vector3.up * 0.1f;
+
+            if (riveraRoot != null)
+            {
+                Vector3 toRivera = riveraRoot.position - focus;
+                toRivera.y = 0f;
+                if (toRivera.sqrMagnitude > 0.01f)
+                    pos -= toRivera.normalized * 0.28f;
+            }
+
+            Vector3 aim = lookTarget - pos;
+            if (aim.sqrMagnitude > 0.0001f)
+                rot = Quaternion.LookRotation(aim.normalized, Vector3.up);
             ApplyCinemaPose(pos, rot);
             return;
         }
 
-        Transform light = round != null ? round.GetLightTransform(demoGreenLightIndex) : null;
-        Vector3 focus = light != null ? light.position : new Vector3(0f, 1.4f, 1.6f);
-        pos = focus + Vector3.back * 1.6f + Vector3.up * 0.25f;
-        rot = Quaternion.LookRotation((focus - pos).normalized, Vector3.up);
+        Vector3 towardViewer = ViewerApproachFrom(focus);
+        pos = focus + towardViewer * 1.85f + Vector3.up * 0.35f;
+        if (riveraRoot != null)
+        {
+            Vector3 toRivera = riveraRoot.position - focus;
+            toRivera.y = 0f;
+            if (toRivera.sqrMagnitude > 0.01f)
+                pos -= toRivera.normalized * 0.3f;
+        }
+        rot = Quaternion.LookRotation((lookTarget - pos).normalized, Vector3.up);
         ApplyCinemaPose(pos, rot);
     }
 
@@ -1133,11 +1333,17 @@ public class ReactionLightIntroDirector : MonoBehaviour
 }
 
 /// <summary>
-/// Cutscene driver mirroring HandPoseDriver poke: high Grip, low Trigger, LateUpdate index open.
-/// Does not read XR input — avoids affecting live player hands / Round.Press scoring.
+/// Cutscene poke pose matching gameplay HandPoseDriver:
+/// Grip high + Trigger low for fist blend, then force index bones to the cached open/straight pose.
 /// </summary>
 public class DemoIndexPokePose : MonoBehaviour
 {
+    // Same poke window as ReactionLightRound.IsPoking (grip >= 0.55, trigger <= 0.35).
+    const float PokeGrip = 0.7f;
+    const float PokeTrigger = 0f;
+    const float RestGrip = 0f;
+    const float RestTrigger = 0f;
+
     Animator animator;
     Transform[] indexBones;
     Quaternion[] openIndex;
@@ -1149,6 +1355,15 @@ public class DemoIndexPokePose : MonoBehaviour
         animator = GetComponent<Animator>();
         if (animator == null)
             animator = GetComponentInChildren<Animator>(true);
+
+        if (animator != null)
+        {
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            // Sample true open hand before caching — avoids caching a curled blend pose.
+            ApplyAnimatorPose(RestGrip, RestTrigger);
+            animator.Update(0f);
+        }
+
         CacheOpenIndex();
         configured = true;
         SetPoking(false);
@@ -1157,26 +1372,33 @@ public class DemoIndexPokePose : MonoBehaviour
     public void SetPoking(bool value)
     {
         poking = value;
+        if (value)
+            ApplyAnimatorPose(PokeGrip, PokeTrigger);
+        else
+            ApplyAnimatorPose(RestGrip, RestTrigger);
+    }
+
+    void ApplyAnimatorPose(float grip, float trigger)
+    {
         if (animator == null)
             return;
         if (HasParam(animator, "Grip"))
-            animator.SetFloat("Grip", poking ? 0.85f : 0.15f);
+            animator.SetFloat("Grip", grip);
         if (HasParam(animator, "Trigger"))
-            animator.SetFloat("Trigger", poking ? 0.05f : 0.2f);
+            animator.SetFloat("Trigger", trigger);
     }
 
     void LateUpdate()
     {
-        if (!configured || !poking || indexBones == null)
+        if (!configured || !poking || indexBones == null || openIndex == null)
             return;
 
-        // Match HandPoseDriver: point = grip * (1 - trigger) with poke amounts.
-        float point = 0.85f * (1f - 0.05f);
+        // After animator blend (fist), force index fully straight — same intent as HandPoseDriver.
         for (int i = 0; i < indexBones.Length; i++)
         {
             if (indexBones[i] == null)
                 continue;
-            indexBones[i].localRotation = Quaternion.Slerp(indexBones[i].localRotation, openIndex[i], point);
+            indexBones[i].localRotation = openIndex[i];
         }
     }
 

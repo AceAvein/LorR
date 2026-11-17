@@ -66,6 +66,11 @@ public class ReactionLightRound : MonoBehaviour
     float roundStartedAt;
     bool setOpen;
     float wordHideAt;
+    GameObject wordGreat;
+    GameObject wordWrong;
+    GameObject wordOops;
+    ReactionLightBoard boardUi;
+    bool wordUiCached;
 
     static readonly Color Red = new Color(0.85f, 0.08f, 0.08f);
     static readonly Color Green = new Color(0.1f, 0.9f, 0.2f);
@@ -132,6 +137,9 @@ public class ReactionLightRound : MonoBehaviour
         if (GamePauseMenu.IsFrozen)
             return;
 
+        // Clear Great/Wrong → Ready even during intro (round not running yet).
+        HideWordIfDue();
+
         if (!running)
             return;
 
@@ -145,7 +153,6 @@ public class ReactionLightRound : MonoBehaviour
 
         RefreshHud();
         ReadPokes();
-        HideWordIfDue();
 
         if (running && Time.time >= setEndsAt)
             FinishSet(false);
@@ -577,26 +584,63 @@ public class ReactionLightRound : MonoBehaviour
     void FindBalls()
     {
         balls.Clear();
-        // Include inactive: Awake hides lights, and intro must still rediscover them.
-        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        for (int i = 0; i < transforms.Length; i++)
+
+        // Prefer board slots — avoids scanning every Transform in the scene (Editor TDR hitch).
+        ReactionLightBoard board = Object.FindFirstObjectByType<ReactionLightBoard>(FindObjectsInactive.Include);
+        if (board != null && board.slots != null)
         {
-            string objectName = transforms[i].name;
-            if (objectName != "Ball" && !objectName.StartsWith("Ball ("))
-                continue;
-
-            Renderer renderer = transforms[i].GetComponent<Renderer>();
-            if (renderer == null)
-                continue;
-
-            Target ball = new Target();
-            ball.transform = transforms[i];
-            ball.renderer = renderer;
-            ball.material = renderer.material;
-            ball.kind = LightKind.Red;
-            ball.radius = transforms[i].lossyScale.x * 0.5f;
-            balls.Add(ball);
+            for (int i = 0; i < board.slots.Length; i++)
+            {
+                Transform slot = board.slots[i];
+                if (slot == null)
+                    continue;
+                TryAddBall(slot);
+            }
         }
+
+        if (balls.Count > 0)
+            return;
+
+        // Fallback: named lookups only (still no full-scene Transform scan).
+        TryAddBallByName("Ball");
+        for (int i = 1; i <= 11; i++)
+            TryAddBallByName("Ball (" + i + ")");
+    }
+
+    void TryAddBallByName(string objectName)
+    {
+        GameObject go = GameObject.Find(objectName);
+        if (go == null)
+        {
+            // Inactive balls: one targeted Resources-style walk via board already preferred.
+            return;
+        }
+        TryAddBall(go.transform);
+    }
+
+    void TryAddBall(Transform t)
+    {
+        if (t == null)
+            return;
+        for (int i = 0; i < balls.Count; i++)
+        {
+            if (balls[i].transform == t)
+                return;
+        }
+
+        Renderer renderer = t.GetComponent<Renderer>();
+        if (renderer == null)
+            renderer = t.GetComponentInChildren<Renderer>(true);
+        if (renderer == null)
+            return;
+
+        Target ball = new Target();
+        ball.transform = t;
+        ball.renderer = renderer;
+        ball.material = renderer.material;
+        ball.kind = LightKind.Red;
+        ball.radius = t.lossyScale.x * 0.5f;
+        balls.Add(ball);
     }
 
     void PlaceBalls()
@@ -648,8 +692,28 @@ public class ReactionLightRound : MonoBehaviour
     void ShowWord(string objectName)
     {
         HideWord();
-        SetNamedActive(objectName, true);
-        wordHideAt = Time.time + 1f;
+        CacheWordUi();
+
+        // Prefer console ResultLabel / StatusLabel (visible in cutscene + play).
+        if (boardUi != null)
+            boardUi.ShowResultFeedback(objectName);
+        else
+        {
+            // Legacy fallback: activate named Great/Wrong/Oops objects.
+            GameObject target = null;
+            if (objectName == "Great")
+                target = wordGreat;
+            else if (objectName == "Wrong")
+                target = wordWrong;
+            else if (objectName == "Oops")
+                target = wordOops;
+            if (target != null)
+                target.SetActive(true);
+            else
+                SetNamedActive(objectName, true);
+        }
+
+        wordHideAt = Time.time + 1.15f;
     }
 
     void HideWordIfDue()
@@ -661,23 +725,61 @@ public class ReactionLightRound : MonoBehaviour
     void HideWord()
     {
         wordHideAt = 0f;
-        SetNamedActive("Great", false);
-        SetNamedActive("Wrong", false);
-        SetNamedActive("Oops", false);
+        CacheWordUi();
+        if (boardUi != null)
+            boardUi.ShowReady();
+
+        // Keep legacy word props off so they never flash over the console label.
+        if (wordGreat != null)
+            wordGreat.SetActive(false);
+        if (wordWrong != null)
+            wordWrong.SetActive(false);
+        if (wordOops != null)
+            wordOops.SetActive(false);
+    }
+
+    /// <summary>Force ResultLabel back to Ready (intro end / idle).</summary>
+    public void ResetResultLabelReady()
+    {
+        wordHideAt = 0f;
+        CacheWordUi();
+        if (boardUi != null)
+            boardUi.ShowReady();
+    }
+
+    void CacheWordUi()
+    {
+        if (wordUiCached)
+            return;
+        wordUiCached = true;
+        boardUi = Object.FindFirstObjectByType<ReactionLightBoard>(FindObjectsInactive.Include);
+        if (boardUi != null)
+            boardUi.ResolveResultLabel();
+        wordGreat = FindNamed("Great");
+        wordWrong = FindNamed("Wrong");
+        wordOops = FindNamed("Oops");
+        if (wordGreat != null)
+            wordGreat.SetActive(false);
+        if (wordWrong != null)
+            wordWrong.SetActive(false);
+        if (wordOops != null)
+            wordOops.SetActive(false);
     }
 
     static void SetNamedActive(string objectName, bool active)
     {
-        Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
-        for (int i = 0; i < transforms.Length; i++)
-        {
-            if (transforms[i].name == objectName)
-                transforms[i].gameObject.SetActive(active);
-        }
+        GameObject go = FindNamed(objectName);
+        if (go != null)
+            go.SetActive(active);
     }
 
     static GameObject FindNamed(string objectName)
     {
+        // Prefer cheap lookup; fall back to one scan only when needed.
+        GameObject direct = GameObject.Find(objectName);
+        if (direct != null)
+            return direct;
+
         Transform[] transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
         for (int i = 0; i < transforms.Length; i++)
         {
@@ -861,6 +963,14 @@ public class ReactionLightRound : MonoBehaviour
         if (balls.Count == 0 || AnyBallMissing())
             FindBalls();
         SetBallsVisible(true);
+        PaintAll(LightKind.Red);
+    }
+
+    /// <summary>Cheap intro recolor without rediscovery / visibility churn.</summary>
+    public void PaintIntroBoardRed()
+    {
+        if (balls.Count == 0 || AnyBallMissing())
+            FindBalls();
         PaintAll(LightKind.Red);
     }
 

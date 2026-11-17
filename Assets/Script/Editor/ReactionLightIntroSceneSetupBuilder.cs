@@ -69,7 +69,33 @@ public static class ReactionLightIntroSceneSetupBuilder
 
         setup.boardFocus = EnsureEmpty(shotsRoot, "BoardFocus", focus);
         setup.shotBoardOverview = EnsureShot(shotsRoot, "Shot_BoardOverview",
-            focus + Vector3.back * 1.65f + Vector3.up * 0.3f, focus);
+            focus + Vector3.back * 2.05f + Vector3.up * 0.35f + Vector3.left * 0.35f, focus);
+
+        Transform console = null;
+        GameObject consoleGo = GameObject.Find("ReactionLightGeneratorConsole");
+        if (consoleGo != null)
+            console = consoleGo.transform;
+        Vector3 towardViewer = Vector3.back;
+        Vector3 side = Vector3.left;
+        if (console != null)
+        {
+            Vector3 toFocus = focus - console.position;
+            toFocus.y = 0f;
+            if (toFocus.sqrMagnitude > 0.001f)
+                towardViewer = toFocus.normalized;
+            side = Vector3.Cross(Vector3.up, towardViewer).normalized;
+        }
+
+        Vector3 riveraPos = (console != null ? console.position : focus)
+                            + side * 0.85f
+                            + towardViewer * 0.2f;
+        riveraPos.y = 0f;
+        Transform riveraMark = EnsureEmpty(shotsRoot, "RiveraPresenterMark", riveraPos);
+        Vector3 riveraLook = focus - riveraPos;
+        riveraLook.y = 0f;
+        if (riveraLook.sqrMagnitude > 0.001f)
+            riveraMark.rotation = Quaternion.LookRotation(riveraLook.normalized, Vector3.up);
+        setup.riveraPresenterMark = riveraMark;
 
         BuildDialogueUi(root, setup);
 
@@ -84,6 +110,7 @@ public static class ReactionLightIntroSceneSetupBuilder
             "Reaction Light Intro",
             "Created/refreshed IntroCutsceneControls.\n\n" +
             "• Move/rotate IntroShots/Shot_BoardOverview\n" +
+            "• Place IntroShots/RiveraPresenterMark beside the console\n" +
             "• Full transform is used as-is at runtime",
             "OK");
     }
