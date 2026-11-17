@@ -38,6 +38,8 @@ public class BallDropStartButton : MonoBehaviour
     {
         if (pressing || button == null || assign == null || !assign.enabled)
             return;
+        if (!BallDropIntroDirector.IsTrainingUnlocked)
+            return;
 
         tipWasInsideRight = CheckTipEdge(FindIndexTip(true), tipWasInsideRight);
         tipWasInsideLeft = CheckTipEdge(FindIndexTip(false), tipWasInsideLeft);
@@ -133,6 +135,8 @@ public class BallDropStartButton : MonoBehaviour
     public void TryPress()
     {
         if (pressing || assign == null || !assign.enabled)
+            return;
+        if (!BallDropIntroDirector.IsTrainingUnlocked)
             return;
 
         if (pressRoutine != null)

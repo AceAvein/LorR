@@ -109,8 +109,17 @@ public class BallAssignController : MonoBehaviour
 
     void WireButtons()
     {
-        Wire(objectiveScreen, "Objective_Panel/Btn_Start", StartFromObjective);
+        Wire(objectiveScreen, "Objective_Panel/Btn_Start", OnObjectiveStartPressed);
         Wire(assignCanvas, "Btn_Start", StartGame);
+    }
+
+    void OnObjectiveStartPressed()
+    {
+        // Color Sort pattern: first Start unlocks walk + Dialogue circle; game starts later via pole StartButton.
+        if (BallDropIntroDirector.TryConsumeStartButton())
+            return;
+
+        StartFromObjective();
     }
 
     public void ShowObjective()
@@ -183,6 +192,8 @@ public class BallAssignController : MonoBehaviour
     {
         if (countingDown)
             return;
+        if (!BallDropIntroDirector.IsTrainingUnlocked)
+            return;
 
         ScoringChecker.Ensure().TryContinue(StartGameAfterCheck);
     }
@@ -195,6 +206,8 @@ public class BallAssignController : MonoBehaviour
         if (countingDown)
             return;
         if (round != null && round.running)
+            return;
+        if (!BallDropIntroDirector.IsTrainingUnlocked)
             return;
 
         ScoringChecker.Ensure().TryContinue(StartFromPoleButtonAfterCheck);
