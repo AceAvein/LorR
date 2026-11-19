@@ -30,6 +30,10 @@ public class PatternManager : MonoBehaviour
     const float StarReach = 0.045f;
     const int StarPool = 3;
     const float LetterStroke = 6.3f / 59f;
+    // TracingBoard is local-rotated -90° X; this local Y becomes world height above the paper.
+    // Keep guide slightly above paper so cinema demo stays visible (no z-fight / cut middle).
+    const float GuideSurfaceLift = 0.09f;
+    static readonly Color GuideLineColor = new Color(0.2f, 0.85f, 0.35f, 1f);
 
     int currentPattern;
     LineRenderer generatedPath;
@@ -108,7 +112,8 @@ public class PatternManager : MonoBehaviour
 
         Recipe recipe = IntroRecipe(variant);
         FillRecipe(recipe);
-        generatedPath.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+        generatedPath.transform.localPosition = new Vector3(0f, GuideSurfaceLift, 0f);
+        StyleGeneratedGuide();
 
         PlaceIntroTracingAreaOnSet1();
         FitPointsToActivePaper();
@@ -165,9 +170,11 @@ public class PatternManager : MonoBehaviour
         switch (Mathf.Abs(variant) % 3)
         {
             case 1:
+                // Zigzag — used for wrong-path drift demo (2nd beat).
                 return new Recipe { kind = 1, count = 2, amp = 0.09f, span = 0.22f, passes = 1, stars = 0 };
             case 2:
-                return new Recipe { kind = 3, count = 2, amp = 0.08f, span = 0.22f, passes = 1, stars = 0 };
+                // Smooth hills for 3rd path — steps (kind 3) looked cut/sunken in cinema.
+                return new Recipe { kind = 4, count = 2, amp = 0.08f, span = 0.22f, passes = 1, stars = 0 };
             default:
                 return new Recipe { kind = 0, count = 2, amp = 0.09f, span = 0.22f, passes = 1, stars = 0 };
         }
@@ -321,7 +328,8 @@ public class PatternManager : MonoBehaviour
             patterns[i].SetActive(false);
 
         EnsureGeneratedGuide();
-        generatedPath.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+        generatedPath.transform.localPosition = new Vector3(0f, GuideSurfaceLift, 0f);
+        StyleGeneratedGuide();
         Recipe recipe = DrawRecipe(newPlay);
         FillRecipe(recipe);
 
@@ -387,27 +395,45 @@ public class PatternManager : MonoBehaviour
         Transform root = patterns[0].transform.parent;
         GameObject guide = new GameObject("GeneratedGuide");
         guide.transform.SetParent(root, false);
-        guide.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+        guide.transform.localPosition = new Vector3(0f, GuideSurfaceLift, 0f);
         guide.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         guide.transform.localScale = Vector3.one;
 
         generatedPath = guide.AddComponent<LineRenderer>();
-        generatedPath.useWorldSpace = false;
-        generatedPath.alignment = LineAlignment.View;
-        generatedPath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
-        generatedPath.widthMultiplier = 0.012f;
-        generatedPath.sortingOrder = 0;
-        generatedPath.numCapVertices = 8;
-        generatedPath.numCornerVertices = 4;
-        generatedPath.textureMode = LineTextureMode.Stretch;
-        generatedPath.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        generatedPath.receiveShadows = false;
+        StyleGeneratedGuide();
 
         startLabel = CreateLabel("Start");
         endLabel = CreateLabel("End");
 
         for (int i = 0; i < StarPool; i++)
             stars.Add(CreateStar());
+    }
+
+    void StyleGeneratedGuide()
+    {
+        if (generatedPath == null)
+            return;
+
+        generatedPath.useWorldSpace = false;
+        generatedPath.alignment = LineAlignment.View;
+        generatedPath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
+        generatedPath.widthMultiplier = 0.022f;
+        generatedPath.sortingOrder = 20;
+        generatedPath.numCapVertices = 8;
+        generatedPath.numCornerVertices = 4;
+        generatedPath.textureMode = LineTextureMode.Stretch;
+        generatedPath.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        generatedPath.receiveShadows = false;
+        generatedPath.startColor = GuideLineColor;
+        generatedPath.endColor = GuideLineColor;
+
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader != null)
+        {
+            Material mat = new Material(shader);
+            mat.color = GuideLineColor;
+            generatedPath.material = mat;
+        }
     }
 
     static TextMeshPro CreateLabel(string word)

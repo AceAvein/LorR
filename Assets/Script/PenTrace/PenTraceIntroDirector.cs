@@ -349,7 +349,7 @@ public class PenTraceIntroDirector : MonoBehaviour
                 yield return TypeLine(TracingErrorLine);
                 StopTalk();
                 SetTalkVisible(false);
-                SetDemoInkColor(new Color(0.15f, 0.15f, 0.15f, 1f));
+                SetDemoInkColor(new Color(0.08f, 0.08f, 0.1f, 1f));
             }
 
             yield return new WaitForSeconds(patternHoldSeconds);
@@ -448,7 +448,7 @@ public class PenTraceIntroDirector : MonoBehaviour
         }
 
         EnsureDemoInk();
-        SetDemoInkColor(new Color(0.15f, 0.15f, 0.15f, 1f));
+        SetDemoInkColor(new Color(0.08f, 0.08f, 0.1f, 1f));
         demoInk.positionCount = 0;
 
         PlacePencilTipAt(demoPathWorld[0]);
@@ -502,7 +502,8 @@ public class PenTraceIntroDirector : MonoBehaviour
         }
 
         EnsureDemoInk();
-        SetDemoInkColor(new Color(0.85f, 0.18f, 0.15f, 1f));
+        // Keep pencil trail dark — mistake is the off-path drift, not red ink.
+        SetDemoInkColor(new Color(0.08f, 0.08f, 0.1f, 1f));
         demoInk.positionCount = 0;
 
         PlacePencilTipAt(demoPathWorld[0]);
@@ -610,14 +611,22 @@ public class PenTraceIntroDirector : MonoBehaviour
         GameObject go = new GameObject("Demo_InkTrail");
         demoInk = go.AddComponent<LineRenderer>();
         demoInk.useWorldSpace = true;
-        demoInk.widthMultiplier = 0.004f;
+        demoInk.widthMultiplier = 0.012f;
         demoInk.numCapVertices = 4;
         demoInk.numCornerVertices = 2;
+        demoInk.sortingOrder = 25;
         demoInk.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         demoInk.receiveShadows = false;
-        demoInk.material = new Material(Shader.Find("Sprites/Default"));
-        demoInk.startColor = new Color(0.15f, 0.15f, 0.15f, 1f);
-        demoInk.endColor = new Color(0.15f, 0.15f, 0.15f, 1f);
+        Color ink = new Color(0.08f, 0.08f, 0.1f, 1f);
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader != null)
+        {
+            Material mat = new Material(shader);
+            mat.color = ink;
+            demoInk.material = mat;
+        }
+        demoInk.startColor = ink;
+        demoInk.endColor = ink;
         demoInk.positionCount = 0;
         demoProps.Add(go);
     }
@@ -629,6 +638,8 @@ public class PenTraceIntroDirector : MonoBehaviour
             return;
         demoInk.startColor = color;
         demoInk.endColor = color;
+        if (demoInk.material != null)
+            demoInk.material.color = color;
     }
 
     static void StripGameplay(GameObject root)
