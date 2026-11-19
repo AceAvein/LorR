@@ -173,7 +173,8 @@ public class PenTraceIntroDirector : MonoBehaviour
         ClearDemoProps();
         if (patternManager != null)
             patternManager.HideIntroDemoPath();
-        if (penSelect != null)
+        // Only hide if intro aborted mid-cutscene; after success pens must stay for selection.
+        if (penSelect != null && !HasCompleted)
             penSelect.HideStationPensAfterIntro();
         PenTraceWalk.MovementLocked = false;
     }
@@ -263,6 +264,9 @@ public class PenTraceIntroDirector : MonoBehaviour
         HasCompleted = true;
         if (patternManager != null)
             patternManager.BeginTrainingPaths();
+        // Cutscene hid station pens after the select beat — put them back for player choice.
+        if (penSelect != null)
+            penSelect.ShowStationPensForIntro();
         PenTraceWalk.MovementLocked = false;
         SetPadVisible(false);
     }

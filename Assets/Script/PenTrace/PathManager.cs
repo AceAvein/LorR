@@ -17,7 +17,7 @@ public class PathManager : MonoBehaviour
     public float traceDistance = 0.08f;
     public float followDistance = 0.2f;
     public float lookAhead = 0.3f;
-    public float guideWorldWidth = 0.012f;
+    public float guideWorldWidth = 0.022f;
 
     const float ScoreSpacing = 0.01f;
     const float PerfectDistance = 0.007f;
@@ -37,6 +37,7 @@ public class PathManager : MonoBehaviour
     readonly List<Vector3> ink = new List<Vector3>();
     readonly List<FinishedPattern> finished = new List<FinishedPattern>();
 
+    // Progress "loading" look: drawn = green, tip = yellow, remaining = gray.
     static readonly Color DoneColor = new Color(0.2f, 0.85f, 0.35f);
     static readonly Color CurrentColor = new Color(1f, 0.92f, 0.25f);
     static readonly Color RemainingColor = new Color(0.55f, 0.55f, 0.55f);
@@ -255,10 +256,15 @@ public class PathManager : MonoBehaviour
             coloredPath = tracePath;
         }
 
+        // White tint so gradient greens show correctly (never multiply with a green mat.color).
+        if (tracePath.material != null)
+            tracePath.material.color = Color.white;
+
         tracePath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
         Vector3 lineScale = tracePath.transform.lossyScale;
         float widthScale = Mathf.Max(lineScale.x, Mathf.Max(lineScale.y, lineScale.z));
-        tracePath.widthMultiplier = guideWorldWidth / Mathf.Max(widthScale, 0.0001f);
+        float worldWidth = Mathf.Max(0.01f, guideWorldWidth);
+        tracePath.widthMultiplier = worldWidth / Mathf.Max(widthScale, 0.0001f);
         tracePath.numCapVertices = 8;
         tracePath.numCornerVertices = 8;
 
