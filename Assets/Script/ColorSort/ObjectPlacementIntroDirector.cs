@@ -38,7 +38,8 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     [SerializeField] float toBoxSeconds = 1.15f;
     [Tooltip("Pull cutscene items back from the belt end so they don't overshoot.")]
     [SerializeField] float demoBeltStopPullback = 0.14f;
-    [SerializeField] float demoBoxRideDistance = 1.75f;
+    [Tooltip("How far yellow/red ride toward ExitTunnel. Keep short enough to despawn at the mouth, not through the housing.")]
+    [SerializeField] float demoBoxRideDistance = 1.25f;
     [SerializeField] float beatPause = 2.0f;
     [SerializeField] float camBlendSeconds = 1.1f;
     [SerializeField] float talkFontSize = 0.55f;
