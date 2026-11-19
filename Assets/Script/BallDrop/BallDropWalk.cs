@@ -12,11 +12,15 @@ public class BallDropWalk : MonoBehaviour
     /// <summary>When true, stick move/turn are ignored (intro / cutscene).</summary>
     public static bool MovementLocked { get; set; }
 
+    public const string StanceMarkerName = "TrainingStanceMarker";
+
     [SerializeField] float moveSpeed = 3.5f;
     [SerializeField] float gravity = -9.81f;
     [SerializeField] float stickDeadzone = 0.15f;
     [SerializeField] float snapTurnDegrees = 45f;
     [SerializeField] float snapTurnCooldown = 0.35f;
+    [Tooltip("Optional scene empty. Move this in Hierarchy to choose where Start snaps the player.")]
+    [SerializeField] Transform stanceMarker;
     [SerializeField] Vector3 stancePosition = new Vector3(-0.7199211f, 0.0399997f, 1.869362f);
     [SerializeField] Vector3 stanceEuler = Vector3.zero;
 
@@ -113,10 +117,14 @@ public class BallDropWalk : MonoBehaviour
 
     /// <summary>
     /// Snap XR Origin to training stance and lock walk/turn until unlocked.
+    /// Prefers scene <see cref="StanceMarkerName"/> (or assigned stanceMarker).
     /// </summary>
     public void SnapToStanceAndLock()
     {
-        SnapToStance(stancePosition, Quaternion.Euler(stanceEuler));
+        Vector3 pos;
+        Quaternion rot;
+        ResolveStancePose(out pos, out rot);
+        SnapToStance(pos, rot);
         SetWalkLocked(true);
     }
 
@@ -136,6 +144,42 @@ public class BallDropWalk : MonoBehaviour
 
         if (hadCharacter)
             character.enabled = true;
+    }
+
+    void ResolveStancePose(out Vector3 pos, out Quaternion rot)
+    {
+        Transform marker = ResolveStanceMarker();
+        if (marker != null)
+        {
+            pos = marker.position;
+            rot = marker.rotation;
+            return;
+        }
+
+        pos = stancePosition;
+        rot = Quaternion.Euler(stanceEuler);
+    }
+
+    Transform ResolveStanceMarker()
+    {
+        if (stanceMarker != null)
+            return stanceMarker;
+
+        BallDropIntroSceneSetup setup = FindFirstObjectByType<BallDropIntroSceneSetup>(FindObjectsInactive.Include);
+        if (setup != null && setup.trainingStanceMarker != null)
+        {
+            stanceMarker = setup.trainingStanceMarker;
+            return stanceMarker;
+        }
+
+        GameObject found = GameObject.Find(StanceMarkerName);
+        if (found != null)
+        {
+            stanceMarker = found.transform;
+            return stanceMarker;
+        }
+
+        return null;
     }
 
     public static BallDropWalk FindActive()

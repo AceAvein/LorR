@@ -6,7 +6,10 @@ public class BallDropSystem : MonoBehaviour
     public Transform transformAbove;
     public float targetDiameter = 0.15f;
 
-    public const int BallTotal = 30;
+    // TEMP OVERRIDE (not bible Phase I — Ball Drop has no formal Phase I).
+    // Bible Phase II = 3×10 = 30 with progression. Revert when wiring real Phase II.
+    const bool TemporaryEasyOnly = true;
+    public const int BallTotal = TemporaryEasyOnly ? 10 : 30;
     const int ballsPerLevel = 10;
     const float easyFallSpeed = 0.6f;
     const float moderateFallSpeed = 1.2f;
@@ -146,6 +149,9 @@ public class BallDropSystem : MonoBehaviour
 
     static float FallSpeedForBall(int ballIndex)
     {
+        if (TemporaryEasyOnly)
+            return easyFallSpeed;
+
         int level = ballIndex / ballsPerLevel;
         if (level <= 0)
             return easyFallSpeed;
@@ -156,6 +162,9 @@ public class BallDropSystem : MonoBehaviour
 
     static float SpawnIntervalForBall(int ballIndex)
     {
+        if (TemporaryEasyOnly)
+            return easySpawnInterval;
+
         int level = ballIndex / ballsPerLevel;
         if (level <= 0)
             return easySpawnInterval;
@@ -169,7 +178,7 @@ public class BallDropSystem : MonoBehaviour
         if (!spawning || spawnPoints == null || spawnPoints.Length == 0 || leftBallTemplate == null || rightBallTemplate == null)
             return;
 
-        int tier = spawnedBalls / ballsPerLevel;
+        int tier = TemporaryEasyOnly ? 0 : spawnedBalls / ballsPerLevel;
         if (tier > 2)
             tier = 2;
 
