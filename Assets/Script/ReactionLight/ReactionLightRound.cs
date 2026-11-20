@@ -433,57 +433,30 @@ public class ReactionLightRound : MonoBehaviour
 
     ReactionLightReport BuildReport()
     {
-        int easyCleared = 0;
-        int moderateCleared = 0;
-        int hardCleared = 0;
         float reactionSum = 0f;
         int reactionCount = 0;
-        int score = 0;
+        int missed = 0;
 
         for (int i = 0; i < records.Count; i++)
         {
             SetRecord record = records[i];
             if (!record.cleared)
+            {
+                missed++;
                 continue;
+            }
 
             reactionSum += record.reaction;
             reactionCount++;
-            if (record.tier <= 0)
-            {
-                easyCleared++;
-                score += 10;
-            }
-            else if (record.tier == 1)
-            {
-                moderateCleared++;
-                score += 20;
-            }
-            else
-            {
-                hardCleared++;
-                score += 30;
-            }
         }
 
+        int attempts = greenHits + redHits + missed;
         ReactionLightReport report = new ReactionLightReport();
-        report.setsCleared = setsCleared;
-        report.setTotal = SetTotal;
-        report.setsPlayed = records.Count;
-        report.hand = useRightHand ? "Right" : "Left";
-        report.accuracy = records.Count == 0 ? 0f : setsCleared * 100f / records.Count;
-        report.averageReaction = reactionCount == 0 ? 0f : reactionSum / reactionCount;
-        report.greenHits = greenHits;
-        report.yellowPresses = 0;
-        report.redPresses = redHits;
-        report.timeAdded = Mathf.RoundToInt(setsCleared * SetBonus);
-        report.timeUsed = Mathf.Max(0, Mathf.RoundToInt(Time.time - roundStartedAt));
-        report.timeLeft = timeLeft;
-        report.easyCleared = easyCleared;
-        report.moderateCleared = moderateCleared;
-        report.hardCleared = hardCleared;
-        report.tierTotal = 10;
-        report.lastSet = LastSetText();
-        report.totalScore = score;
+        report.averageReactionMs = reactionCount == 0 ? 0f : (reactionSum / reactionCount) * 1000f;
+        report.accuracy = attempts == 0 ? 0f : greenHits * 100f / attempts;
+        report.correct = greenHits;
+        report.incorrect = redHits;
+        report.missed = missed;
         return report;
     }
 

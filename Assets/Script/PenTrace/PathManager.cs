@@ -162,29 +162,54 @@ public class PathManager : MonoBehaviour
 
     float ScoreUpTo(float length)
     {
+        SamplePath(length, out float accuracy, out _, out _);
+        return accuracy;
+    }
+
+    void SamplePath(float length, out float accuracy, out float avgDeviationMm, out float maxDeviationMm)
+    {
+        accuracy = 0f;
+        avgDeviationMm = 0f;
+        maxDeviationMm = 0f;
+
         if (points.Count < 2 || ink.Count == 0 || length <= 0.01f || totalLength <= 0.01f)
-            return 0f;
+            return;
 
         float end = Mathf.Min(length, totalLength);
         float scoreSum = 0f;
+        float errorSum = 0f;
+        float maxError = 0f;
         int samples = 0;
 
         for (float distance = 0f; distance < end; distance += ScoreSpacing)
         {
-            scoreSum += Closeness(PointOnGuide(distance));
+            Vector3 guide = PointOnGuide(distance);
+            scoreSum += Closeness(guide);
+            float error = DistanceToInk(OnBoard(guide));
+            errorSum += error;
+            if (error > maxError)
+                maxError = error;
             samples++;
         }
 
         if (end >= totalLength - 0.0001f)
         {
-            scoreSum += Closeness(PointOnGuide(totalLength));
+            Vector3 guide = PointOnGuide(totalLength);
+            scoreSum += Closeness(guide);
+            float error = DistanceToInk(OnBoard(guide));
+            errorSum += error;
+            if (error > maxError)
+                maxError = error;
             samples++;
         }
 
         if (samples == 0)
-            return 0f;
+            return;
 
-        return scoreSum / samples * 100f;
+        accuracy = scoreSum / samples * 100f;
+        // Bible: 1 Unity unit = 1 m → 0.001 = 1 mm
+        avgDeviationMm = (errorSum / samples) * 1000f;
+        maxDeviationMm = maxError * 1000f;
     }
 
     float Closeness(Vector3 guidePoint)
@@ -349,67 +374,37 @@ public class PathManager : MonoBehaviour
             RebuildPath();
 
         bool open = !patternScored && totalLength > 0.01f && progress > 0.01f;
-        float coverage = totalLength <= 0.01f ? 0f : Mathf.Clamp01(progress / totalLength);
-        float openAccuracy = open ? ScoreUpTo(progress) : 0f;
-
-        int stars = 0;
-        float accuracySum = 0f;
-        float secondSum = 0f;
-        float total = 0f;
-        int easyDone = 0;
-        int moderateDone = 0;
-        int hardDone = 0;
-        int highest = -1;
+        float avgSum = 0f;
+        float maxMm = 0f;
+        int sampleCount = finished.Count;
 
         for (int i = 0; i < finished.Count; i++)
         {
             FinishedPattern pattern = finished[i];
-            accuracySum += pattern.accuracy;
-            secondSum += pattern.seconds;
-            stars += pattern.starsGot;
-            total += PatternPoints(pattern);
-            highest = Mathf.Max(highest, pattern.tier);
-
-            if (pattern.tier == 0)
-                easyDone++;
-            else if (pattern.tier == 1)
-                moderateDone++;
-            else
-                hardDone++;
+            avgSum += pattern.avgDeviationMm;
+            if (pattern.maxDeviationMm > maxMm)
+                maxMm = pattern.maxDeviationMm;
         }
 
-        if (open && patternManager != null)
+        if (open)
         {
-            stars += patternManager.StarsCollected();
-            total += TierPoints(patternManager.CurrentTier()) * coverage * (openAccuracy / 100f);
+            SamplePath(progress, out _, out float openAvg, out float openMax);
+            avgSum += openAvg;
+            if (openMax > maxMm)
+                maxMm = openMax;
+            sampleCount++;
         }
-
-        int usedSeconds = Mathf.Max(0, Mathf.RoundToInt(timeUsed));
-        int leftSeconds = Mathf.Max(0, Mathf.RoundToInt(timeLeft));
-        if (deckCleared)
-            total += leftSeconds * 2f;
 
         int patternTotal = patternManager != null ? patternManager.PatternTotal() : 30;
         if (patternTotal <= 0)
             patternTotal = 30;
 
         RoundReport report = new RoundReport();
+        report.avgDeviationMm = sampleCount == 0 ? 0f : avgSum / sampleCount;
+        report.maxDeviationMm = maxMm;
         report.patternsCompleted = finished.Count;
         report.patternTotal = patternTotal;
-        report.difficulty = TierName(highest);
-        report.accuracy = finished.Count == 0 ? 0f : accuracySum / finished.Count;
-        report.averageSeconds = finished.Count == 0 ? 0f : secondSum / finished.Count;
-        report.stars = stars;
-        report.timeUsed = usedSeconds;
-        report.timeLeft = leftSeconds;
-        report.easyCompleted = easyDone;
-        report.moderateCompleted = moderateDone;
-        report.hardCompleted = hardDone;
-        report.easyTotal = patternManager != null ? patternManager.TierCount(0) : 10;
-        report.moderateTotal = patternManager != null ? patternManager.TierCount(1) : 10;
-        report.hardTotal = patternManager != null ? patternManager.TierCount(2) : 10;
-        report.lastTraced = open ? coverage * 100f : (finished.Count > 0 ? 100f : 0f);
-        report.totalScore = total;
+        report.timeUsed = Mathf.Max(0, Mathf.RoundToInt(timeUsed));
         return report;
     }
 
@@ -463,7 +458,7 @@ public class PathManager : MonoBehaviour
         return "None";
     }
 
-    void RecordFinished(float accuracy)
+    void RecordFinished(float accuracy, float avgDeviationMm, float maxDeviationMm)
     {
         if (patternScored || patternManager == null)
             return;
@@ -471,6 +466,8 @@ public class PathManager : MonoBehaviour
         FinishedPattern pattern = new FinishedPattern();
         pattern.tier = patternManager.CurrentTier();
         pattern.accuracy = accuracy;
+        pattern.avgDeviationMm = avgDeviationMm;
+        pattern.maxDeviationMm = maxDeviationMm;
         pattern.seconds = patternStartTime <= 0f ? 0f : Time.time - patternStartTime;
         pattern.starsGot = patternManager.StarsCollected();
         pattern.starsOnPattern = patternManager.StarsOnPattern();
@@ -483,8 +480,8 @@ public class PathManager : MonoBehaviour
 
     IEnumerator PatternComplete()
     {
-        float patternScore = ScoreCurrentPattern();
-        RecordFinished(patternScore);
+        SamplePath(totalLength, out float patternScore, out float avgMm, out float maxMm);
+        RecordFinished(patternScore, avgMm, maxMm);
         PenSounds.PlayRating(patternScore);
 
         TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);

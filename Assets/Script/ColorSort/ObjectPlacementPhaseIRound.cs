@@ -69,6 +69,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     int boxesDelivered;
     float spawnTimer;
     float wrongControlFlashUntil;
+    float roundStartedAt;
 
     public bool BeltIsRunning => conveyor != null && conveyor.IsRunning;
     public float BeltFlowSpeed => conveyor != null ? conveyor.BeltFlowSpeed : 0.38f;
@@ -489,6 +490,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         placedCorrect = 0;
         boxesDelivered = 0;
         boxDeliveryPhase = false;
+        roundStartedAt = Time.time;
         running = true;
         ClearPlacedInBoxes();
         RefillDecks();
@@ -963,14 +965,10 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
         float accuracy = placedTotal > 0 ? (100f * placedCorrect / placedTotal) : 0f;
         ColorSortReport report = new ColorSortReport();
-        report.setsCleared = ObjectPlacementGroceryCatalog.PhaseISetCount;
-        report.setTotal = ObjectPlacementGroceryCatalog.PhaseISetCount;
-        report.nonDominantHand = "Phase I";
         report.accuracy = accuracy;
-        report.bothCorrect = placedCorrect;
-        report.bothShown = placedTotal;
-        report.easyCleared = placedCorrect;
-        report.totalScore = placedCorrect * 10f;
+        report.completionTime = Mathf.Max(0, Mathf.RoundToInt(Time.time - roundStartedAt));
+        report.correct = placedCorrect;
+        report.incorrect = Mathf.Max(0, placedTotal - placedCorrect);
         results.Show(report);
     }
 

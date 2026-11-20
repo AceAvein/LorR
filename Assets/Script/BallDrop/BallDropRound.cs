@@ -13,24 +13,10 @@ public struct BallRecord
 
 public struct BallDropReport
 {
-    public int caught;
-    public int spawned;
-    public string nonDominantHand;
-    public float accuracy;
+    public float interceptionRate;
+    public int success;
+    public int fail;
     public float averageReaction;
-    public int timeAdded;
-    public int timeUsed;
-    public int timeLeft;
-    public int dominantCaught;
-    public int dominantSpawned;
-    public float dominantAccuracy;
-    public int nonDominantCaught;
-    public int nonDominantSpawned;
-    public float nonDominantAccuracy;
-    public int handDifference;
-    public int wrongGrabs;
-    public string lastBall;
-    public float totalScore;
 }
 
 public class BallDropRound : MonoBehaviour
@@ -328,55 +314,24 @@ public class BallDropRound : MonoBehaviour
     BallDropReport BuildReport()
     {
         int caught = 0;
-        int dominantCaught = 0;
-        int dominantSpawned = 0;
-        int nonDominantCaught = 0;
-        int nonDominantSpawned = 0;
         float reactionSum = 0f;
-        float score = 0f;
 
         for (int i = 0; i < records.Count; i++)
         {
             BallRecord record = records[i];
-            bool nonDominant = record.forLeftHand == nonDominantIsLeft;
-
-            if (nonDominant)
-                nonDominantSpawned++;
-            else
-                dominantSpawned++;
-
             if (!record.caught)
                 continue;
 
             caught++;
             reactionSum += record.reactionSeconds;
-            score += TierPoints(record.tier);
-
-            if (nonDominant)
-                nonDominantCaught++;
-            else
-                dominantCaught++;
         }
 
+        int spawned = records.Count;
         BallDropReport report = new BallDropReport();
-        report.caught = caught;
-        report.spawned = records.Count;
-        report.nonDominantHand = nonDominantIsLeft ? "Left" : "Right";
-        report.accuracy = records.Count == 0 ? 0f : caught * 100f / records.Count;
+        report.success = caught;
+        report.fail = Mathf.Max(0, spawned - caught);
+        report.interceptionRate = spawned == 0 ? 0f : caught * 100f / spawned;
         report.averageReaction = caught == 0 ? 0f : reactionSum / caught;
-        report.timeAdded = Mathf.RoundToInt(caught * catchBonus);
-        report.timeUsed = Mathf.Max(0, Mathf.RoundToInt(elapsed));
-        report.timeLeft = Mathf.Max(0, Mathf.RoundToInt(timeRemaining));
-        report.dominantCaught = dominantCaught;
-        report.dominantSpawned = dominantSpawned;
-        report.dominantAccuracy = dominantSpawned == 0 ? 0f : dominantCaught * 100f / dominantSpawned;
-        report.nonDominantCaught = nonDominantCaught;
-        report.nonDominantSpawned = nonDominantSpawned;
-        report.nonDominantAccuracy = nonDominantSpawned == 0 ? 0f : nonDominantCaught * 100f / nonDominantSpawned;
-        report.handDifference = Mathf.RoundToInt(report.dominantAccuracy) - Mathf.RoundToInt(report.nonDominantAccuracy);
-        report.wrongGrabs = wrongGrabs;
-        report.lastBall = LastBallText();
-        report.totalScore = score;
         return report;
     }
 
