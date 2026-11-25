@@ -104,22 +104,23 @@ Office / training room (“post”); donation sorting story.
 
 ### Storyline (layout sheet)
 - Items need to be sorted for donation
-- Two conveyor belts:
-  - Side belt = unsorted item box delivery
-  - Front belt = sorted boxes transport / delivery
+- Two conveyor belts (Simulation override — contents swapped, meshes stay):
+  - Front belt = unsorted fruit/veg item delivery
+  - Left / side belt = sorted boxes transport / delivery
+  - Both belts flow toward the left
 - NPC introduces the task
-- After first set is sorted, side conveyor delivers another box for next set, and so on
-- Once a box’s objects are sorted, they are transported to the front conveyor
+- After first set is sorted, front conveyor delivers another item wave for next set, and so on
+- Once a box’s objects are sorted, they are transported on the left conveyor
 
 ### Layout
 Room split by **glass barrier / window + door**:
 
 **User side**
 - User in center
-- Side conveyor with incoming box
-- Front conveyor for sorted boxes
+- Front conveyor with incoming items
+- Left conveyor for sorted boxes
 - Sorting stations / boxes (A, B, C shown in storyboard)
-- **Start Conveyor** button near side belt
+- **Start Conveyor** button (near station; starts both belts)
 - Door through glass barrier
 
 **NPC side (behind glass)**
@@ -128,13 +129,13 @@ Room split by **glass barrier / window + door**:
 ### Mechanic note on sheet
 - Physical button starts the conveyor
 - Optional timer may start when pressed
-- Item box is delivered to the side → user begins sorting
+- Items are delivered on the front belt → user begins sorting
 
 ### Panel flow
 1. NPC near doorway → introduced, walk in to start
 2. Counter with boxes A/B/C + button + `SCREEN SET 1` → enter zone, press btn to start
-3. `SCREEN SET 2` → new box for next set; press btn for next set
-4. `FINISHED! PUT BOXES IN CONVEYOR BELT` → put boxes on conveyor; press button beside conveyor after
+3. `SCREEN SET 2` → new items for next set; press btn for next set
+4. `FINISHED! PUT BOXES ON LEFT CONVEYOR` → put boxes on left belt; press button beside conveyor after
 5. NPC `GOOD JOB!` → fade to black + UI
 
 ---

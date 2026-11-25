@@ -6,7 +6,7 @@ using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 /// <summary>
 /// Phase I end: Yellow/Red crates become two-hand grab only after all sets.
-/// Drop on the front conveyor → rides into the tunnel and despawns.
+/// Drop on the left conveyor → rides into the tunnel and despawns.
 /// </summary>
 [DisallowMultipleComponent]
 public class ObjectPlacementSortBox : MonoBehaviour
@@ -262,7 +262,7 @@ public class ObjectPlacementSortBox : MonoBehaviour
                 return true;
         }
 
-        // Generous local belt volume (front conveyor).
+        // Generous local belt volume (left / box conveyor).
         Vector3 local = belt.InverseTransformPoint(transform.position);
         float halfX = Mathf.Max(0.55f, Mathf.Abs(belt.lossyScale.x) * 0.75f);
         float halfZ = Mathf.Max(0.28f, Mathf.Abs(belt.lossyScale.z) * 0.85f);

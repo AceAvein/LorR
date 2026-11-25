@@ -270,19 +270,34 @@ public class ObjectPlacementRubberFlap : MonoBehaviour
         if (station == null)
             return;
 
+        // Front conveyor = grocery items; left conveyor = sorted boxes.
         Transform groceryFlap = FindFlap(station.transform, "RubberFlap Grocery");
+        if (groceryFlap == null && station.supplyBox != null)
+            groceryFlap = FindFlap(station.supplyBox, "RubberFlap");
+        if (groceryFlap == null && station.conveyor != null)
+            groceryFlap = FindFlap(station.conveyor, "RubberFlap");
         if (groceryFlap == null && station.supplyBoxLeft != null)
             groceryFlap = FindFlap(station.supplyBoxLeft, "RubberFlap");
-        if (groceryFlap == null && station.conveyorLeft != null)
-            groceryFlap = FindFlap(station.conveyorLeft, "RubberFlap");
 
         Transform boxesFlap = FindFlap(station.transform, "RubberFlap Boxes");
-        if (boxesFlap == null && station.supplyBox != null)
+        if (boxesFlap == null && station.supplyBoxLeft != null)
         {
-            boxesFlap = FindFlap(station.supplyBox, "RubberFlap Boxes");
+            boxesFlap = FindFlap(station.supplyBoxLeft, "RubberFlap Boxes");
             if (boxesFlap == null)
-                boxesFlap = FindFlap(station.supplyBox, "RubberFlap");
+                boxesFlap = FindFlap(station.supplyBoxLeft, "RubberFlap");
         }
+        if (boxesFlap == null && station.conveyorLeft != null)
+            boxesFlap = FindFlap(station.conveyorLeft, "RubberFlap");
+        if (boxesFlap == null && station.supplyBox != null)
+            boxesFlap = FindFlap(station.supplyBox, "RubberFlap");
+
+        // Prefer flaps by conveyor parent when both resolve to the same object.
+        Transform frontFlap = FindFlapUnder(station.conveyor, station.supplyBox);
+        Transform leftFlap = FindFlapUnder(station.conveyorLeft, station.supplyBoxLeft);
+        if (frontFlap != null)
+            groceryFlap = frontFlap;
+        if (leftFlap != null)
+            boxesFlap = leftFlap;
 
         if (groceryFlap != null)
         {
@@ -297,6 +312,24 @@ public class ObjectPlacementRubberFlap : MonoBehaviour
                 boxesFlap.name = "RubberFlap Boxes";
             EnsureOn(boxesFlap, FlapKind.Boxes);
         }
+    }
+
+    static Transform FindFlapUnder(params Transform[] roots)
+    {
+        for (int r = 0; r < roots.Length; r++)
+        {
+            if (roots[r] == null)
+                continue;
+            Transform named = FindFlap(roots[r], "RubberFlap Grocery");
+            if (named == null)
+                named = FindFlap(roots[r], "RubberFlap Boxes");
+            if (named == null)
+                named = FindFlap(roots[r], "RubberFlap");
+            if (named != null)
+                return named;
+        }
+
+        return null;
     }
 
     static Transform FindFlap(Transform root, string exactName)

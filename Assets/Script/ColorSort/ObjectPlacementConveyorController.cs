@@ -4,7 +4,7 @@ using UnityEngine;
 
 /// <summary>
 /// Index-finger poke on Btn_Start_World (either hand) → press anim → both belts run.
-/// Conveyor scrolls +X; ConveyorLeft scrolls reverse (-X).
+/// Front = grocery items; left = sorted boxes. Both scroll toward the left (-X).
 /// </summary>
 [DisallowMultipleComponent]
 public class ObjectPlacementConveyorController : MonoBehaviour
@@ -73,42 +73,41 @@ public class ObjectPlacementConveyorController : MonoBehaviour
 
         if (phaseRound == null)
             phaseRound = Object.FindAnyObjectByType<ObjectPlacementPhaseIRound>();
-        bool pauseLeft = phaseRound != null && phaseRound.LeftBeltMotionPaused;
+        bool pauseItemBelt = phaseRound != null && phaseRound.ItemBeltMotionPaused;
 
         float dt = Time.deltaTime;
         for (int i = 0; i < belts.Count; i++)
         {
             BeltRig rig = belts[i];
-            // Left / outbound item belt stops while the stopper queue is full.
-            if (pauseLeft && IsLeftBelt(rig))
+            // Front / item belt stops while the grab queue is full.
+            if (pauseItemBelt && IsItemBelt(rig))
                 continue;
             TickBelt(rig, dt);
         }
     }
 
-    static bool IsLeftBelt(BeltRig rig)
+    static bool IsItemBelt(BeltRig rig)
     {
-        if (rig == null)
-            return false;
-        if (rig.direction < 0f)
+        if (rig == null || string.IsNullOrEmpty(rig.name))
             return true;
-        return !string.IsNullOrEmpty(rig.name) &&
-               rig.name.IndexOf("Left", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        // Left-named belt carries sorted boxes; front (Conveyor) carries items.
+        return rig.name.IndexOf("Left", System.StringComparison.OrdinalIgnoreCase) < 0;
     }
 
     void CacheRigs()
     {
         belts.Clear();
 
-        Transform right = station != null ? station.conveyor : null;
+        Transform front = station != null ? station.conveyor : null;
         Transform left = station != null ? station.conveyorLeft : null;
-        if (right == null)
-            right = transform.Find("Conveyor");
+        if (front == null)
+            front = transform.Find("Conveyor");
         if (left == null)
             left = transform.Find("ConveyorLeft");
 
-        if (right != null)
-            belts.Add(BuildRig(right, station != null ? station.beltSurface : null, 1f));
+        // Both belts flow toward the left.
+        if (front != null)
+            belts.Add(BuildRig(front, station != null ? station.beltSurface : null, -1f));
         if (left != null)
             belts.Add(BuildRig(left, station != null ? station.beltSurfaceLeft : null, -1f));
     }
@@ -128,7 +127,8 @@ public class ObjectPlacementConveyorController : MonoBehaviour
             Renderer beltRenderer = beltTf.GetComponent<Renderer>();
             if (beltRenderer != null)
             {
-                rig.beltMat = beltRenderer.material;
+                // sharedMaterial avoids per-play material instance leaks that stress the GPU.
+                rig.beltMat = beltRenderer.sharedMaterial;
                 ApplyStripeTexture(rig.beltMat);
             }
 
@@ -138,6 +138,12 @@ public class ObjectPlacementConveyorController : MonoBehaviour
             float pad = 0.05f;
             rig.markMinX = center - half + pad;
             rig.markMaxX = center + half - pad;
+            if (rig.markMaxX < rig.markMinX)
+            {
+                float swap = rig.markMinX;
+                rig.markMinX = rig.markMaxX;
+                rig.markMaxX = swap;
+            }
         }
         else
         {
@@ -192,10 +198,10 @@ public class ObjectPlacementConveyorController : MonoBehaviour
         if (template == null)
             return;
 
-        int count = Mathf.Max(1, flowMarkCount);
-        Vector3 templateLocal = root.InverseTransformPoint(template.position);
-        float y = templateLocal.y;
-        float z = templateLocal.z;
+        // Cap mark count — runaway Instantiate + wrap loops can TDR the GPU.
+        int count = Mathf.Clamp(flowMarkCount, 1, 12);
+        float y = template.localPosition.y;
+        float z = template.localPosition.z;
         if (beltTf != null)
         {
             // Straight centerline on top of the belt.
@@ -214,6 +220,16 @@ public class ObjectPlacementConveyorController : MonoBehaviour
             GameObject clone = Instantiate(template.gameObject, root, false);
             clone.name = "FlowMark_Gen_" + i;
             clone.SetActive(true);
+            // Strip nested FlowMarks so clones never recurse into more marks.
+            Transform[] nested = clone.GetComponentsInChildren<Transform>(true);
+            for (int n = nested.Length - 1; n >= 0; n--)
+            {
+                if (nested[n] == null || nested[n] == clone.transform)
+                    continue;
+                if (nested[n].name.StartsWith("FlowMark"))
+                    Destroy(nested[n].gameObject);
+            }
+
             clone.transform.localPosition = new Vector3(x, y, z);
             clone.transform.localRotation = templateRot;
             clone.transform.localScale = templateScale;
@@ -505,7 +521,7 @@ public class ObjectPlacementConveyorController : MonoBehaviour
         }
 
         float span = rig.markMaxX - rig.markMinX;
-        if (span < 0.05f || rig.flowMarks.Count == 0)
+        if (span < 0.05f || float.IsNaN(span) || float.IsInfinity(span) || rig.flowMarks.Count == 0)
             return;
 
         for (int i = 0; i < rig.flowMarks.Count; i++)
@@ -516,16 +532,21 @@ public class ObjectPlacementConveyorController : MonoBehaviour
 
             Vector3 p = mark.localPosition;
             p.x += flowMarkSpeed * dt * dir;
+
+            // Modulo wrap — never unbounded while-loops (those can TDR the GPU).
             if (dir > 0f)
             {
-                while (p.x > rig.markMaxX)
-                    p.x -= span;
+                if (p.x > rig.markMaxX)
+                    p.x = rig.markMinX + Mathf.Repeat(p.x - rig.markMinX, span);
             }
             else
             {
-                while (p.x < rig.markMinX)
-                    p.x += span;
+                if (p.x < rig.markMinX)
+                    p.x = rig.markMaxX - Mathf.Repeat(rig.markMaxX - p.x, span);
             }
+
+            if (float.IsNaN(p.x) || float.IsInfinity(p.x))
+                p.x = Mathf.Lerp(rig.markMinX, rig.markMaxX, 0.5f);
 
             mark.localPosition = p;
         }

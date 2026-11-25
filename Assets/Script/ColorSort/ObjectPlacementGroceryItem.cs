@@ -4,7 +4,7 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 /// <summary>
-/// Phase I grocery: rides left belt at FlowMark speed, stops at stopper,
+/// Phase I grocery: rides front item belt at FlowMark speed, stops at stopper,
 /// Fruit→Yellow / Vegetable→Red. Grab with profile non-dominant hand only.
 /// </summary>
 [DisallowMultipleComponent]
@@ -177,8 +177,8 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         if (!onBelt)
             return;
 
-        // Queue full — left belt and in-transit items freeze until the line moves again.
-        if (host != null && host.LeftBeltMotionPaused)
+        // Queue full — item belt and in-transit items freeze until the line moves again.
+        if (host != null && host.ItemBeltMotionPaused)
         {
             ZeroVelocity();
             return;
@@ -209,12 +209,14 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
     bool InQueueZone()
     {
         if (host == null)
-            return stopper != null && Vector3.Distance(transform.position, stopper.position) < 0.75f;
+            return stopper != null && Vector3.Distance(transform.position, stopper.position) < 0.55f;
 
+        // Enter queue when near the front slot / stopper — not mid-belt.
         Vector3 front = host.GetBeltQueueSlotWorld(0);
-        Vector3 back = host.GetBeltQueueSlotWorld(ObjectPlacementPhaseIRound.MaxBeltQueue);
-        float zone = Vector3.Distance(front, back) + 0.12f;
-        return Vector3.Distance(transform.position, front) <= zone;
+        float reach = 0.28f + ObjectPlacementPhaseIRound.MaxBeltQueue * 0.02f;
+        if (stopper != null)
+            reach = Mathf.Max(reach, Vector3.Distance(front, stopper.position) + 0.12f);
+        return Vector3.Distance(transform.position, front) <= reach;
     }
 
     void FollowQueueSlot(bool snapIfClose)

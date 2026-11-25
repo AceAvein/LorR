@@ -36,8 +36,8 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     [SerializeField] float fadeSeconds = 0.65f;
     [SerializeField] float beltRideSeconds = 2.4f;
     [SerializeField] float toBoxSeconds = 1.15f;
-    [Tooltip("Pull cutscene items back from the belt end so they don't overshoot.")]
-    [SerializeField] float demoBeltStopPullback = 0.14f;
+    [Tooltip("Inset from BeltSurface outgoing end (mesh-local units). Keep small so items reach near the end.")]
+    [SerializeField] float demoBeltStopPullback = 0.08f;
     [Tooltip("How far yellow/red ride toward ExitTunnel. Keep short enough to despawn at the mouth, not through the housing.")]
     [SerializeField] float demoBoxRideDistance = 1.25f;
     [SerializeField] float beatPause = 2.0f;
@@ -767,7 +767,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         yield return ShowGuide("This is the sorting station.", beatPause);
         yield return ShowGuide("Yellow box = fruits. Red box = vegetables.", beatPause);
 
-        yield return ShowGuide("Items arrive on the conveyor belt.", 1.5f);
+        yield return ShowGuide("Items arrive on the front conveyor belt.", 1.5f);
 
         DemoBeat[] beats =
         {
@@ -775,28 +775,28 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             {
                 id = "Fruit_banana",
                 kind = ObjectPlacementGroceryKind.Fruit,
-                guide = "YELLOW = FRUITS\nUse GRIP to pick up",
+                guide = "YELLOW = FRUITS\nUse GRAB to pick up",
                 tip = "Place fruits into the yellow box."
             },
             new DemoBeat
             {
                 id = "Fruit_lemon",
                 kind = ObjectPlacementGroceryKind.Fruit,
-                guide = "Another fruit — same rule.\nGRIP → Yellow box",
+                guide = "Another fruit — same rule.\nGRAB → Yellow box",
                 tip = "Watch it ride to the end first."
             },
             new DemoBeat
             {
                 id = "Veg_tomato",
                 kind = ObjectPlacementGroceryKind.Vegetable,
-                guide = "RED = VEGETABLES\nUse TRIGGER to pick up",
+                guide = "RED = VEGETABLES\nUse GRAB to pick up",
                 tip = "Place vegetables into the red box."
             },
             new DemoBeat
             {
                 id = "Veg_carrot",
                 kind = ObjectPlacementGroceryKind.Vegetable,
-                guide = "Same for every red item.\nTRIGGER → Red box",
+                guide = "Same for every red item.\nGRAB → Red box",
                 tip = "Check the category before you place."
             },
         };
@@ -807,7 +807,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (conveyor != null)
             conveyor.StopConveyors();
 
-        // SHOT 6 — final box placement onto front conveyor
+        // SHOT 6 — final box placement onto left conveyor
         yield return PlayBoxDeliveryDemo();
 
         if (rivera != null)
@@ -849,11 +849,13 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         if (station == null)
             yield break;
 
-        // Scene station refs: Yellow Box / Red Box + front BeltSurface under Conveyor.
+        // Yellow / Red boxes ride out on the left conveyor.
         Transform yellow = station.yellowBox;
         Transform red = station.redBox;
-        Transform frontBelt = station.beltSurface != null ? station.beltSurface : station.conveyor;
-        if (frontBelt == null || (yellow == null && red == null))
+        Transform boxBelt = station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.conveyorLeft;
+        if (boxBelt == null)
+            boxBelt = station.beltSurface != null ? station.beltSurface : station.conveyor;
+        if (boxBelt == null || (yellow == null && red == null))
             yield break;
 
         if (rivera != null)
@@ -863,7 +865,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             rivera.SetTalking(true);
         }
 
-        yield return ShowGuide("After sorting, place each box\non the front conveyor.", beatPause);
+        yield return ShowGuide("After sorting, place each box\non the left conveyor.", beatPause);
 
         BoxAnimState yState = CaptureBoxState(yellow);
         BoxAnimState rState = CaptureBoxState(red);
@@ -871,8 +873,8 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         pendingRedRestore = rState;
         hasPendingBoxRestore = true;
 
-        float rideDir = GetFrontBeltRideDirection(frontBelt);
-        Vector3 seat = GetFrontBeltSeat(frontBelt, -0.15f);
+        float rideDir = GetBoxBeltRideDirection(boxBelt);
+        Vector3 seat = GetFrontBeltSeat(boxBelt, -0.15f);
 
         // Yellow first → seat → ride into tunnel.
         if (yellow != null)
@@ -881,10 +883,10 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             PulseBox(yellow, true);
             DetachBoxPreserveScale(yellow, yState);
             yield return MoveTransformArc(yellow, seat, toBoxSeconds + 0.2f);
-            SeatBoxOnBeltPreserveScale(yellow, frontBelt, seat, yState);
+            SeatBoxOnBeltPreserveScale(yellow, boxBelt, seat, yState);
             PulseBox(yellow, false);
             yield return ShowGuide("Yellow box rides out…", 0.85f);
-            yield return RideTransformOnBelt(yellow, frontBelt, rideDir, demoBoxRideDistance);
+            yield return RideTransformOnBelt(yellow, boxBelt, rideDir, demoBoxRideDistance);
             if (yellow != null)
                 yellow.gameObject.SetActive(false);
             yield return new WaitForSeconds(0.35f);
@@ -897,10 +899,10 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             PulseBox(red, true);
             DetachBoxPreserveScale(red, rState);
             yield return MoveTransformArc(red, seat, toBoxSeconds + 0.2f);
-            SeatBoxOnBeltPreserveScale(red, frontBelt, seat, rState);
+            SeatBoxOnBeltPreserveScale(red, boxBelt, seat, rState);
             PulseBox(red, false);
             yield return ShowGuide("Red box rides out…", 0.85f);
-            yield return RideTransformOnBelt(red, frontBelt, rideDir, demoBoxRideDistance);
+            yield return RideTransformOnBelt(red, boxBelt, rideDir, demoBoxRideDistance);
             if (red != null)
                 red.gameObject.SetActive(false);
             yield return new WaitForSeconds(0.35f);
@@ -1082,19 +1084,18 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         PulseBox(box, true);
         yield return ShowGuide(beat.guide, beatPause);
 
-        Vector3 spawn = GetBeltSpawn();
-        Vector3 stopper = GetDemoBeltStop(spawn);
+        Transform itemBelt = GetItemBelt();
+        float flowDir = GetItemBeltDirection(itemBelt);
+        Vector3 spawn = ObjectPlacementStation.BeltSpawnPoint(itemBelt, flowDir);
+        Vector3 stopper = ObjectPlacementStation.BeltStopPoint(itemBelt, flowDir, demoBeltStopPullback);
         int stackIndex = beat.kind == ObjectPlacementGroceryKind.Fruit ? demoFruitInBox : demoVegInBox;
         Vector3 boxTarget = GetDemoBoxSeat(box, stopper, stackIndex);
 
-        // Slight lateral offset so fruit/veg don't overlap perfectly.
-        Vector3 side = beat.kind == ObjectPlacementGroceryKind.Fruit ? Vector3.forward * 0.04f : Vector3.back * 0.04f;
-
-        GameObject prop = SpawnDemoProp(beat.id, beat.kind, spawn + side);
+        GameObject prop = SpawnDemoProp(beat.id, beat.kind, spawn);
 
         yield return ShowGuide("Riding the conveyor…", 0.85f);
         // Belt runs only while the item rides (same speed as gameplay FlowMarks).
-        yield return RideDemoPropOnLeftBelt(prop, stopper + side);
+        yield return RideDemoPropOnItemBelt(prop, spawn, stopper, flowDir);
         yield return ShowGuide("Stops at the end of the belt.", 1.2f);
         yield return ShowGuide(beat.tip, 1.25f);
 
@@ -1113,69 +1114,96 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
     }
 
     /// <summary>
-    /// Move item at BeltFlowSpeed while conveyors run — belt scroll/marks stay in sync with the item.
-    /// Grocery RubberFlap opens because the demo prop keeps ObjectPlacementGroceryItem + collider.
+    /// Ride full BeltSurface length in local X from spawn end → stop end.
     /// </summary>
-    IEnumerator RideDemoPropOnLeftBelt(GameObject prop, Vector3 end)
+    IEnumerator RideDemoPropOnItemBelt(GameObject prop, Vector3 start, Vector3 end, float flowDir)
     {
         if (prop == null)
             yield break;
 
-        Transform belt = station != null
-            ? (station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.conveyorLeft)
-            : null;
-        float dir = GetLeftBeltDirection(belt);
+        Transform belt = GetItemBelt();
         float speed = conveyor != null ? Mathf.Max(0.15f, conveyor.BeltFlowSpeed) : 0.38f;
 
         if (conveyor != null)
             conveyor.StartConveyors();
 
-        Vector3 toEnd = end - prop.transform.position;
-        float dist = toEnd.magnitude;
-        float traveled = 0f;
-        Vector3 axis = belt != null ? belt.right * dir : toEnd.normalized;
-        if (axis.sqrMagnitude < 0.0001f)
-            axis = toEnd.sqrMagnitude > 0.0001f ? toEnd.normalized : Vector3.left;
-        axis.Normalize();
+        if (belt == null)
+        {
+            prop.transform.position = end;
+            if (conveyor != null)
+                conveyor.StopConveyors();
+            yield break;
+        }
 
-        while (prop != null && traveled < dist - 0.01f)
+        Vector3 localStart = belt.InverseTransformPoint(start);
+        Vector3 localEnd = belt.InverseTransformPoint(end);
+        localStart.y = ObjectPlacementStation.GetBeltTopLocalY(belt);
+        localEnd.y = ObjectPlacementStation.GetBeltTopLocalY(belt);
+        localStart.z = 0f;
+        localEnd.z = 0f;
+
+        // Guarantee travel toward flow direction across most of the belt.
+        float minX, maxX;
+        ObjectPlacementStation.GetBeltLocalXRange(belt, out minX, out maxX);
+        float inset = Mathf.Max(0.05f, demoBeltStopPullback);
+        if (flowDir < 0f)
+        {
+            localStart.x = maxX - inset;
+            localEnd.x = minX + inset;
+        }
+        else
+        {
+            localStart.x = minX + inset;
+            localEnd.x = maxX - inset;
+        }
+
+        prop.transform.position = belt.TransformPoint(localStart);
+
+        float dist = Mathf.Abs(localEnd.x - localStart.x);
+        float traveled = 0f;
+        float sign = localEnd.x >= localStart.x ? 1f : -1f;
+
+        while (prop != null && traveled < dist - 0.001f)
         {
             float step = speed * Time.deltaTime;
             float remain = dist - traveled;
             if (step > remain)
                 step = remain;
-            prop.transform.position += axis * step;
             traveled += step;
+            Vector3 local = localStart;
+            local.x = localStart.x + sign * traveled;
+            prop.transform.position = belt.TransformPoint(local);
             yield return null;
         }
 
         if (prop != null)
-            prop.transform.position = end;
+            prop.transform.position = belt.TransformPoint(localEnd);
 
         if (conveyor != null)
             conveyor.StopConveyors();
     }
 
-    float GetLeftBeltDirection(Transform belt)
+    Transform GetItemBelt()
     {
-        if (station == null || belt == null)
-            return -1f;
-        if (station.conveyorLeft != null &&
-            (belt == station.beltSurfaceLeft || belt.IsChildOf(station.conveyorLeft) || belt == station.conveyorLeft))
-            return -1f;
-        return 1f;
+        return station != null ? station.ItemBelt : null;
     }
 
-    float GetFrontBeltRideDirection(Transform belt)
+    float GetItemBeltDirection(Transform belt)
+    {
+        // Front item belt scrolls toward the left.
+        return -1f;
+    }
+
+    float GetBoxBeltRideDirection(Transform belt)
     {
         if (station == null || belt == null)
-            return 1f;
+            return -1f;
 
-        Transform tunnel = station.supplyBox;
-        if (tunnel == null && station.conveyor != null)
-            tunnel = station.conveyor.Find("ExitTunnel");
+        Transform tunnel = station.supplyBoxLeft;
+        if (tunnel == null && station.conveyorLeft != null)
+            tunnel = station.conveyorLeft.Find("ExitTunnel");
         if (tunnel == null)
-            return 1f;
+            return -1f;
 
         Vector3 toTunnel = tunnel.position - belt.position;
         return Vector3.Dot(toTunnel, belt.right) >= 0f ? 1f : -1f;
@@ -1204,15 +1232,11 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
             conveyor.StopConveyors();
     }
 
-    /// <summary>Stop short of the belt end so demo items don't overshoot.</summary>
+    /// <summary>Outgoing end of front BeltSurface (small inset only).</summary>
     Vector3 GetDemoBeltStop(Vector3 spawn)
     {
-        Vector3 stopper = GetBeltStopper();
-        Vector3 pull = spawn - stopper;
-        pull.y = 0f;
-        if (pull.sqrMagnitude > 0.0001f)
-            stopper += pull.normalized * Mathf.Max(0f, demoBeltStopPullback);
-        return stopper;
+        Transform belt = GetItemBelt();
+        return ObjectPlacementStation.BeltStopPoint(belt, GetItemBeltDirection(belt), demoBeltStopPullback);
     }
 
     static Vector3 GetDemoBoxSeat(Transform box, Vector3 fallback, int stackIndex)
@@ -1258,32 +1282,20 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
 
     Vector3 GetBeltSpawn()
     {
-        if (station == null)
-            return Vector3.zero;
-        Transform spawn = station.grocerySpawnPointLeft != null
-            ? station.grocerySpawnPointLeft
-            : station.grocerySpawnPoint;
-        if (spawn != null)
-            return spawn.position + Vector3.up * 0.04f;
-        return station.transform.position + Vector3.up * 0.9f;
+        Transform belt = GetItemBelt();
+        if (belt != null)
+            return ObjectPlacementStation.BeltSpawnPoint(belt, GetItemBeltDirection(belt));
+        if (station != null && station.grocerySpawnPoint != null)
+            return station.grocerySpawnPoint.position;
+        return station != null ? station.transform.position + Vector3.up * 0.9f : Vector3.zero;
     }
 
     Vector3 GetBeltStopper()
     {
-        if (station != null && station.beltStopperLeft != null)
-            return station.beltStopperLeft.position + Vector3.up * 0.05f;
-
-        // Fallback: end of left belt along -X (left conveyor direction in this project).
-        Vector3 spawn = GetBeltSpawn();
-        if (station != null && station.beltSurfaceLeft != null)
-        {
-            Bounds b = new Bounds(station.beltSurfaceLeft.position, Vector3.one * 0.2f);
-            Renderer r = station.beltSurfaceLeft.GetComponent<Renderer>();
-            if (r != null)
-                b = r.bounds;
-            return new Vector3(b.min.x + 0.12f, spawn.y, spawn.z);
-        }
-        return spawn + Vector3.left * 1.4f;
+        Transform belt = GetItemBelt();
+        if (belt != null)
+            return ObjectPlacementStation.BeltStopPoint(belt, GetItemBeltDirection(belt), demoBeltStopPullback);
+        return GetBeltSpawn() + Vector3.left * 0.8f;
     }
 
     void PlaceRiveraAtPresenter()

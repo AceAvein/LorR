@@ -6,10 +6,10 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Object Placement Phase I (bible): 3×10 fruits/veg from left conveyor.
+/// Object Placement Phase I (bible): 3×10 fruits/veg from the front conveyor.
 /// Yellow + Red boxes only. Fruit→Yellow, Veg→Red. NDH grab only.
 /// Items stay in boxes across all 3 sets. After set 3, two-hand-carry boxes
-/// onto the facing conveyor to finish Phase I (storyboard).
+/// onto the left conveyor to finish Phase I.
 /// </summary>
 [DisallowMultipleComponent]
 public class ObjectPlacementPhaseIRound : MonoBehaviour
@@ -74,8 +74,11 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     public bool BeltIsRunning => conveyor != null && conveyor.IsRunning;
     public float BeltFlowSpeed => conveyor != null ? conveyor.BeltFlowSpeed : 0.38f;
 
-    /// <summary>Left conveyor + in-transit items pause while the end queue is full.</summary>
-    public bool LeftBeltMotionPaused => !BeltQueueHasRoom || CountItemsOnBelt() >= MaxBeltQueue;
+    /// <summary>Front item belt + in-transit items pause while the end queue is full.</summary>
+    public bool ItemBeltMotionPaused => !BeltQueueHasRoom || CountItemsOnBelt() >= MaxBeltQueue;
+
+    /// <summary>Legacy alias for ItemBeltMotionPaused.</summary>
+    public bool LeftBeltMotionPaused => ItemBeltMotionPaused;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -236,23 +239,29 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
         Transform belt;
         float dir;
-        GetFrontConveyor(out belt, out dir);
+        GetBoxConveyor(out belt, out dir);
         sort.Configure(this, id, belt, frontDropZone, dir);
         return sort;
     }
 
-    /// <summary>
-    /// Storyboard: front belt = sorted boxes transport (station Conveyor / BeltSurface).
-    /// Ride direction = toward ExitTunnel (into the mouth).
-    /// </summary>
-    void GetFrontConveyor(out Transform belt, out float direction)
+    /// <summary>Front belt carries grocery items. Both belts flow toward the left.</summary>
+    void GetItemConveyor(out Transform belt, out float direction)
     {
         belt = station.beltSurface != null ? station.beltSurface : station.conveyor;
-        direction = 1f;
+        direction = -1f;
+    }
 
-        Transform tunnel = station.supplyBox;
-        if (tunnel == null && station.conveyor != null)
-            tunnel = station.conveyor.Find("ExitTunnel");
+    /// <summary>Left belt carries sorted boxes out. Both belts flow toward the left.</summary>
+    void GetBoxConveyor(out Transform belt, out float direction)
+    {
+        belt = station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.conveyorLeft;
+        if (belt == null)
+            belt = station.beltSurface != null ? station.beltSurface : station.conveyor;
+        direction = -1f;
+
+        Transform tunnel = station.supplyBoxLeft;
+        if (tunnel == null && station.conveyorLeft != null)
+            tunnel = station.conveyorLeft.Find("ExitTunnel");
 
         if (belt != null && tunnel != null)
         {
@@ -265,7 +274,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     {
         Transform belt;
         float dir;
-        GetFrontConveyor(out belt, out dir);
+        GetBoxConveyor(out belt, out dir);
         if (belt == null)
             return;
 
@@ -283,7 +292,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         Transform parent = belt.parent != null ? belt.parent : belt;
         zone.transform.SetParent(parent, false);
 
-        // Sit above the open run of the front belt so crates are easy to land.
+        // Sit above the open run of the left (box) belt so crates are easy to land.
         Vector3 local = belt.localPosition + new Vector3(0f, 0.18f, 0f);
         if (belt.parent == parent)
             zone.transform.localPosition = local;
@@ -293,7 +302,6 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         zone.transform.localRotation = Quaternion.identity;
         BoxCollider col = zone.AddComponent<BoxCollider>();
         col.isTrigger = true;
-        // Wide landing pad covering most of the front belt top.
         float len = Mathf.Max(1.0f, Mathf.Abs(belt.lossyScale.x) * 1.1f);
         float depth = Mathf.Max(0.45f, Mathf.Abs(belt.lossyScale.z) * 1.4f);
         col.size = new Vector3(len, 0.45f, depth);
@@ -358,38 +366,11 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
     void CacheStopper()
     {
-        beltStopper = station.beltStopperLeft;
-        if (beltStopper != null)
-            return;
-
-        Transform root = station.conveyorLeft != null ? station.conveyorLeft : station.transform;
-        Transform[] all = root.GetComponentsInChildren<Transform>(true);
-        for (int i = 0; i < all.Length; i++)
-        {
-            string n = all[i].name;
-            if (n.IndexOf("stop", System.StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                beltStopper = all[i];
-                station.beltStopperLeft = beltStopper;
-                return;
-            }
-        }
-
-        // Fallback: create a thin stopper at the open end of the left belt.
-        if (station.beltSurfaceLeft != null)
-        {
-            GameObject stop = new GameObject("BeltStopper");
-            stop.transform.SetParent(station.conveyorLeft != null ? station.conveyorLeft : station.beltSurfaceLeft, false);
-            Transform belt = station.beltSurfaceLeft;
-            float half = Mathf.Abs(belt.localScale.x) * 0.5f;
-            // ConveyorLeft flows -X in world along belt; stopper at the outgoing end.
-            stop.transform.position = belt.TransformPoint(new Vector3(-half + 0.05f, 0.06f, 0f));
-            BoxCollider col = stop.AddComponent<BoxCollider>();
-            col.isTrigger = true;
-            col.size = new Vector3(0.06f, 0.16f, Mathf.Max(0.2f, Mathf.Abs(belt.localScale.z)));
-            beltStopper = stop.transform;
-            station.beltStopperLeft = beltStopper;
-        }
+        Transform belt;
+        float dir;
+        GetItemConveyor(out belt, out dir);
+        beltStopper = station.EnsureItemStopper(dir);
+        station.EnsureItemSpawn(dir);
     }
 
     void StripLegacyProps()
@@ -661,33 +642,24 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
     public Vector3 GetBeltQueueSlotWorld(int index)
     {
-        Transform belt = station != null
-            ? (station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.beltSurface)
-            : null;
+        Transform belt;
+        float dir;
+        GetItemConveyor(out belt, out dir);
         if (belt == null && station != null)
-            belt = station.conveyorLeft != null ? station.conveyorLeft : station.conveyor;
-
-        float dir = -1f;
-        if (station != null && station.conveyorLeft != null && belt != null &&
-            (belt == station.beltSurfaceLeft || belt.IsChildOf(station.conveyorLeft) || belt == station.conveyorLeft))
-            dir = -1f;
-        else
-            dir = 1f;
+            belt = station.ItemBelt;
 
         Vector3 anchor = beltStopper != null
             ? beltStopper.position
-            : (belt != null ? belt.position : Vector3.zero);
+            : (belt != null ? ObjectPlacementStation.BeltStopPoint(belt, dir) : Vector3.zero);
 
         if (belt != null)
         {
             Vector3 local = belt.InverseTransformPoint(anchor);
             // Park just upstream of stopper; each slot further upstream.
             local.x -= dir * (0.07f + index * QueueSpacing);
-            Vector3 world = belt.TransformPoint(local);
-            world.y = anchor.y + 0.02f;
-            if (beltStopper != null)
-                world.y = Mathf.Max(world.y, beltStopper.position.y + 0.01f);
-            return world;
+            local.y = ObjectPlacementStation.GetBeltTopLocalY(belt);
+            local.z = 0f;
+            return belt.TransformPoint(local);
         }
 
         Vector3 right = Vector3.right;
@@ -703,10 +675,15 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         if (spec.template == null)
             return;
 
-        Transform spawn = station.grocerySpawnPointLeft != null ? station.grocerySpawnPointLeft : station.grocerySpawnPoint;
-        Transform belt = station.beltSurfaceLeft != null ? station.beltSurfaceLeft : station.beltSurface;
+        Transform belt;
+        float dir;
+        GetItemConveyor(out belt, out dir);
         if (belt == null)
-            belt = station.conveyorLeft != null ? station.conveyorLeft : station.conveyor;
+            belt = station.ItemBelt;
+
+        Transform spawn = station.EnsureItemSpawn(dir);
+        if (beltStopper == null)
+            beltStopper = station.EnsureItemStopper(dir);
 
         GameObject go = ObjectPlacementItemLibrary.Spawn(spec.template, spec.kind, null);
         if (go == null)
@@ -716,12 +693,6 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         item.Bind(this);
 
         float speed = conveyor != null ? conveyor.BeltFlowSpeed : 0.38f;
-        // ConveyorLeft scrolls reverse (-X).
-        float dir = station.conveyorLeft != null && belt != null &&
-                    (belt == station.beltSurfaceLeft || belt.IsChildOf(station.conveyorLeft) || belt == station.conveyorLeft)
-            ? -1f
-            : 1f;
-
         item.PlaceOnBelt(spawn, belt, dir, speed, beltStopper);
         live.Add(item);
     }
@@ -902,14 +873,14 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         SetSortBoxesGrabEnabled(true);
         if (conveyor != null && !conveyor.IsRunning)
             conveyor.StartConveyors();
-        station.SetScreenText("BOTH HANDS → FRONT CONVEYOR");
+        station.SetScreenText("BOTH HANDS → LEFT CONVEYOR");
     }
 
     public void OnSortBoxMissed(ObjectPlacementSortBox box)
     {
         if (!boxDeliveryPhase)
             return;
-        station.SetScreenText("DROP ON FRONT CONVEYOR");
+        station.SetScreenText("DROP ON LEFT CONVEYOR");
     }
 
     public void OnSortBoxAccepted(ObjectPlacementSortBox box)
