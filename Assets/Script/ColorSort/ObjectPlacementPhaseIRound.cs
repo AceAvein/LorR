@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Object Placement Phase I (bible): 3×10 fruits/veg from left conveyor.
-/// Yellow + Red boxes only. Fruit=Grip→Yellow, Veg=Trigger→Red.
+/// Yellow + Red boxes only. Fruit→Yellow, Veg→Red. NDH grab only.
 /// Items stay in boxes across all 3 sets. After set 3, two-hand-carry boxes
 /// onto the facing conveyor to finish Phase I (storyboard).
 /// </summary>
@@ -608,6 +608,8 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
             return -1;
 
         beltQueue.Add(item);
+        if (beltQueue.Count == 1 && Time.time > wrongControlFlashUntil)
+            station.SetScreenText("GRAB · NON-DOMINANT HAND");
         return beltQueue.Count - 1;
     }
 
@@ -727,7 +729,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     public void OnWrongControl(ObjectPlacementGroceryItem item)
     {
         wrongControlFlashUntil = Time.time + 0.85f;
-        station.SetScreenText(item != null && item.Kind == ObjectPlacementGroceryKind.Fruit ? "USE GRIP" : "USE TRIGGER");
+        station.SetScreenText("USE GRAB · NON-DOMINANT HAND");
     }
 
     public void RequestScoreCheck(ObjectPlacementGroceryItem item)

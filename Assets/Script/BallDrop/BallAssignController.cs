@@ -16,8 +16,10 @@ public class BallAssignController : MonoBehaviour
         [HideInInspector] public GameObject template;
     }
 
-    public Image leftHandImage;
-    public Image rightHandImage;
+    [Tooltip("Single pole-screen preview for the next dispensed ball (NDH only).")]
+    public Image nonDominantHandImage;
+    [HideInInspector] public Image leftHandImage;
+    [HideInInspector] public Image rightHandImage;
     public GameObject assignCanvas;
     public GameObject objectiveScreen;
     public GameObject handCanvas;
@@ -25,10 +27,9 @@ public class BallAssignController : MonoBehaviour
     public BallDropSystem dropSystem;
     public SportBall[] sportsBalls;
 
-    SportBall leftBall;
-    SportBall rightBall;
     BallDropRound round;
     bool countingDown;
+    TMP_Text ndhLabel;
 
     void Awake()
     {
@@ -75,10 +76,22 @@ public class BallAssignController : MonoBehaviour
 
         if (assignCanvas != null)
         {
-            if (leftHandImage == null)
-                leftHandImage = FindImage(assignCanvas.transform, "Objective_Panel/Left Hand/Left Hand");
-            if (rightHandImage == null)
-                rightHandImage = FindImage(assignCanvas.transform, "Objective_Panel/Right Hand/Right Hand");
+            if (nonDominantHandImage == null)
+                nonDominantHandImage = FindImageByNames(assignCanvas.transform,
+                    "Non Dominant Hand Image", "NonDominantHandImage", "Left Hand", "Right Hand");
+            if (nonDominantHandImage == null && leftHandImage != null)
+                nonDominantHandImage = leftHandImage;
+            if (nonDominantHandImage == null)
+                nonDominantHandImage = FindImage(assignCanvas.transform, "Objective_Panel/Left Hand/Left Hand");
+            if (nonDominantHandImage == null)
+                nonDominantHandImage = FindImage(assignCanvas.transform, "Objective_Panel/Left Hand");
+
+            leftHandImage = nonDominantHandImage;
+            rightHandImage = null;
+
+            ndhLabel = FindLabelUnder(assignCanvas.transform, "Non Dominant Hand Text");
+            if (ndhLabel != null)
+                ndhLabel.text = "Catch this";
         }
     }
 
@@ -177,8 +190,7 @@ public class BallAssignController : MonoBehaviour
 
     public void ShowAssign()
     {
-        PickPair();
-        ShowIcons();
+        ShowRandomPreview();
 
         if (objectiveScreen != null)
             objectiveScreen.SetActive(false);
@@ -199,7 +211,7 @@ public class BallAssignController : MonoBehaviour
     }
 
     /// <summary>
-    /// World StartButton poke: apply profile hand, assign ball pair/icons, then countdown + drop.
+    /// World StartButton poke: apply profile hand, preview next ball, then countdown + drop.
     /// </summary>
     public void StartFromPoleButton()
     {
@@ -221,9 +233,7 @@ public class BallAssignController : MonoBehaviour
             return;
 
         ApplyProfileHand();
-        if (leftBall == null || rightBall == null)
-            PickPair();
-        ShowIcons();
+        ShowRandomPreview();
 
         if (objectiveScreen != null)
             objectiveScreen.SetActive(false);
@@ -242,12 +252,10 @@ public class BallAssignController : MonoBehaviour
         if (round != null && round.running)
             return;
 
-        if (leftBall == null || rightBall == null)
-            PickPair();
-
-        if (leftBall == null || rightBall == null || dropSystem == null)
+        List<GameObject> templates = CollectTemplates();
+        if (templates.Count == 0 || dropSystem == null)
         {
-            Debug.LogWarning("Ball assign needs two sports balls before the drop can start.");
+            Debug.LogWarning("Ball assign needs at least one sports ball before the drop can start.");
             return;
         }
 
@@ -260,10 +268,10 @@ public class BallAssignController : MonoBehaviour
         if (gameCanvas != null)
             gameCanvas.SetActive(false);
 
-        StartCoroutine(CountdownThenStart());
+        StartCoroutine(CountdownThenStart(templates));
     }
 
-    IEnumerator CountdownThenStart()
+    IEnumerator CountdownThenStart(List<GameObject> templates)
     {
         countingDown = true;
         BallDropWalk walk = BallDropWalk.FindActive();
@@ -292,8 +300,75 @@ public class BallAssignController : MonoBehaviour
         if (round != null)
             round.Begin(dropSystem, gameCanvas);
 
-        dropSystem.Begin(leftBall.template, rightBall.template);
+        ShowRandomPreview();
+        dropSystem.Begin(this, templates);
         countingDown = false;
+    }
+
+    public void ShowUpcomingBall(GameObject template)
+    {
+        SportBall ball = FindSport(template);
+        ApplyIcon(nonDominantHandImage, ball);
+        if (ndhLabel != null)
+            ndhLabel.text = ball != null && !string.IsNullOrEmpty(ball.ballName)
+                ? "Catch this"
+                : "Catch this";
+    }
+
+    void ShowRandomPreview()
+    {
+        SportBall ball = PickRandomSport();
+        ApplyIcon(nonDominantHandImage, ball);
+    }
+
+    SportBall PickRandomSport()
+    {
+        List<SportBall> available = new List<SportBall>();
+        for (int i = 0; i < sportsBalls.Length; i++)
+        {
+            if (sportsBalls[i] != null && sportsBalls[i].template != null)
+                available.Add(sportsBalls[i]);
+        }
+
+        if (available.Count == 0)
+            return null;
+
+        return available[Random.Range(0, available.Count)];
+    }
+
+    SportBall FindSport(GameObject template)
+    {
+        if (template == null || sportsBalls == null)
+            return null;
+
+        string name = template.name;
+        for (int i = 0; i < sportsBalls.Length; i++)
+        {
+            SportBall sport = sportsBalls[i];
+            if (sport == null)
+                continue;
+            if (sport.template == template)
+                return sport;
+            if (!string.IsNullOrEmpty(sport.ballName) && sport.ballName == name)
+                return sport;
+        }
+
+        return null;
+    }
+
+    List<GameObject> CollectTemplates()
+    {
+        List<GameObject> templates = new List<GameObject>();
+        if (sportsBalls == null)
+            return templates;
+
+        for (int i = 0; i < sportsBalls.Length; i++)
+        {
+            if (sportsBalls[i] != null && sportsBalls[i].template != null)
+                templates.Add(sportsBalls[i].template);
+        }
+
+        return templates;
     }
 
     static GameObject FindNamed(string objectName)
@@ -320,35 +395,19 @@ public class BallAssignController : MonoBehaviour
         return null;
     }
 
-    void PickPair()
+    static TMP_Text FindLabelUnder(Transform root, string objectName)
     {
-        List<SportBall> available = new List<SportBall>();
-        for (int i = 0; i < sportsBalls.Length; i++)
+        if (root == null)
+            return null;
+
+        TMP_Text[] labels = root.GetComponentsInChildren<TMP_Text>(true);
+        for (int i = 0; i < labels.Length; i++)
         {
-            if (sportsBalls[i].template != null)
-                available.Add(sportsBalls[i]);
+            if (labels[i] != null && labels[i].gameObject.name == objectName)
+                return labels[i];
         }
 
-        if (available.Count < 2)
-        {
-            leftBall = null;
-            rightBall = null;
-            return;
-        }
-
-        int leftIndex = Random.Range(0, available.Count);
-        int rightIndex = Random.Range(0, available.Count - 1);
-        if (rightIndex >= leftIndex)
-            rightIndex++;
-
-        leftBall = available[leftIndex];
-        rightBall = available[rightIndex];
-    }
-
-    void ShowIcons()
-    {
-        ApplyIcon(leftHandImage, leftBall);
-        ApplyIcon(rightHandImage, rightBall);
+        return null;
     }
 
     static void ApplyIcon(Image image, SportBall ball)
@@ -385,6 +444,25 @@ public class BallAssignController : MonoBehaviour
     {
         Transform target = root.Find(path);
         return target != null ? target.GetComponent<Image>() : null;
+    }
+
+    static Image FindImageByNames(Transform root, params string[] names)
+    {
+        if (root == null || names == null)
+            return null;
+
+        Image[] images = root.GetComponentsInChildren<Image>(true);
+        for (int n = 0; n < names.Length; n++)
+        {
+            string want = names[n];
+            for (int i = 0; i < images.Length; i++)
+            {
+                if (images[i] != null && images[i].gameObject.name == want)
+                    return images[i];
+            }
+        }
+
+        return null;
     }
 
     static GameObject FindRoot(string objectName)

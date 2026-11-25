@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class BallDropSystem : MonoBehaviour
@@ -18,19 +19,28 @@ public class BallDropSystem : MonoBehaviour
     const float moderateSpawnInterval = 2f;
     const float hardSpawnInterval = 1.4f;
 
-    GameObject leftBallTemplate;
-    GameObject rightBallTemplate;
+    readonly List<GameObject> ballTemplates = new List<GameObject>();
+    BallAssignController assign;
     Transform[] spawnPoints;
     int spawnedBalls;
     bool spawning;
     Coroutine spawnLoop;
 
-    public void Begin(GameObject leftTemplate, GameObject rightTemplate)
+    public void Begin(BallAssignController assignController, IList<GameObject> templates)
     {
-        leftBallTemplate = leftTemplate;
-        rightBallTemplate = rightTemplate;
+        assign = assignController;
+        ballTemplates.Clear();
+        if (templates != null)
+        {
+            for (int i = 0; i < templates.Count; i++)
+            {
+                if (templates[i] != null)
+                    ballTemplates.Add(templates[i]);
+            }
+        }
+
         spawnedBalls = 0;
-        spawning = true;
+        spawning = ballTemplates.Count > 0;
 
         if (!gameObject.activeSelf)
             gameObject.SetActive(true);
@@ -69,7 +79,7 @@ public class BallDropSystem : MonoBehaviour
         if (transformAbove == null)
             return;
 
-        System.Collections.Generic.List<Transform> found = new System.Collections.Generic.List<Transform>();
+        List<Transform> found = new List<Transform>();
         for (int i = 0; i < transformAbove.childCount; i++)
         {
             Transform child = transformAbove.GetChild(i);
@@ -175,18 +185,23 @@ public class BallDropSystem : MonoBehaviour
 
     void SpawnBall(float fallSpeed)
     {
-        if (!spawning || spawnPoints == null || spawnPoints.Length == 0 || leftBallTemplate == null || rightBallTemplate == null)
+        if (!spawning || spawnPoints == null || spawnPoints.Length == 0 || ballTemplates.Count == 0)
             return;
 
         int tier = TemporaryEasyOnly ? 0 : spawnedBalls / ballsPerLevel;
         if (tier > 2)
             tier = 2;
 
-        int randomPoint = Random.Range(0, spawnPoints.Length);
-        bool forLeftHand = Random.value < 0.5f;
-        GameObject template = forLeftHand ? leftBallTemplate : rightBallTemplate;
+        GameObject template = ballTemplates[Random.Range(0, ballTemplates.Count)];
+        if (assign != null)
+            assign.ShowUpcomingBall(template);
 
-        SpawnWrapped(template, forLeftHand, tier, spawnPoints[randomPoint].position, fallSpeed);
+        int randomPoint = Random.Range(0, spawnPoints.Length);
+        bool forNdhLeft = ProfileManager.IsNonDominantLeft();
+        if (BallDropRound.Instance != null)
+            forNdhLeft = BallDropRound.Instance.nonDominantIsLeft;
+
+        SpawnWrapped(template, forNdhLeft, tier, spawnPoints[randomPoint].position, fallSpeed);
         spawnedBalls++;
 
         if (BallDropRound.Instance != null)

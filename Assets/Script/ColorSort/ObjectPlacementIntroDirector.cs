@@ -23,7 +23,7 @@ public class ObjectPlacementIntroDirector : MonoBehaviour
         "Welcome to the object sorting station. In this activity, you will pick up a variety of items and place them into their corresponding colored boxes. This task focuses on controlled object handling, visual sorting, and movement coordination using your non-dominant hand.";
 
     const string WelcomeTraining =
-        "Now, let us begin your non-dominant hand training. Check the item's category and the corresponding box color. Use the controller button indicated on the instruction prompt to pick up the item, move it to the correct box, and release it inside.";
+        "Now, let us begin your non-dominant hand training. Check the item's category and the corresponding box color. Use grab on your non-dominant controller to pick up the item, move it to the correct box, and release it inside.";
 
     static ObjectPlacementIntroDirector instance;
 
