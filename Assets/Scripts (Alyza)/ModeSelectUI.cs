@@ -87,7 +87,7 @@ public class ModeSelectUI : MonoBehaviour
 
     void OpenChecked(string sceneName)
     {
-        ScoringChecker.Ensure().TryOpenModule(sceneName);
+        SceneManager.LoadScene(sceneName);
     }
 
     void WireButtons()

@@ -213,7 +213,7 @@ public class ColorSortRound : MonoBehaviour, IColorSortHost
         if (running || countingDown)
             return;
 
-        ScoringChecker.Ensure().TryContinue(BeginFromStartAfterCheck);
+        BeginFromStartAfterCheck();
     }
 
     void BeginFromStartAfterCheck()
@@ -463,26 +463,11 @@ public class ColorSortRound : MonoBehaviour, IColorSortHost
 
     ColorSortReport BuildReport()
     {
-        int weak = nonDominantIsLeft ? 0 : 1;
-        int strong = nonDominantIsLeft ? 1 : 0;
         ColorSortReport report = new ColorSortReport();
-        report.setsCleared = greatSets;
-        report.setTotal = SetTotal;
-        report.nonDominantHand = nonDominantIsLeft ? "Left" : "Right";
         report.accuracy = placedTotal == 0 ? 0f : placedCorrect * 100f / placedTotal;
-        report.nonDominantCorrect = correctByColor[weak];
-        report.nonDominantShown = shownByColor[weak];
-        report.dominantCorrect = correctByColor[strong];
-        report.dominantShown = shownByColor[strong];
-        report.bothCorrect = correctByColor[2];
-        report.bothShown = shownByColor[2];
-        report.timeAdded = timeAdded;
-        report.timeUsed = Mathf.Max(0, Mathf.RoundToInt(elapsed));
-        report.timeLeft = Mathf.Max(0, Mathf.RoundToInt(timeRemaining));
-        report.easyCleared = easyGreat;
-        report.moderateCleared = moderateGreat;
-        report.hardCleared = hardGreat;
-        report.totalScore = score;
+        report.completionTime = Mathf.Max(0, Mathf.RoundToInt(elapsed));
+        report.correct = placedCorrect;
+        report.incorrect = Mathf.Max(0, placedTotal - placedCorrect);
         return report;
     }
 

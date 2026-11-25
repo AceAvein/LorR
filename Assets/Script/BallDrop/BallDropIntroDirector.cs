@@ -315,7 +315,7 @@ public class BallDropIntroDirector : MonoBehaviour
             rivera.SetTalking(true);
         }
 
-        yield return ShowGuide("Balls drop from the overhead dispensers — same as training.\nPole Screen shows Left / Right hand assignments.", beatPause);
+        yield return ShowGuide("Balls drop from the overhead dispensers — same as training.\nPole Screen shows the next ball for your non-dominant hand.", beatPause);
         StopRiveraTalking();
         if (rivera != null)
             rivera.PlayObserve();
@@ -948,28 +948,20 @@ public class BallDropIntroDirector : MonoBehaviour
         if (assign == null)
             return;
 
-        // Deterministic icons for demo: left/right templates' sprites if available.
-        if (assign.leftHandImage != null && assign.sportsBalls != null)
-        {
-            Sprite leftIcon = FindIcon(assign, leftBallTemplateName);
-            if (leftIcon != null)
-            {
-                assign.leftHandImage.sprite = leftIcon;
-                assign.leftHandImage.preserveAspect = true;
-                assign.leftHandImage.enabled = true;
-            }
-        }
+        // Single NDH preview: show the upcoming demo ball type.
+        Image preview = assign.nonDominantHandImage != null ? assign.nonDominantHandImage : assign.leftHandImage;
+        if (preview == null || assign.sportsBalls == null)
+            return;
 
-        if (assign.rightHandImage != null && assign.sportsBalls != null)
-        {
-            Sprite rightIcon = FindIcon(assign, rightBallTemplateName);
-            if (rightIcon != null)
-            {
-                assign.rightHandImage.sprite = rightIcon;
-                assign.rightHandImage.preserveAspect = true;
-                assign.rightHandImage.enabled = true;
-            }
-        }
+        Sprite icon = FindIcon(assign, leftBallTemplateName);
+        if (icon == null)
+            icon = FindIcon(assign, rightBallTemplateName);
+        if (icon == null)
+            return;
+
+        preview.sprite = icon;
+        preview.preserveAspect = true;
+        preview.enabled = true;
     }
 
     static Sprite FindIcon(BallAssignController assign, string ballName)

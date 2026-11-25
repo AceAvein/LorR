@@ -232,6 +232,18 @@ public class ProfileManager : MonoBehaviour
         return true;
     }
 
+    /// <summary>Profile non-dominant hand is the only training hand for all modules.</summary>
+    public static bool IsNonDominantLeft()
+    {
+        TryGetNonDominantLeft(out bool left);
+        return left;
+    }
+
+    public static bool MatchesNonDominantHand(bool interactorIsLeft)
+    {
+        return interactorIsLeft == IsNonDominantLeft();
+    }
+
     void RemoveInvalidProfiles()
     {
         for (int i = Profiles.Count - 1; i >= 0; i--)

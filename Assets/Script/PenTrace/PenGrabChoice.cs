@@ -191,6 +191,14 @@ public class PenGrabChoice : MonoBehaviour
         }
 
         bool rightHand = IsRightHand(args.interactorObject);
+        bool grabbedLeft = !rightHand;
+        if (!ProfileManager.MatchesNonDominantHand(grabbedLeft))
+        {
+            pendingRelease = true;
+            pendingInteractor = args.interactorObject;
+            return;
+        }
+
         PenSelect select = FindFirstObjectByType<PenSelect>(FindObjectsInactive.Include);
         if (select == null)
         {

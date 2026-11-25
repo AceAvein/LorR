@@ -1,18 +1,15 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 /// <summary>
 /// Phase I grocery: rides left belt at FlowMark speed, stops at stopper,
-/// Fruit=Grip→Yellow, Vegetable=Trigger→Red. Settles visible inside boxes.
+/// Fruit→Yellow / Vegetable→Red. Grab with profile non-dominant hand only.
 /// </summary>
 [DisallowMultipleComponent]
 public class ObjectPlacementGroceryItem : MonoBehaviour
 {
-    const float InputThreshold = 0.45f;
-
     public string ItemId { get; private set; }
     public ObjectPlacementGroceryKind Kind { get; private set; }
     public bool Resolved { get; private set; }
@@ -31,10 +28,6 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
     bool grabWired;
     bool pendingReject;
     IXRSelectInteractor pendingInteractor;
-    InputAction leftGrip;
-    InputAction rightGrip;
-    InputAction leftTrigger;
-    InputAction rightTrigger;
 
     public void Configure(string id, ObjectPlacementGroceryKind kind)
     {
@@ -83,16 +76,6 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         beltSpeed = speed;
     }
 
-    void OnEnable()
-    {
-        EnsureInput();
-    }
-
-    void OnDisable()
-    {
-        DisposeInput();
-    }
-
     void OnDestroy()
     {
         if (grab != null && grabWired)
@@ -100,8 +83,6 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
             grab.selectEntered.RemoveListener(OnGrabbed);
             grab.selectExited.RemoveListener(OnReleased);
         }
-
-        DisposeInput();
     }
 
     void EnsurePhysics()
@@ -174,39 +155,10 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         }
     }
 
-    void EnsureInput()
-    {
-        if (leftGrip != null)
-            return;
-
-        leftGrip = new InputAction(type: InputActionType.Value, binding: "<XRController>{LeftHand}/grip");
-        rightGrip = new InputAction(type: InputActionType.Value, binding: "<XRController>{RightHand}/grip");
-        leftTrigger = new InputAction(type: InputActionType.Value, binding: "<XRController>{LeftHand}/trigger");
-        rightTrigger = new InputAction(type: InputActionType.Value, binding: "<XRController>{RightHand}/trigger");
-        leftGrip.Enable();
-        rightGrip.Enable();
-        leftTrigger.Enable();
-        rightTrigger.Enable();
-    }
-
-    void DisposeInput()
-    {
-        leftGrip?.Dispose();
-        rightGrip?.Dispose();
-        leftTrigger?.Dispose();
-        rightTrigger?.Dispose();
-        leftGrip = null;
-        rightGrip = null;
-        leftTrigger = null;
-        rightTrigger = null;
-    }
-
     void Update()
     {
         if (Resolved || GamePauseMenu.IsFrozen)
             return;
-
-        TryTriggerSelectWhileHovered();
 
         if (IsHeld || beltRoot == null)
             return;
@@ -368,36 +320,6 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         }
     }
 
-    void TryTriggerSelectWhileHovered()
-    {
-        if (Kind != ObjectPlacementGroceryKind.Vegetable || grab == null || grab.isSelected)
-            return;
-
-        if (grab.interactorsHovering == null || grab.interactorsHovering.Count == 0)
-            return;
-
-        for (int i = 0; i < grab.interactorsHovering.Count; i++)
-        {
-            IXRHoverInteractor hover = grab.interactorsHovering[i];
-            if (!(hover is IXRSelectInteractor selectInteractor))
-                continue;
-
-            // Never promote a ray / far hover into a grab.
-            if (!ObjectPlacementHandOnlyFilter.AllowsHandGrab(selectInteractor, grab))
-                continue;
-
-            bool left = IsLeftHand(selectInteractor);
-            float trigger = ReadTrigger(left);
-            float grip = ReadGrip(left);
-            if (trigger < InputThreshold || trigger < grip)
-                continue;
-
-            if (grab.interactionManager != null && !grab.isSelected)
-                grab.interactionManager.SelectEnter(selectInteractor, (IXRSelectInteractable)grab);
-            break;
-        }
-    }
-
     void OnGrabbed(SelectEnterEventArgs args)
     {
         if (Resolved || GamePauseMenu.IsFrozen)
@@ -415,16 +337,7 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         }
 
         bool left = IsLeftHand(args.interactorObject);
-        float grip = ReadGrip(left);
-        float trigger = ReadTrigger(left);
-
-        bool ok;
-        if (Kind == ObjectPlacementGroceryKind.Fruit)
-            ok = grip >= InputThreshold && grip >= trigger;
-        else
-            ok = trigger >= InputThreshold && trigger >= grip;
-
-        if (!ok)
+        if (!ProfileManager.MatchesNonDominantHand(left))
         {
             pendingReject = true;
             pendingInteractor = args.interactorObject;
@@ -546,6 +459,14 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         if (interactor == null)
             return true;
 
+        if (interactor is IXRSelectInteractor select)
+        {
+            if (select.handedness == InteractorHandedness.Left)
+                return true;
+            if (select.handedness == InteractorHandedness.Right)
+                return false;
+        }
+
         Transform t = interactor.transform;
         while (t != null)
         {
@@ -558,19 +479,5 @@ public class ObjectPlacementGroceryItem : MonoBehaviour
         }
 
         return true;
-    }
-
-    float ReadGrip(bool left)
-    {
-        EnsureInput();
-        InputAction action = left ? leftGrip : rightGrip;
-        return action != null ? action.ReadValue<float>() : 0f;
-    }
-
-    float ReadTrigger(bool left)
-    {
-        EnsureInput();
-        InputAction action = left ? leftTrigger : rightTrigger;
-        return action != null ? action.ReadValue<float>() : 0f;
     }
 }

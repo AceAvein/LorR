@@ -94,6 +94,19 @@ public static class BallDropIntroSceneSetupBuilder
         setup.missEnd = EnsureAnchor(anchors, "MissEnd",
             focus + viewDir * 0.95f + Vector3.up * -0.85f);
 
+        // Same default as BallDropWalk.stancePosition — move in Scene View to retune Start snap.
+        Vector3 stancePos = new Vector3(-0.7199211f, 0.0399997f, 1.869362f);
+        Transform stance = root.transform.Find(BallDropWalk.StanceMarkerName);
+        if (stance == null)
+        {
+            GameObject stanceGo = new GameObject(BallDropWalk.StanceMarkerName);
+            stanceGo.transform.SetParent(root.transform, false);
+            stance = stanceGo.transform;
+            stance.SetPositionAndRotation(stancePos, Quaternion.identity);
+        }
+
+        setup.trainingStanceMarker = stance;
+
         BuildDialogueUi(root, setup);
 
         EditorUtility.SetDirty(setup);
@@ -107,6 +120,7 @@ public static class BallDropIntroSceneSetupBuilder
             "Ball Drop Intro",
             "Created/refreshed IntroCutsceneControls in Ball Drop.\n\n" +
             "• Move/rotate IntroShots/* (PoleOverview / LeftCatch / RightCatch / Miss)\n" +
+            "• Move TrainingStanceMarker — where Start teleports the player\n" +
             "• Adjust DemoAnchors for spawn/catch/miss points\n" +
             "• Edit IntroEffectsCanvas/GuidePanel for subtitle layout\n" +
             "Keep Shot_PoleOverview as the stable comfort framing.",

@@ -69,7 +69,7 @@ public class PenSelect : MonoBehaviour
         if (!PenTraceIntroDirector.IsTrainingUnlocked)
             return;
 
-        ScoringChecker.Ensure().TryContinue(OpenAfterCheck);
+        OpenAfterCheck();
     }
 
     public void EquipGuidedPencil(bool rightHand)
@@ -139,8 +139,9 @@ public class PenSelect : MonoBehaviour
         if (!PenTraceIntroDirector.IsTrainingUnlocked)
             return false;
 
-        // Switching pens must use the other hand.
-        if (hasPen && useRightHand == rightHand)
+        // Pens may only be equipped with the profile non-dominant hand.
+        bool grabbedLeft = !rightHand;
+        if (!ProfileManager.MatchesNonDominantHand(grabbedLeft))
             return false;
 
         if (hasPen && equippedKind != kind)

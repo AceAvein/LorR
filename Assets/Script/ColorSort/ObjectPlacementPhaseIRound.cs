@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 /// <summary>
 /// Object Placement Phase I (bible): 3×10 fruits/veg from left conveyor.
-/// Yellow + Red boxes only. Fruit=Grip→Yellow, Veg=Trigger→Red.
+/// Yellow + Red boxes only. Fruit→Yellow, Veg→Red. NDH grab only.
 /// Items stay in boxes across all 3 sets. After set 3, two-hand-carry boxes
 /// onto the facing conveyor to finish Phase I (storyboard).
 /// </summary>
@@ -69,6 +69,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     int boxesDelivered;
     float spawnTimer;
     float wrongControlFlashUntil;
+    float roundStartedAt;
 
     public bool BeltIsRunning => conveyor != null && conveyor.IsRunning;
     public float BeltFlowSpeed => conveyor != null ? conveyor.BeltFlowSpeed : 0.38f;
@@ -489,6 +490,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
         placedCorrect = 0;
         boxesDelivered = 0;
         boxDeliveryPhase = false;
+        roundStartedAt = Time.time;
         running = true;
         ClearPlacedInBoxes();
         RefillDecks();
@@ -606,6 +608,8 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
             return -1;
 
         beltQueue.Add(item);
+        if (beltQueue.Count == 1 && Time.time > wrongControlFlashUntil)
+            station.SetScreenText("GRAB · NON-DOMINANT HAND");
         return beltQueue.Count - 1;
     }
 
@@ -725,7 +729,7 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
     public void OnWrongControl(ObjectPlacementGroceryItem item)
     {
         wrongControlFlashUntil = Time.time + 0.85f;
-        station.SetScreenText(item != null && item.Kind == ObjectPlacementGroceryKind.Fruit ? "USE GRIP" : "USE TRIGGER");
+        station.SetScreenText("USE GRAB · NON-DOMINANT HAND");
     }
 
     public void RequestScoreCheck(ObjectPlacementGroceryItem item)
@@ -963,14 +967,10 @@ public class ObjectPlacementPhaseIRound : MonoBehaviour
 
         float accuracy = placedTotal > 0 ? (100f * placedCorrect / placedTotal) : 0f;
         ColorSortReport report = new ColorSortReport();
-        report.setsCleared = ObjectPlacementGroceryCatalog.PhaseISetCount;
-        report.setTotal = ObjectPlacementGroceryCatalog.PhaseISetCount;
-        report.nonDominantHand = "Phase I";
         report.accuracy = accuracy;
-        report.bothCorrect = placedCorrect;
-        report.bothShown = placedTotal;
-        report.easyCleared = placedCorrect;
-        report.totalScore = placedCorrect * 10f;
+        report.completionTime = Mathf.Max(0, Mathf.RoundToInt(Time.time - roundStartedAt));
+        report.correct = placedCorrect;
+        report.incorrect = Mathf.Max(0, placedTotal - placedCorrect);
         results.Show(report);
     }
 

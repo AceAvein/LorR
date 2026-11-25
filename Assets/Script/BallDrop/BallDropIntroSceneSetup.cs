@@ -31,6 +31,10 @@ public class BallDropIntroSceneSetup : MonoBehaviour
     public Transform ballSpawnRight;
     public Transform missEnd;
 
+    [Header("Player Training Stance (move in Scene View — Start snap target)")]
+    [Tooltip("Empty named TrainingStanceMarker. BallDropWalk snaps XR Origin here when the round starts.")]
+    public Transform trainingStanceMarker;
+
     [Header("Cutscene Dialogue UI")]
     public Canvas effectsCanvas;
     public RectTransform guidePanel;
@@ -76,6 +80,18 @@ public class BallDropIntroSceneSetup : MonoBehaviour
         DrawShotGizmo(shotLeftCatch, Color.cyan, "Left");
         DrawShotGizmo(shotRightCatch, Color.yellow, "Right");
         DrawShotGizmo(shotMiss, Color.magenta, "Miss");
+        DrawStanceGizmo(trainingStanceMarker);
+    }
+
+    static void DrawStanceGizmo(Transform stance)
+    {
+        if (stance == null)
+            return;
+
+        Gizmos.color = new Color(0.2f, 1f, 0.45f, 0.95f);
+        Gizmos.DrawWireSphere(stance.position + Vector3.up * 0.05f, 0.18f);
+        Gizmos.DrawLine(stance.position, stance.position + Vector3.up * 1.6f);
+        Gizmos.DrawLine(stance.position + Vector3.up * 1.0f, stance.position + stance.forward * 0.45f + Vector3.up * 1.0f);
     }
 
     void DrawShotGizmo(Transform shot, Color color, string label)

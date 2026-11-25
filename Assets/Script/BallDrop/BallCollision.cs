@@ -87,15 +87,11 @@ public class BallCollision : MonoBehaviour
         if (counted || args.interactorObject == null)
             return;
 
-        bool isLeftHand = args.interactorObject.handedness == InteractorHandedness.Left;
-        bool isRightHand = args.interactorObject.handedness == InteractorHandedness.Right;
+        bool isLeftHand = IsLeftHand(args.interactorObject);
         DropBall identity = GetComponent<DropBall>();
 
-        bool correctHand;
-        if (identity != null)
-            correctHand = (identity.forLeftHand && isLeftHand) || (!identity.forLeftHand && isRightHand);
-        else
-            correctHand = (CompareTag("RedBall") && isLeftHand) || (CompareTag("BlueBall") && isRightHand);
+        // Profile non-dominant hand catches every ball (no left/right ball assignment).
+        bool correctHand = ProfileManager.MatchesNonDominantHand(isLeftHand);
 
         if (!correctHand)
         {
@@ -131,6 +127,30 @@ public class BallCollision : MonoBehaviour
 
         pendingDestroy = true;
         pendingInteractor = args.interactorObject;
+    }
+
+    static bool IsLeftHand(IXRSelectInteractor interactor)
+    {
+        if (interactor == null)
+            return true;
+
+        if (interactor.handedness == InteractorHandedness.Left)
+            return true;
+        if (interactor.handedness == InteractorHandedness.Right)
+            return false;
+
+        Transform current = interactor.transform;
+        while (current != null)
+        {
+            string name = current.name;
+            if (name.IndexOf("Left", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+            if (name.IndexOf("Right", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                return false;
+            current = current.parent;
+        }
+
+        return true;
     }
 
     void OnReleased(SelectExitEventArgs args)

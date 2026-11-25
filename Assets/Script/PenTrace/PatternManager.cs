@@ -30,6 +30,13 @@ public class PatternManager : MonoBehaviour
     const float StarReach = 0.045f;
     const int StarPool = 3;
     const float LetterStroke = 6.3f / 59f;
+    // TracingBoard is local-rotated -90° X; lift is applied by SnapPointsToPaperSurface.
+    const float GuideSurfaceLift = 0f;
+    const float PaperSurfaceLift = 0.01f;
+    const float GuideLineWidthEasy = 0.022f;
+    const float GuideLineWidthModerate = 0.016f;
+    const float GuideLineWidthHard = 0.012f;
+    static readonly Color GuideLineColor = new Color(0.2f, 0.85f, 0.35f, 1f);
 
     int currentPattern;
     LineRenderer generatedPath;
@@ -108,10 +115,12 @@ public class PatternManager : MonoBehaviour
 
         Recipe recipe = IntroRecipe(variant);
         FillRecipe(recipe);
-        generatedPath.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+        generatedPath.transform.localPosition = new Vector3(0f, GuideSurfaceLift, 0f);
+        StyleGeneratedGuide(GuideLineWidthEasy);
 
         PlaceIntroTracingAreaOnSet1();
         FitPointsToActivePaper();
+        SnapPointsToPaperSurface();
 
         generatedPath.gameObject.SetActive(true);
         generatedPath.positionCount = generatedPoints.Count;
@@ -165,9 +174,11 @@ public class PatternManager : MonoBehaviour
         switch (Mathf.Abs(variant) % 3)
         {
             case 1:
+                // Zigzag — used for wrong-path drift demo (2nd beat).
                 return new Recipe { kind = 1, count = 2, amp = 0.09f, span = 0.22f, passes = 1, stars = 0 };
             case 2:
-                return new Recipe { kind = 3, count = 2, amp = 0.08f, span = 0.22f, passes = 1, stars = 0 };
+                // Smooth hills for 3rd path — steps (kind 3) looked cut/sunken in cinema.
+                return new Recipe { kind = 4, count = 2, amp = 0.08f, span = 0.22f, passes = 1, stars = 0 };
             default:
                 return new Recipe { kind = 0, count = 2, amp = 0.09f, span = 0.22f, passes = 1, stars = 0 };
         }
@@ -202,7 +213,7 @@ public class PatternManager : MonoBehaviour
             endLabel.gameObject.SetActive(true);
         PlaceStars(3, true);
 
-        pathManager.guideWorldWidth = LetterThickness(startLabel);
+        pathManager.guideWorldWidth = GuideLineWidthEasy;
         pathManager.tracePath = generatedPath;
         pathManager.traceEnd = endLabel.transform;
         pathManager.ResetPattern();
@@ -321,27 +332,47 @@ public class PatternManager : MonoBehaviour
             patterns[i].SetActive(false);
 
         EnsureGeneratedGuide();
-        generatedPath.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+        generatedPath.transform.localPosition = new Vector3(0f, GuideSurfaceLift, 0f);
         Recipe recipe = DrawRecipe(newPlay);
+        int tier = CurrentTier();
+        float guideWidth = GuideWidthForTier(tier);
+        StyleGeneratedGuide(guideWidth);
         FillRecipe(recipe);
 
         // Place on paper first so fit uses the correct board transform.
         PlaceOnCurrentSet();
         FitPointsToActivePaper();
+        SnapPointsToPaperSurface();
 
+        // HideIntroDemoPath disables this — must re-enable for live training.
+        generatedPath.gameObject.SetActive(true);
         generatedPath.positionCount = generatedPoints.Count;
         generatedPath.SetPositions(generatedPoints.ToArray());
 
         PlaceLabel(startLabel, 0);
         PlaceLabel(endLabel, generatedPoints.Count - 1);
+        if (startLabel != null)
+            startLabel.gameObject.SetActive(true);
+        if (endLabel != null)
+            endLabel.gameObject.SetActive(true);
         PlaceStars(recipe.stars, false);
 
-        pathManager.guideWorldWidth = LetterThickness(startLabel);
+        // Tier-scaled width (Easy thicker, Hard thinner).
+        pathManager.guideWorldWidth = guideWidth;
         pathManager.tracePath = generatedPath;
         pathManager.traceEnd = endLabel.transform;
         pathManager.ResetPattern();
         RefreshTracingHud();
-        AnnounceTier(CurrentTier());
+        AnnounceTier(tier);
+    }
+
+    static float GuideWidthForTier(int tier)
+    {
+        if (tier <= 0)
+            return GuideLineWidthEasy;
+        if (tier == 1)
+            return GuideLineWidthModerate;
+        return GuideLineWidthHard;
     }
 
     void PlaceOnCurrentSet()
@@ -354,12 +385,9 @@ public class PatternManager : MonoBehaviour
             return;
 
         countdown.PlaceTracingArea();
-        if (countdown.tracingArea != null && !countdown.tracingArea.activeSelf)
-        {
-            TracingTimer timer = FindFirstObjectByType<TracingTimer>(FindObjectsInactive.Include);
-            if (timer != null && timer.IsRunning)
-                countdown.tracingArea.SetActive(true);
-        }
+        // Keep area active so GeneratedGuide (child) is visible after intro hide.
+        if (countdown.tracingArea != null)
+            countdown.tracingArea.SetActive(true);
     }
 
     void AnnounceTier(int tier)
@@ -387,27 +415,60 @@ public class PatternManager : MonoBehaviour
         Transform root = patterns[0].transform.parent;
         GameObject guide = new GameObject("GeneratedGuide");
         guide.transform.SetParent(root, false);
-        guide.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+        guide.transform.localPosition = new Vector3(0f, GuideSurfaceLift, 0f);
         guide.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
         guide.transform.localScale = Vector3.one;
 
         generatedPath = guide.AddComponent<LineRenderer>();
-        generatedPath.useWorldSpace = false;
-        generatedPath.alignment = LineAlignment.View;
-        generatedPath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
-        generatedPath.widthMultiplier = 0.012f;
-        generatedPath.sortingOrder = 0;
-        generatedPath.numCapVertices = 8;
-        generatedPath.numCornerVertices = 4;
-        generatedPath.textureMode = LineTextureMode.Stretch;
-        generatedPath.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        generatedPath.receiveShadows = false;
+        StyleGeneratedGuide(GuideLineWidthEasy);
 
         startLabel = CreateLabel("Start");
         endLabel = CreateLabel("End");
 
         for (int i = 0; i < StarPool; i++)
             stars.Add(CreateStar());
+    }
+
+    void StyleGeneratedGuide(float width)
+    {
+        if (generatedPath == null)
+            return;
+
+        generatedPath.useWorldSpace = false;
+        generatedPath.alignment = LineAlignment.View;
+        generatedPath.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
+        generatedPath.widthMultiplier = Mathf.Max(0.01f, width);
+        generatedPath.sortingOrder = 20;
+        generatedPath.numCapVertices = 8;
+        generatedPath.numCornerVertices = 4;
+        generatedPath.textureMode = LineTextureMode.Stretch;
+        generatedPath.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        generatedPath.receiveShadows = false;
+
+        // Material must stay white — PathManager multiplies gradient colors with mat.color.
+        Shader shader = Shader.Find("Sprites/Default");
+        if (shader != null)
+        {
+            Material mat = new Material(shader);
+            mat.color = Color.white;
+            generatedPath.material = mat;
+        }
+
+        generatedPath.startColor = GuideLineColor;
+        generatedPath.endColor = GuideLineColor;
+        Gradient solidGreen = new Gradient();
+        solidGreen.SetKeys(
+            new[]
+            {
+                new GradientColorKey(GuideLineColor, 0f),
+                new GradientColorKey(GuideLineColor, 1f)
+            },
+            new[]
+            {
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(1f, 1f)
+            });
+        generatedPath.colorGradient = solidGreen;
     }
 
     static TextMeshPro CreateLabel(string word)
@@ -599,7 +660,8 @@ public class PatternManager : MonoBehaviour
         }
 
         // Unity cube paper: local ±0.5 scaled by lossyScale on X/Z.
-        const float FitMargin = 0.82f;
+        // Slightly roomier margin so Mod/Hard multi-pass paths stay fully on Set2/Set3.
+        const float FitMargin = 0.88f;
         float limitA = Mathf.Abs(paper.lossyScale.x) * 0.5f * FitMargin;
         float limitB = Mathf.Abs(paper.lossyScale.z) * 0.5f * FitMargin;
         if (limitA < 0.01f || limitB < 0.01f)
@@ -613,6 +675,32 @@ public class PatternManager : MonoBehaviour
 
         for (int i = 0; i < generatedPoints.Count; i++)
             generatedPoints[i] *= scale;
+    }
+
+    /// <summary>
+    /// Project every guide point onto the active paper plane (+ tiny lift) so Set1/2/3
+    /// desk angles cannot bury segments inside the board mesh.
+    /// </summary>
+    void SnapPointsToPaperSurface()
+    {
+        if (generatedPath == null || generatedPoints.Count == 0)
+            return;
+
+        Transform paper = PenTraceBoards.FindSet(CurrentSetIndex);
+        if (paper == null)
+            return;
+
+        Transform guide = generatedPath.transform;
+        Vector3 normal = PenTraceBoards.BoardNormal(paper);
+        Vector3 center = PenTraceBoards.BoardCenter(paper);
+
+        for (int i = 0; i < generatedPoints.Count; i++)
+        {
+            Vector3 world = guide.TransformPoint(generatedPoints[i]);
+            Vector3 onPlane = world - normal * Vector3.Dot(world - center, normal);
+            Vector3 lifted = onPlane + normal * PaperSurfaceLift;
+            generatedPoints[i] = guide.InverseTransformPoint(lifted);
+        }
     }
 
     float LetterThickness(TextMeshPro label)

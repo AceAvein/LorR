@@ -17,6 +17,8 @@ public class ColorSortWalk : MonoBehaviour
     [SerializeField] float stickDeadzone = 0.15f;
     [SerializeField] float snapTurnDegrees = 45f;
     [SerializeField] float snapTurnCooldown = 0.35f;
+    [Tooltip("Keep low so crates / conveyor legs cannot be stepped onto.")]
+    [SerializeField] float maxStepOffset = 0.12f;
 
     XROrigin xrOrigin;
     CharacterController character;
@@ -25,6 +27,7 @@ public class ColorSortWalk : MonoBehaviour
     InputAction rightStick;
     float verticalVelocity;
     float nextSnapTime;
+    bool noStepPropsApplied;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void AutoStart()
@@ -58,6 +61,7 @@ public class ColorSortWalk : MonoBehaviour
     void Awake()
     {
         ResolveRig();
+        ApplyNoStepProps();
         BindSticks();
         MuteXriMoveConflicts();
     }
@@ -186,8 +190,87 @@ public class ColorSortWalk : MonoBehaviour
                 character = xrOrigin.GetComponentInChildren<CharacterController>();
         }
 
-        if (character != null && !character.enabled)
-            character.enabled = true;
+        if (character != null)
+        {
+            if (!character.enabled)
+                character.enabled = true;
+            // Default XR prefab uses 0.5 — that climbs onto boxes / Leg_BL.
+            if (character.stepOffset > maxStepOffset)
+                character.stepOffset = maxStepOffset;
+        }
+
+        if (!noStepPropsApplied)
+            ApplyNoStepProps();
+    }
+
+    /// <summary>
+    /// Boxes stay tangible for grab/scoring via dedicated volumes; root colliders become
+    /// triggers so CharacterController cannot step onto them. Oversized Leg_* box
+    /// colliders on conveyors are disabled (visual posts remain).
+    /// </summary>
+    void ApplyNoStepProps()
+    {
+        noStepPropsApplied = true;
+
+        MakeNamedBoxRootsTriggers("Yellow Box");
+        MakeNamedBoxRootsTriggers("Red Box");
+        MakeNamedBoxRootsTriggers("Green Box");
+        MakeNamedBoxRootsTriggers("Blue Box");
+        MakeNamedBoxRootsTriggers("Brown Box");
+
+        ObjectPlacementStation station = FindFirstObjectByType<ObjectPlacementStation>(FindObjectsInactive.Exclude);
+        if (station == null)
+            return;
+
+        DisableLegClimbColliders(station.conveyor);
+        DisableLegClimbColliders(station.conveyorLeft);
+    }
+
+    static void MakeNamedBoxRootsTriggers(string objectName)
+    {
+        Transform[] all = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < all.Length; i++)
+        {
+            Transform t = all[i];
+            if (t == null || t.name != objectName)
+                continue;
+
+            // Skip tiny decorative mesh props (NPC / shelf models).
+            if (t.localScale.x < 0.05f && t.localScale.y < 0.05f && t.localScale.z < 0.05f)
+                continue;
+
+            Collider[] cols = t.GetComponents<Collider>();
+            for (int c = 0; c < cols.Length; c++)
+            {
+                if (cols[c] != null)
+                    cols[c].isTrigger = true;
+            }
+        }
+    }
+
+    static void DisableLegClimbColliders(Transform conveyorRoot)
+    {
+        if (conveyorRoot == null)
+            return;
+
+        for (int i = 0; i < conveyorRoot.childCount; i++)
+        {
+            Transform child = conveyorRoot.GetChild(i);
+            if (child == null)
+                continue;
+
+            string n = child.name;
+            if (n != "Leg_BL" && n != "Leg_BR" && n != "Leg_FL" && n != "Leg_FR" &&
+                n != "Leg_TunnelF" && n != "Leg_TunnelB")
+                continue;
+
+            Collider[] cols = child.GetComponents<Collider>();
+            for (int c = 0; c < cols.Length; c++)
+            {
+                if (cols[c] != null)
+                    cols[c].enabled = false;
+            }
+        }
     }
 
     void BindSticks()

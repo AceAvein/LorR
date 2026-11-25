@@ -151,7 +151,7 @@ public class GuidedReactionLightLesson : MonoBehaviour
 
     public void StartLesson()
     {
-        ScoringChecker.Ensure().TryContinue(StartLessonAfterCheck);
+        StartLessonAfterCheck();
     }
 
     void StartLessonAfterCheck()
