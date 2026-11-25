@@ -6,6 +6,7 @@ using UnityEngine;
 [Serializable]
 public class UserProfile
 {
+    public string id;
     public string name;
     public string imagePath;
     public int avatarIndex;
@@ -40,6 +41,23 @@ public class ProfileManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
         LoadProfiles();
+        FirebaseBootstrap.EnsureExists();
+        FirebaseBootstrap.OnReady += OnFirebaseReady;
+        if (FirebaseBootstrap.Ready)
+            OnFirebaseReady();
+    }
+
+    void OnDestroy()
+    {
+        FirebaseBootstrap.OnReady -= OnFirebaseReady;
+        if (Instance == this)
+            Instance = null;
+    }
+
+    void OnFirebaseReady()
+    {
+        EnsureAllProfileIds(saveIfChanged: true);
+        FirebaseProfileSync.SyncAll(Profiles, CurrentProfile);
     }
 
     public void LoadProfiles()
@@ -66,11 +84,14 @@ public class ProfileManager : MonoBehaviour
         }
 
         RemoveInvalidProfiles();
+        EnsureAllProfileIds(saveIfChanged: false);
         RestoreCurrentProfile();
     }
 
     public void SaveProfiles()
     {
+        EnsureAllProfileIds(saveIfChanged: false);
+
         ProfileListWrapper wrapper = new ProfileListWrapper
         {
             profiles = Profiles ?? new List<UserProfile>()
@@ -163,6 +184,7 @@ public class ProfileManager : MonoBehaviour
 
         UserProfile profile = new UserProfile
         {
+            id = NewProfileId(),
             name = playerName,
             imagePath = imagePath ?? string.Empty,
             avatarIndex = Mathf.Max(0, avatarIndex),
@@ -171,6 +193,7 @@ public class ProfileManager : MonoBehaviour
 
         Profiles.Add(profile);
         SaveProfiles();
+        FirebaseProfileSync.UpsertProfile(profile, isNew: true);
         return true;
     }
 
@@ -183,6 +206,8 @@ public class ProfileManager : MonoBehaviour
         if (stored == null)
             return;
 
+        string deletedId = stored.id;
+
         Profiles.Remove(stored);
         if (CurrentProfile == stored ||
             (CurrentProfile != null &&
@@ -193,6 +218,8 @@ public class ProfileManager : MonoBehaviour
         }
 
         SaveProfiles();
+        FirebaseProfileSync.DeleteProfile(deletedId);
+        FirebaseProfileSync.SetCurrentProfile(CurrentProfile != null ? CurrentProfile.id : null);
     }
 
     public void SelectProfile(UserProfile profile)
@@ -201,12 +228,29 @@ public class ProfileManager : MonoBehaviour
         {
             CurrentProfile = null;
             SaveProfiles();
+            FirebaseProfileSync.SetCurrentProfile(null);
             return;
         }
 
         UserProfile stored = Profiles.Contains(profile) ? profile : FindProfile(profile.name);
         CurrentProfile = stored;
         SaveProfiles();
+        if (stored != null)
+            FirebaseProfileSync.SetCurrentProfile(stored.id);
+    }
+
+    public void UpdateProfile(UserProfile profile)
+    {
+        if (profile == null)
+            return;
+
+        UserProfile stored = Profiles.Contains(profile) ? profile : FindProfile(profile.name);
+        if (stored == null)
+            return;
+
+        EnsureProfileId(stored);
+        SaveProfiles();
+        FirebaseProfileSync.UpsertProfile(stored, isNew: false);
     }
 
     public int GetProfileCount()
@@ -267,5 +311,35 @@ public class ProfileManager : MonoBehaviour
             return;
 
         CurrentProfile = FindProfile(PlayerPrefs.GetString(CurrentKey));
+    }
+
+    void EnsureAllProfileIds(bool saveIfChanged)
+    {
+        bool changed = false;
+        for (int i = 0; i < Profiles.Count; i++)
+        {
+            if (EnsureProfileId(Profiles[i]))
+                changed = true;
+        }
+
+        if (changed && saveIfChanged)
+            SaveProfiles();
+    }
+
+    static bool EnsureProfileId(UserProfile profile)
+    {
+        if (profile == null)
+            return false;
+
+        if (!string.IsNullOrEmpty(profile.id))
+            return false;
+
+        profile.id = NewProfileId();
+        return true;
+    }
+
+    static string NewProfileId()
+    {
+        return Guid.NewGuid().ToString("N");
     }
 }
