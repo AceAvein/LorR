@@ -185,7 +185,7 @@ public class GuidedColorSortLesson : MonoBehaviour, IColorSortHost
 
     public void StartLesson()
     {
-        ScoringChecker.Ensure().TryContinue(StartLessonAfterCheck);
+        StartLessonAfterCheck();
     }
 
     void StartLessonAfterCheck()

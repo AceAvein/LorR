@@ -157,7 +157,7 @@ public class BallAssignController : MonoBehaviour
 
     public void StartFromObjective()
     {
-        ScoringChecker.Ensure().TryContinue(StartFromObjectiveAfterCheck);
+        StartFromObjectiveAfterCheck();
     }
 
     public void ShowHandSelect()
@@ -207,7 +207,7 @@ public class BallAssignController : MonoBehaviour
         if (!BallDropIntroDirector.IsTrainingUnlocked)
             return;
 
-        ScoringChecker.Ensure().TryContinue(StartGameAfterCheck);
+        StartGameAfterCheck();
     }
 
     /// <summary>
@@ -222,7 +222,7 @@ public class BallAssignController : MonoBehaviour
         if (!BallDropIntroDirector.IsTrainingUnlocked)
             return;
 
-        ScoringChecker.Ensure().TryContinue(StartFromPoleButtonAfterCheck);
+        StartFromPoleButtonAfterCheck();
     }
 
     void StartFromPoleButtonAfterCheck()

@@ -213,7 +213,7 @@ public class ColorSortRound : MonoBehaviour, IColorSortHost
         if (running || countingDown)
             return;
 
-        ScoringChecker.Ensure().TryContinue(BeginFromStartAfterCheck);
+        BeginFromStartAfterCheck();
     }
 
     void BeginFromStartAfterCheck()

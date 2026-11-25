@@ -69,7 +69,7 @@ public class PenSelect : MonoBehaviour
         if (!PenTraceIntroDirector.IsTrainingUnlocked)
             return;
 
-        ScoringChecker.Ensure().TryContinue(OpenAfterCheck);
+        OpenAfterCheck();
     }
 
     public void EquipGuidedPencil(bool rightHand)

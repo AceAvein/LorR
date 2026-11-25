@@ -134,7 +134,7 @@ public class GuidedPenTraceLesson : MonoBehaviour
 
     public void StartLesson()
     {
-        ScoringChecker.Ensure().TryContinue(StartLessonAfterCheck);
+        StartLessonAfterCheck();
     }
 
     void StartLessonAfterCheck()

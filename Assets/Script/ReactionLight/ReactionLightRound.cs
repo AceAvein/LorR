@@ -202,7 +202,7 @@ public class ReactionLightRound : MonoBehaviour
         if (!ReactionLightIntroDirector.IsTrainingUnlocked)
             return;
 
-        ScoringChecker.Ensure().TryContinue(StartFromWorldAfterCheck);
+        StartFromWorldAfterCheck();
     }
 
     void StartFromWorldAfterCheck()
