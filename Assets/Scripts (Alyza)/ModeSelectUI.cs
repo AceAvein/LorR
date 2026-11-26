@@ -5,7 +5,13 @@ using UnityEngine.UI;
 public class ModeSelectUI : MonoBehaviour
 {
     GameObject selectPanel;
+    GameObject phasePanel;
     string pendingMode;
+    bool pendingGuided;
+    Button[] phaseButtons;
+
+    static readonly Color LockedColor = new Color(0.45f, 0.5f, 0.52f, 1f);
+    static readonly Color OpenColor = new Color(0.2f, 0.55f, 0.58f, 1f);
 
     void Awake()
     {
@@ -13,7 +19,12 @@ public class ModeSelectUI : MonoBehaviour
         if (selectPanel != null)
             selectPanel.SetActive(false);
 
-        WireButtons();
+        phasePanel = FindNamed("Phases");
+        if (phasePanel != null)
+            phasePanel.SetActive(false);
+
+        WireModeButtons();
+        WirePhaseButtons();
     }
 
     public void OnModeSelected(string sceneName)
@@ -23,7 +34,16 @@ public class ModeSelectUI : MonoBehaviour
 
     public void OnBackClicked()
     {
+        if (phasePanel != null && phasePanel.activeSelf)
+        {
+            HidePhase();
+            if (selectPanel != null)
+                selectPanel.SetActive(true);
+            return;
+        }
+
         HideSelect();
+        HidePhase();
         SceneManager.LoadScene("Menu");
     }
 
@@ -57,7 +77,8 @@ public class ModeSelectUI : MonoBehaviour
         if (string.IsNullOrEmpty(pendingMode))
             return;
 
-        OpenChecked("Guided " + pendingMode);
+        pendingGuided = true;
+        ShowPhaseSelect();
     }
 
     public void OnSimulationClicked()
@@ -65,18 +86,99 @@ public class ModeSelectUI : MonoBehaviour
         if (string.IsNullOrEmpty(pendingMode))
             return;
 
-        OpenChecked(pendingMode);
+        pendingGuided = false;
+        ShowPhaseSelect();
     }
 
     void AskPath(string modeName)
     {
         pendingMode = modeName;
+        pendingGuided = false;
+
+        HidePhase();
         if (selectPanel == null)
             selectPanel = FindNamed("Select Guided or Simulation");
         if (selectPanel != null)
             selectPanel.SetActive(true);
         else
-            OpenChecked(modeName);
+            ShowPhaseSelect();
+    }
+
+    void ShowPhaseSelect()
+    {
+        HideSelect();
+
+        if (phasePanel == null)
+            phasePanel = FindNamed("Phases");
+
+        if (phasePanel == null)
+        {
+            // Fallback: no phase UI — launch Phase 1.
+            LaunchPhase(1);
+            return;
+        }
+
+        RefreshPhaseLocks();
+        phasePanel.SetActive(true);
+    }
+
+    void RefreshPhaseLocks()
+    {
+        string profileId = ProgressionService.CurrentProfileId();
+        string moduleId = ProgressionSessionContext.ModuleIdFromPendingScene(pendingMode);
+
+        for (int phase = 1; phase <= ProgressionConfig.PhaseCount; phase++)
+        {
+            Button button = FindPhaseButton(phase);
+            if (button == null)
+                continue;
+
+            bool unlocked = string.IsNullOrEmpty(profileId) || string.IsNullOrEmpty(moduleId)
+                ? phase == 1
+                : ProgressionService.IsPhaseUnlocked(profileId, moduleId, phase);
+
+            button.interactable = unlocked;
+            Image image = button.GetComponent<Image>();
+            if (image != null)
+                image.color = unlocked ? OpenColor : LockedColor;
+        }
+    }
+
+    void OnPhaseClicked(int phase)
+    {
+        string profileId = ProgressionService.CurrentProfileId();
+        string moduleId = ProgressionSessionContext.ModuleIdFromPendingScene(pendingMode);
+        string mode = pendingGuided ? ProgressionConfig.ModeGuided : ProgressionConfig.ModeUnguided;
+
+        if (!string.IsNullOrEmpty(profileId) && !string.IsNullOrEmpty(moduleId))
+        {
+            if (!ProgressionService.IsPhaseUnlocked(profileId, moduleId, phase))
+            {
+                Debug.LogWarning("[ModeSelect] Phase " + phase + " locked for " + moduleId);
+                return;
+            }
+
+            if (!pendingGuided &&
+                !ProgressionService.CanPlay(profileId, moduleId, phase, mode, out _, out string blockMessage))
+            {
+                Debug.LogWarning("[ModeSelect] " + blockMessage);
+                return;
+            }
+        }
+
+        LaunchPhase(phase);
+    }
+
+    void LaunchPhase(int phase)
+    {
+        string moduleId = ProgressionSessionContext.ModuleIdFromPendingScene(pendingMode);
+        string mode = pendingGuided ? ProgressionConfig.ModeGuided : ProgressionConfig.ModeUnguided;
+        ProgressionSessionContext.Set(moduleId, mode, phase);
+
+        string sceneName = pendingGuided ? ("Guided " + pendingMode) : pendingMode;
+        HideSelect();
+        HidePhase();
+        SceneManager.LoadScene(sceneName);
     }
 
     void HideSelect()
@@ -85,12 +187,13 @@ public class ModeSelectUI : MonoBehaviour
             selectPanel.SetActive(false);
     }
 
-    void OpenChecked(string sceneName)
+    void HidePhase()
     {
-        SceneManager.LoadScene(sceneName);
+        if (phasePanel != null)
+            phasePanel.SetActive(false);
     }
 
-    void WireButtons()
+    void WireModeButtons()
     {
         if (selectPanel == null)
             return;
@@ -100,10 +203,50 @@ public class ModeSelectUI : MonoBehaviour
         {
             string name = buttons[i].gameObject.name;
             if (name == "Guided")
+            {
+                buttons[i].onClick.RemoveListener(OnGuidedClicked);
                 buttons[i].onClick.AddListener(OnGuidedClicked);
+            }
             else if (name == "Simulation")
+            {
+                buttons[i].onClick.RemoveListener(OnSimulationClicked);
                 buttons[i].onClick.AddListener(OnSimulationClicked);
+            }
         }
+    }
+
+    void WirePhaseButtons()
+    {
+        if (phasePanel == null)
+            return;
+
+        phaseButtons = phasePanel.GetComponentsInChildren<Button>(true);
+        for (int phase = 1; phase <= ProgressionConfig.PhaseCount; phase++)
+        {
+            Button button = FindPhaseButton(phase);
+            if (button == null)
+                continue;
+
+            int captured = phase;
+            button.onClick.RemoveAllListeners();
+            button.onClick.AddListener(() => OnPhaseClicked(captured));
+        }
+    }
+
+    Button FindPhaseButton(int phase)
+    {
+        if (phasePanel == null)
+            return null;
+
+        string target = "Phase " + phase;
+        Button[] buttons = phasePanel.GetComponentsInChildren<Button>(true);
+        for (int i = 0; i < buttons.Length; i++)
+        {
+            if (buttons[i] != null && buttons[i].gameObject.name == target)
+                return buttons[i];
+        }
+
+        return null;
     }
 
     static GameObject FindNamed(string objectName)

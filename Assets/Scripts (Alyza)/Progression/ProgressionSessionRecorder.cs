@@ -13,8 +13,18 @@ public static class ProgressionSessionRecorder
         if (string.IsNullOrEmpty(profileId))
             return;
 
-        ModuleProgress module = ProgressionService.GetModule(profileId, moduleId);
-        int phase = module != null ? ProgressionConfig.ClampPhase(module.currentPhase) : 1;
+        // Prefer phase chosen on the Menu phase canvas; fall back to module currentPhase.
+        int phase = ProgressionSessionContext.SelectedPhase;
+        if (!string.IsNullOrEmpty(ProgressionSessionContext.SelectedModuleId) &&
+            ProgressionSessionContext.SelectedModuleId == moduleId)
+        {
+            phase = ProgressionConfig.ClampPhase(ProgressionSessionContext.SelectedPhase);
+        }
+        else
+        {
+            ModuleProgress module = ProgressionService.GetModule(profileId, moduleId);
+            phase = module != null ? ProgressionConfig.ClampPhase(module.currentPhase) : 1;
+        }
 
         string scene = SceneManager.GetActiveScene().name;
         string mode = ModuleScenes.IsGuided(scene)
