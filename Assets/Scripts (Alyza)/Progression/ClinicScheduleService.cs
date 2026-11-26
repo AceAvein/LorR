@@ -138,11 +138,27 @@ public static class ClinicScheduleService
         if (mod == null || week == null || week.playDates == null)
             return false;
 
+        // Each completed slot must have a credited Session day (may be later than early play-on-rest).
         for (int i = 0; i < week.playDates.Count; i++)
         {
-            string date = week.playDates[i];
-            ClinicDayPlan plan = ClinicScheduleUtil.FindDay(mod, date);
-            if (plan == null || plan.type != (int)ClinicDayPlanType.Session || plan.slot != i + 1)
+            int slot = i + 1;
+            bool found = false;
+            if (mod.days != null)
+            {
+                for (int d = 0; d < mod.days.Count; d++)
+                {
+                    ClinicDayPlan plan = mod.days[d];
+                    if (plan == null || plan.phase != week.phase)
+                        continue;
+                    if (plan.type == (int)ClinicDayPlanType.Session && plan.slot == slot)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found)
                 return true;
         }
 
@@ -292,6 +308,44 @@ public static class ClinicScheduleService
         }
 
         return changed;
+    }
+
+    /// <summary>
+    /// Wipe and reseed Phases 1–4 from startDate, then reconcile from progression playDates (SuperAdmin clear).
+    /// </summary>
+    public static ClinicScheduleState ResetAndSeedFullProgram(string profileId, string startDate)
+    {
+        if (string.IsNullOrEmpty(profileId))
+            return null;
+
+        if (string.IsNullOrEmpty(startDate))
+            startDate = ProgressionConfig.TodayManila();
+
+        var state = new ClinicScheduleState
+        {
+            profileId = profileId,
+            trainingStartDate = startDate,
+            schemaVersion = ClinicScheduleState.CurrentSchema,
+            days = new List<ClinicDayPlan>(),
+            modules = new List<ModuleClinicSchedule>()
+        };
+
+        for (int i = 0; i < ProgressionConfig.AllModules.Length; i++)
+        {
+            string moduleId = ProgressionConfig.AllModules[i];
+            state.modules.Add(new ModuleClinicSchedule
+            {
+                moduleId = moduleId,
+                trainingStartDate = startDate,
+                days = ClinicScheduleUtil.BuildFullProgram(startDate, moduleId)
+            });
+        }
+
+        ReconcileFromProgress(state);
+        Save(state);
+        FirebaseProfileSync.PushClinicSchedule(state);
+        Debug.Log("[ClinicSchedule] Reset full program from " + startDate + " for " + profileId);
+        return state;
     }
 
     public static ModuleClinicSchedule GetModuleSchedule(string profileId, string moduleId)

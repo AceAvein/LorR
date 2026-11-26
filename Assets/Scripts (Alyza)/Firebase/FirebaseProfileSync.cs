@@ -524,6 +524,142 @@ public static class FirebaseProfileSync
         return true;
     }
 
+    /// <summary>
+    /// Push complete module history (all phases + session slots with results) for SuperAdmin / restores.
+    /// </summary>
+    public static void PushFullProgressHistory(string profileId, ProfileProgressState state)
+    {
+        if (!CanWrite() || string.IsNullOrEmpty(profileId) || state == null || state.modules == null)
+            return;
+
+        var db = Db;
+        if (db == null)
+            return;
+
+        WriteBatch batch = db.StartBatch();
+        int ops = 0;
+        int dayWrites = 0;
+
+        void FlushIfNeeded()
+        {
+            if (ops < 400)
+                return;
+            batch.CommitAsync();
+            batch = db.StartBatch();
+            ops = 0;
+        }
+
+        for (int m = 0; m < state.modules.Count; m++)
+        {
+            ModuleProgress module = state.modules[m];
+            if (module == null || string.IsNullOrEmpty(module.moduleId))
+                continue;
+
+            DocumentReference moduleRef = db.Collection(UsersCollection)
+                .Document(profileId)
+                .Collection(ModulesCollection)
+                .Document(module.moduleId);
+
+            batch.Set(moduleRef, new Dictionary<string, object>
+            {
+                { "moduleId", module.moduleId },
+                { "unlockedThroughPhase", module.unlockedThroughPhase },
+                { "currentPhase", module.currentPhase },
+                { "currentWeekStart", module.currentWeekStart ?? string.Empty },
+                { "playDatesThisWeek", module.playDatesThisWeek ?? new List<string>() },
+                { "perfectClear", true },
+                { "updatedAt", FieldValue.ServerTimestamp }
+            }, SetOptions.MergeAll);
+            ops++;
+            FlushIfNeeded();
+
+            for (int phase = 1; phase <= ProgressionConfig.PhaseCount; phase++)
+            {
+                PhaseWeekProgress week = null;
+                if (module.phaseWeeks != null)
+                {
+                    for (int w = 0; w < module.phaseWeeks.Count; w++)
+                    {
+                        if (module.phaseWeeks[w] != null && module.phaseWeeks[w].phase == phase)
+                            week = module.phaseWeeks[w];
+                    }
+                }
+
+                DocumentReference phaseRef = moduleRef.Collection("phases").Document(phase.ToString());
+                batch.Set(phaseRef, new Dictionary<string, object>
+                {
+                    { "phase", phase },
+                    { "weekStart", week != null ? (week.weekStart ?? string.Empty) : string.Empty },
+                    { "playDates", week != null && week.playDates != null ? week.playDates : new List<string>() },
+                    { "weekEvaluated", week != null && week.weekEvaluated },
+                    { "weekPassed", week != null && week.weekPassed },
+                    { "averageUnguidedScore", week != null ? week.averageUnguidedScore : 0f },
+                    { "sessionSlots", ProgressionConfig.MaxPlayDaysPerWeek },
+                    { "updatedAt", FieldValue.ServerTimestamp }
+                }, SetOptions.MergeAll);
+                ops++;
+                FlushIfNeeded();
+
+                for (int slot = 1; slot <= ProgressionConfig.MaxPlayDaysPerWeek; slot++)
+                {
+                    DaySessionSave day = null;
+                    if (week != null && week.days != null && slot - 1 < week.days.Count)
+                        day = week.days[slot - 1];
+
+                    DocumentReference dayRef = phaseRef.Collection("days").Document("sessionSlot" + slot);
+                    if (day != null)
+                    {
+                        batch.Set(dayRef, new Dictionary<string, object>
+                        {
+                            { "placeholder", false },
+                            { "sessionSlot", slot },
+                            { "playedOn", day.playedOn ?? string.Empty },
+                            { "phase", day.phase },
+                            { "mode", day.mode ?? ProgressionConfig.ModeUnguided },
+                            { "primaryScore", day.primaryScore },
+                            { "passed", day.passed },
+                            { "accuracy", day.accuracy },
+                            { "completionTimeSec", day.completionTimeSec },
+                            { "averageReactionMs", day.averageReactionMs },
+                            { "avgDeviationMm", day.avgDeviationMm },
+                            { "maxDeviationMm", day.maxDeviationMm },
+                            { "interceptionRate", day.interceptionRate },
+                            { "correct", day.correct },
+                            { "incorrect", day.incorrect },
+                            { "missed", day.missed },
+                            { "success", day.success },
+                            { "fail", day.fail },
+                            { "patternsCompleted", day.patternsCompleted },
+                            { "patternTotal", day.patternTotal },
+                            { "metricsJson", day.metricsJson ?? "{}" },
+                            { "savedAt", FieldValue.ServerTimestamp }
+                        }, SetOptions.MergeAll);
+                        dayWrites++;
+                    }
+                    else
+                    {
+                        batch.Set(dayRef, BuildEmptyDayFields(phase, slot), SetOptions.MergeAll);
+                    }
+
+                    ops++;
+                    FlushIfNeeded();
+                }
+            }
+        }
+
+        if (ops > 0)
+        {
+            batch.CommitAsync().ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted)
+                    Debug.LogWarning("[Firebase] Full progress history push failed: " + task.Exception);
+                else
+                    Debug.Log("[Firebase] Full progress history pushed for " + profileId +
+                              " (" + dayWrites + " session results)");
+            });
+        }
+    }
+
     /// <summary>Push module meta + single day overwrite under phases/{phase}/days/{date}.</summary>
     public static void PushModuleProgress(string profileId, ModuleProgress module, DaySessionSave day)
     {

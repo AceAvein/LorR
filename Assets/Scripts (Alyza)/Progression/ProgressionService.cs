@@ -464,4 +464,146 @@ public static class ProgressionService
             return null;
         return ProfileManager.Instance.CurrentProfile.id;
     }
+
+    /// <summary>
+    /// Dev/test: SuperAdmin looks fully cleared — every module Phase I–IV week passed
+    /// with 4 perfect Simulation sessions + results, clinic schedule marked Done, Firebase pushed.
+    /// </summary>
+    public static void EnsureSuperAdminProgress(string profileId)
+    {
+        if (string.IsNullOrEmpty(profileId))
+            return;
+
+        EnsureFirebaseReadyHook();
+
+        ProfileProgressState state = Load(profileId) ?? SeedLocal(profileId);
+        EnsureAllModules(state);
+
+        string programStart = ProgressionConfig.TodayManila();
+        if (ProgressionConfig.TryParseDay(programStart, out DateTime today))
+        {
+            // Anchor completion in the recent past so "today" is after the full program.
+            // 4 phases × 7 days = 28 days ending yesterday.
+            programStart = today.AddDays(-(ProgressionConfig.PhaseCount * ProgressionConfig.WeekLengthDays)).ToString("yyyy-MM-dd");
+        }
+
+        for (int i = 0; i < state.modules.Count; i++)
+        {
+            ModuleProgress module = state.modules[i];
+            if (module == null || string.IsNullOrEmpty(module.moduleId))
+                continue;
+
+            FillPerfectModuleHistory(module, programStart);
+            module.unlockedThroughPhase = ProgressionConfig.PhaseCount;
+            module.currentPhase = ProgressionConfig.PhaseCount;
+        }
+
+        SaveLocal(state);
+
+        // Reset clinic schedule to the same program window, then reconcile Done marks from playDates.
+        ClinicScheduleService.ResetAndSeedFullProgram(profileId, programStart);
+
+        ClearCloudSeededFlag(profileId);
+        pendingCloudSeeds.Add(profileId);
+
+        if (FirebaseBootstrap.Ready && IsOnline())
+        {
+            TryPushCloudSeed(profileId, state, ignoreAlreadySeededFlag: true);
+            // Reload after schedule reset so cloud gets the reconciled Done plot.
+            state = Load(profileId) ?? state;
+            FirebaseProfileSync.PushFullProgressHistory(profileId, state);
+            FirebaseProfileSync.PushClinicSchedule(ClinicScheduleService.EnsureSchedule(profileId));
+            Debug.Log("[Progression] SuperAdmin perfect clear pushed for " + profileId);
+        }
+        else
+        {
+            Debug.Log("[Progression] SuperAdmin perfect clear saved locally; cloud push queued for " + profileId);
+        }
+    }
+
+    static void FillPerfectModuleHistory(ModuleProgress module, string programStartYyyyMmDd)
+    {
+        if (module == null || !ProgressionConfig.TryParseDay(programStartYyyyMmDd, out DateTime start))
+            return;
+
+        module.phaseWeeks = new List<PhaseWeekProgress>();
+        module.playDatesThisWeek = new List<string>();
+
+        for (int phase = 1; phase <= ProgressionConfig.PhaseCount; phase++)
+        {
+            DateTime weekStart = start.AddDays((phase - 1) * ProgressionConfig.WeekLengthDays);
+            var week = new PhaseWeekProgress
+            {
+                phase = phase,
+                weekStart = weekStart.ToString("yyyy-MM-dd"),
+                playDates = new List<string>(),
+                days = new List<DaySessionSave>(),
+                weekEvaluated = false,
+                weekPassed = false
+            };
+
+            // P-R-P-R-P-R-P session days at offsets 0,2,4,6.
+            for (int slot = 1; slot <= ProgressionConfig.MaxPlayDaysPerWeek; slot++)
+            {
+                int dayOffset = (slot - 1) * 2;
+                string playedOn = weekStart.AddDays(dayOffset).ToString("yyyy-MM-dd");
+                DaySessionSave day = BuildPerfectDay(module.moduleId, phase, playedOn);
+                week.playDates.Add(playedOn);
+                week.days.Add(day);
+            }
+
+            ProgressionPassRules.EvaluateWeek(module.moduleId, week, out _);
+            // Force pass for the test profile even if a rule edge-case trips.
+            week.weekEvaluated = true;
+            week.weekPassed = true;
+            week.averageUnguidedScore = 100f;
+
+            module.phaseWeeks.Add(week);
+
+            if (phase == ProgressionConfig.PhaseCount)
+            {
+                module.currentWeekStart = week.weekStart;
+                module.playDatesThisWeek = new List<string>(week.playDates);
+            }
+        }
+    }
+
+    static DaySessionSave BuildPerfectDay(string moduleId, int phase, string playedOn)
+    {
+        var metrics = new Dictionary<string, object>
+        {
+            { "accuracy", 100f },
+            { "completionTime", 15f },
+            { "timeUsed", 15f },
+            { "averageReactionMs", 240f },
+            { "averageReaction", 0.24f },
+            { "avgDeviationMm", 0.4f },
+            { "maxDeviationMm", 0.7f },
+            { "interceptionRate", 100f },
+            { "correct", 30 },
+            { "incorrect", 0 },
+            { "missed", 0 },
+            { "success", 30 },
+            { "fail", 0 },
+            { "patternsCompleted", 9 },
+            { "patternTotal", 9 }
+        };
+
+        var day = new DaySessionSave
+        {
+            playedOn = playedOn,
+            phase = phase,
+            mode = ProgressionConfig.ModeUnguided,
+            primaryScore = 100f,
+            metricsJson = "{}"
+        };
+        ProgressionPassRules.FillDayMetrics(day, 100f, metrics);
+        day.passed = true;
+        day.metricsJson =
+            "{\"accuracy\":100,\"completionTime\":15,\"averageReactionMs\":240," +
+            "\"avgDeviationMm\":0.4,\"maxDeviationMm\":0.7,\"interceptionRate\":100," +
+            "\"correct\":30,\"incorrect\":0,\"missed\":0,\"success\":30,\"fail\":0," +
+            "\"patternsCompleted\":9,\"patternTotal\":9,\"moduleId\":\"" + (moduleId ?? "") + "\"}";
+        return day;
+    }
 }

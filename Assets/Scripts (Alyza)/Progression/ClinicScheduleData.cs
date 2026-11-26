@@ -189,8 +189,10 @@ public static class ClinicScheduleUtil
     }
 
     /// <summary>
-    /// After a play on playedOn (session slot just completed), clear future days for this phase
-    /// and replot Rest/Session alternating until remaining sessions are scheduled.
+    /// After a play (session slot just completed):
+    /// - If played early on a Rest day, credit the next planned Session day for that slot (e.g. S2 Done on day 3).
+    /// - Played-on rest day stays Rest in the plot (early play is tracked via progress playDates).
+    /// - Clear/replot only days after the credited session date.
     /// </summary>
     public static void ReplanAfterPlay(ModuleClinicSchedule moduleSched, string playedOn, int phase, int completedSlot)
     {
@@ -203,67 +205,188 @@ public static class ClinicScheduleUtil
         if (moduleSched.days == null)
             moduleSched.days = new List<ClinicDayPlan>();
 
-        // Upsert played day as session.
-        ClinicDayPlan played = FindDay(moduleSched, playedOn);
-        if (played == null)
+        ClinicDayPlan playedPlan = FindDay(moduleSched, playedOn);
+        string creditDate = ResolveCreditSessionDate(moduleSched, playedOn, playedPlan, phase, completedSlot);
+
+        // Early play on rest: keep that day as Rest.
+        if (playedPlan != null &&
+            playedPlan.type == (int)ClinicDayPlanType.Rest &&
+            !string.Equals(creditDate, playedOn, StringComparison.Ordinal))
         {
-            played = new ClinicDayPlan { date = playedOn, moduleId = moduleSched.moduleId };
-            moduleSched.days.Add(played);
+            playedPlan.phase = phase;
+            playedPlan.moduleId = moduleSched.moduleId;
+            playedPlan.slot = 0;
+            playedPlan.type = (int)ClinicDayPlanType.Rest;
         }
 
-        played.type = (int)ClinicDayPlanType.Session;
-        played.phase = phase;
-        played.slot = completedSlot;
-        played.moduleId = moduleSched.moduleId;
+        // Credit the planned (or same-day) session slot.
+        ClinicDayPlan credited = FindDay(moduleSched, creditDate);
+        if (credited == null)
+        {
+            credited = new ClinicDayPlan { date = creditDate, moduleId = moduleSched.moduleId };
+            moduleSched.days.Add(credited);
+        }
 
-        // Drop future days for this phase (keep other phases / past).
+        credited.type = (int)ClinicDayPlanType.Session;
+        credited.phase = phase;
+        credited.slot = completedSlot;
+        credited.moduleId = moduleSched.moduleId;
+
+        // Drop future days for this phase after the credited session day.
         moduleSched.days.RemoveAll(d =>
             d != null &&
             d.phase == phase &&
-            string.CompareOrdinal(d.date, playedOn) > 0);
+            string.CompareOrdinal(d.date, creditDate) > 0);
 
         if (completedSlot >= ProgressionConfig.MaxPlayDaysPerWeek)
-            return; // phase sessions done — caller may append next phase
+        {
+            SortDays(moduleSched);
+            return;
+        }
 
-        if (!ProgressionConfig.TryParseDay(playedOn, out DateTime playDay))
+        if (!ProgressionConfig.TryParseDay(creditDate, out DateTime creditDay))
             return;
 
-        // Next day = Rest, then Session, Rest, Session... until remaining slots plotted.
+        // After credited session: Rest, Session, Rest, Session... until slots filled.
         int nextSlot = completedSlot + 1;
-        DateTime cursor = playDay.AddDays(1);
+        DateTime cursor = creditDay.AddDays(1);
         bool expectRest = true;
         int guard = 0;
         while (nextSlot <= ProgressionConfig.MaxPlayDaysPerWeek && guard++ < 21)
         {
             string date = cursor.ToString("yyyy-MM-dd");
+            // Don't overwrite the early-play rest day if it's still in the past relative to credit.
             if (expectRest)
             {
-                moduleSched.days.Add(new ClinicDayPlan
+                ClinicDayPlan existing = FindDay(moduleSched, date);
+                if (existing == null)
                 {
-                    date = date,
-                    moduleId = moduleSched.moduleId,
-                    phase = phase,
-                    type = (int)ClinicDayPlanType.Rest,
-                    slot = 0
-                });
+                    moduleSched.days.Add(new ClinicDayPlan
+                    {
+                        date = date,
+                        moduleId = moduleSched.moduleId,
+                        phase = phase,
+                        type = (int)ClinicDayPlanType.Rest,
+                        slot = 0
+                    });
+                }
+                else if (string.CompareOrdinal(date, creditDate) > 0)
+                {
+                    existing.type = (int)ClinicDayPlanType.Rest;
+                    existing.phase = phase;
+                    existing.slot = 0;
+                    existing.moduleId = moduleSched.moduleId;
+                }
+
                 expectRest = false;
             }
             else
             {
-                moduleSched.days.Add(new ClinicDayPlan
+                ClinicDayPlan existing = FindDay(moduleSched, date);
+                if (existing == null)
                 {
-                    date = date,
-                    moduleId = moduleSched.moduleId,
-                    phase = phase,
-                    type = (int)ClinicDayPlanType.Session,
-                    slot = nextSlot
-                });
+                    moduleSched.days.Add(new ClinicDayPlan
+                    {
+                        date = date,
+                        moduleId = moduleSched.moduleId,
+                        phase = phase,
+                        type = (int)ClinicDayPlanType.Session,
+                        slot = nextSlot
+                    });
+                }
+                else
+                {
+                    existing.type = (int)ClinicDayPlanType.Session;
+                    existing.phase = phase;
+                    existing.slot = nextSlot;
+                    existing.moduleId = moduleSched.moduleId;
+                }
+
                 nextSlot++;
                 expectRest = true;
             }
 
             cursor = cursor.AddDays(1);
         }
+
+        SortDays(moduleSched);
+    }
+
+    /// <summary>
+    /// Early on Rest → credit the next planned Session day for this slot (or soonest session day after play).
+    /// On-plan / same-day session → credit playedOn.
+    /// </summary>
+    static string ResolveCreditSessionDate(
+        ModuleClinicSchedule moduleSched,
+        string playedOn,
+        ClinicDayPlan playedPlan,
+        int phase,
+        int completedSlot)
+    {
+        bool earlyOnRest = playedPlan != null && playedPlan.type == (int)ClinicDayPlanType.Rest;
+        if (!earlyOnRest)
+        {
+            // Already a session day, or unplanned day: credit the play date.
+            return playedOn;
+        }
+
+        // Prefer existing planned day with this slot number on/after play date.
+        ClinicDayPlan bySlot = FindSessionDayForSlot(moduleSched, phase, completedSlot);
+        if (bySlot != null && string.CompareOrdinal(bySlot.date, playedOn) >= 0)
+            return bySlot.date;
+
+        // Else first planned session day strictly after play (soft slot).
+        ClinicDayPlan nextSession = FindNextSessionDayAfter(moduleSched, phase, playedOn);
+        if (nextSession != null)
+            return nextSession.date;
+
+        // No future session plotted — credit play day itself.
+        return playedOn;
+    }
+
+    static ClinicDayPlan FindSessionDayForSlot(ModuleClinicSchedule moduleSched, int phase, int slot)
+    {
+        if (moduleSched == null || moduleSched.days == null)
+            return null;
+
+        for (int i = 0; i < moduleSched.days.Count; i++)
+        {
+            ClinicDayPlan d = moduleSched.days[i];
+            if (d == null || d.phase != phase)
+                continue;
+            if (d.type == (int)ClinicDayPlanType.Session && d.slot == slot)
+                return d;
+        }
+
+        return null;
+    }
+
+    static ClinicDayPlan FindNextSessionDayAfter(ModuleClinicSchedule moduleSched, int phase, string afterDate)
+    {
+        if (moduleSched == null || moduleSched.days == null)
+            return null;
+
+        ClinicDayPlan best = null;
+        for (int i = 0; i < moduleSched.days.Count; i++)
+        {
+            ClinicDayPlan d = moduleSched.days[i];
+            if (d == null || d.phase != phase)
+                continue;
+            if (d.type != (int)ClinicDayPlanType.Session)
+                continue;
+            if (string.CompareOrdinal(d.date, afterDate) <= 0)
+                continue;
+            if (best == null || string.CompareOrdinal(d.date, best.date) < 0)
+                best = d;
+        }
+
+        return best;
+    }
+
+    static void SortDays(ModuleClinicSchedule moduleSched)
+    {
+        if (moduleSched == null || moduleSched.days == null)
+            return;
 
         moduleSched.days.Sort((a, b) => string.CompareOrdinal(
             a != null ? a.date : string.Empty,

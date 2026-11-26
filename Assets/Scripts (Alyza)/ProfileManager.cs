@@ -67,6 +67,8 @@ public class ProfileManager : MonoBehaviour
         FirebaseProfileSync.StartSyncFromCloud();
         // Retry / repair module skeleton seeds that ran before Auth was ready.
         ProgressionService.EnsureCloudSeededForAllProfiles();
+        // Dev/test profile with all phases unlocked.
+        SuperAdminBootstrap.Ensure();
     }
 
     public void LoadProfiles()

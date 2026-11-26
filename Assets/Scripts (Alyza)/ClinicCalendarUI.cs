@@ -291,19 +291,27 @@ public class ClinicCalendarUI : MonoBehaviour
                 ? ProgressionConfig.ClampPhase(plan.phase)
                 : ResolveModulePlayPhase(module);
             bool unlocked = ProgressionService.IsPhaseUnlocked(profileId, row.moduleId, phase);
-            bool finished = ModuleFinishedOnDate(profileId, row.moduleId, phase, date);
+            int completedSlots = CountCompletedSessionsInPhase(module, phase);
+            bool playedThisDate = ModuleFinishedOnDate(profileId, row.moduleId, phase, date);
+            bool sessionSlotDone = plan != null &&
+                                   plan.type == (int)ClinicDayPlanType.Session &&
+                                   plan.slot > 0 &&
+                                   completedSlots >= plan.slot;
+            // Done on the credited session day (may be later than early play-on-rest).
+            bool showDone = sessionSlotDone || (playedThisDate && isToday &&
+                                               (plan == null || plan.type == (int)ClinicDayPlanType.Session));
 
             if (row.nameLabel != null)
                 row.nameLabel.text = BuildModuleRowLabel(row.moduleId, plan, module, phase, unlocked);
 
-            // Soft rest: Start still allowed today if gate says CanPlay (replan happens after play).
-            bool canStart = isToday && unlocked && !finished &&
+            // Soft rest: Start still allowed today if gate says CanPlay (replan credits next session day).
+            bool canStart = isToday && unlocked && !playedThisDate &&
                             ProgressionService.CanPlay(profileId, row.moduleId, phase, out _, out _);
 
             if (row.actionButton == null || row.actionLabel == null)
                 continue;
 
-            if (finished && isToday)
+            if (showDone)
             {
                 row.actionButton.gameObject.SetActive(true);
                 row.actionButton.interactable = false;
@@ -474,6 +482,24 @@ public class ClinicCalendarUI : MonoBehaviour
         }
 
         return false;
+    }
+
+    static int CountCompletedSessionsInPhase(ModuleProgress module, int phase)
+    {
+        if (module == null || module.phaseWeeks == null)
+            return 0;
+
+        phase = ProgressionConfig.ClampPhase(phase);
+        int count = 0;
+        for (int i = 0; i < module.phaseWeeks.Count; i++)
+        {
+            PhaseWeekProgress week = module.phaseWeeks[i];
+            if (week == null || week.phase != phase || week.playDates == null)
+                continue;
+            count += week.playDates.Count;
+        }
+
+        return Mathf.Min(count, ProgressionConfig.MaxPlayDaysPerWeek);
     }
 
     static string ModuleDisplayName(string moduleId)
