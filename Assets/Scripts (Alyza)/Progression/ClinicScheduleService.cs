@@ -89,7 +89,7 @@ public static class ClinicScheduleService
         ReconcileFromProgress(state);
         Save(state);
         FirebaseProfileSync.PushClinicSchedule(state);
-        Debug.Log("[ClinicSchedule] Seeded per-module P-R-P-R-P-R-P from " + start + " for " + profileId);
+        Debug.Log("[ClinicSchedule] Seeded per-module Phases 1–4 from " + start + " for " + profileId);
         return state;
     }
 
@@ -125,6 +125,7 @@ public static class ClinicScheduleService
                 dates.Sort(StringComparer.Ordinal);
                 for (int d = 0; d < dates.Count; d++)
                     ClinicScheduleUtil.ReplanAfterPlay(mod, dates[d], week.phase, d + 1);
+                ClinicScheduleUtil.RebuildLaterPhases(mod, week.phase);
                 changed = true;
             }
         }
@@ -192,10 +193,12 @@ public static class ClinicScheduleService
                         moduleId = moduleId
                     });
                 }
+
+                EnsurePhasesThroughFour(mod, start);
             }
             else
             {
-                mod.days = ClinicScheduleUtil.BuildPhaseWeek(start, 1, moduleId);
+                mod.days = ClinicScheduleUtil.BuildFullProgram(start, moduleId);
             }
 
             state.modules.Add(mod);
@@ -204,7 +207,7 @@ public static class ClinicScheduleService
         state.schemaVersion = ClinicScheduleState.CurrentSchema;
         state.days = new List<ClinicDayPlan>(); // legacy cleared
         Save(state);
-        Debug.Log("[ClinicSchedule] Migrated profile " + state.profileId + " to per-module schema v3");
+        Debug.Log("[ClinicSchedule] Migrated profile " + state.profileId + " to per-module schema v3 (Phases 1–4)");
     }
 
     /// <returns>True if anything was created/changed.</returns>
@@ -236,7 +239,7 @@ public static class ClinicScheduleService
                 {
                     moduleId = moduleId,
                     trainingStartDate = start,
-                    days = ClinicScheduleUtil.BuildPhaseWeek(start, 1, moduleId)
+                    days = ClinicScheduleUtil.BuildFullProgram(start, moduleId)
                 };
                 state.modules.Add(mod);
                 changed = true;
@@ -246,9 +249,46 @@ public static class ClinicScheduleService
             if (mod.days == null || mod.days.Count == 0)
             {
                 mod.trainingStartDate = start;
-                mod.days = ClinicScheduleUtil.BuildPhaseWeek(start, 1, moduleId);
+                mod.days = ClinicScheduleUtil.BuildFullProgram(start, moduleId);
                 changed = true;
+                continue;
             }
+
+            if (EnsurePhasesThroughFour(mod, start))
+                changed = true;
+        }
+
+        return changed;
+    }
+
+    /// <summary>Backfill missing Phase 2–4 weeks after the last plotted day.</summary>
+    static bool EnsurePhasesThroughFour(ModuleClinicSchedule mod, string fallbackStart)
+    {
+        if (mod == null)
+            return false;
+
+        if (mod.days == null)
+            mod.days = new List<ClinicDayPlan>();
+
+        bool changed = false;
+        for (int phase = 1; phase <= ProgressionConfig.PhaseCount; phase++)
+        {
+            if (ClinicScheduleUtil.HasPhasePlotted(mod, phase))
+                continue;
+
+            string weekStart = phase == 1 && mod.days.Count == 0
+                ? (!string.IsNullOrEmpty(mod.trainingStartDate) ? mod.trainingStartDate : fallbackStart)
+                : ClinicScheduleUtil.NextDayAfterLast(mod, fallbackStart);
+
+            mod.days.AddRange(ClinicScheduleUtil.BuildPhaseWeek(weekStart, phase, mod.moduleId));
+            changed = true;
+        }
+
+        if (changed)
+        {
+            mod.days.Sort((a, b) => string.CompareOrdinal(
+                a != null ? a.date : string.Empty,
+                b != null ? b.date : string.Empty));
         }
 
         return changed;
@@ -481,6 +521,7 @@ public static class ClinicScheduleService
             completedSlot = 1;
 
         ClinicScheduleUtil.ReplanAfterPlay(mod, playedOn, phase, completedSlot);
+        ClinicScheduleUtil.RebuildLaterPhases(mod, phase);
         Save(state);
         FirebaseProfileSync.PushClinicSchedule(state);
         Debug.Log("[ClinicSchedule] Replanned " + moduleId + " after play " + playedOn +

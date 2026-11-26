@@ -83,6 +83,112 @@ public static class ClinicScheduleUtil
     }
 
     /// <summary>
+    /// Soft pre-plot Phases 1..PhaseCount back-to-back (each week P-R-P-R-P-R-P).
+    /// Adaptive replan after play may still shift remaining days per module.
+    /// </summary>
+    public static List<ClinicDayPlan> BuildFullProgram(string startYyyyMmDd, string moduleId = null)
+    {
+        var list = new List<ClinicDayPlan>();
+        if (!ProgressionConfig.TryParseDay(startYyyyMmDd, out DateTime start))
+            return list;
+
+        DateTime cursor = start;
+        for (int phase = 1; phase <= ProgressionConfig.PhaseCount; phase++)
+        {
+            string weekStart = cursor.ToString("yyyy-MM-dd");
+            list.AddRange(BuildPhaseWeek(weekStart, phase, moduleId));
+            cursor = cursor.AddDays(ProgressionConfig.WeekLengthDays);
+        }
+
+        return list;
+    }
+
+    public static bool HasPhasePlotted(ModuleClinicSchedule mod, int phase)
+    {
+        if (mod == null || mod.days == null)
+            return false;
+
+        phase = ProgressionConfig.ClampPhase(phase);
+        for (int i = 0; i < mod.days.Count; i++)
+        {
+            if (mod.days[i] != null && mod.days[i].phase == phase)
+                return true;
+        }
+
+        return false;
+    }
+
+    public static string NextDayAfterLast(ModuleClinicSchedule mod, string fallbackYyyyMmDd)
+    {
+        string latest = fallbackYyyyMmDd;
+        if (mod == null || mod.days == null)
+            return latest;
+
+        for (int i = 0; i < mod.days.Count; i++)
+        {
+            if (mod.days[i] == null || string.IsNullOrEmpty(mod.days[i].date))
+                continue;
+            if (string.CompareOrdinal(mod.days[i].date, latest) > 0)
+                latest = mod.days[i].date;
+        }
+
+        if (!ProgressionConfig.TryParseDay(latest, out DateTime d))
+            return fallbackYyyyMmDd;
+
+        return d.AddDays(1).ToString("yyyy-MM-dd");
+    }
+
+    public static string LastDateForPhase(ModuleClinicSchedule mod, int phase)
+    {
+        string latest = null;
+        if (mod == null || mod.days == null)
+            return null;
+
+        phase = ProgressionConfig.ClampPhase(phase);
+        for (int i = 0; i < mod.days.Count; i++)
+        {
+            ClinicDayPlan d = mod.days[i];
+            if (d == null || d.phase != phase || string.IsNullOrEmpty(d.date))
+                continue;
+            if (latest == null || string.CompareOrdinal(d.date, latest) > 0)
+                latest = d.date;
+        }
+
+        return latest;
+    }
+
+    /// <summary>
+    /// After adaptive replan of a phase, rebuild Phase+1..4 so they stay after the current phase ends.
+    /// </summary>
+    public static void RebuildLaterPhases(ModuleClinicSchedule mod, int fromPhaseExclusive)
+    {
+        if (mod == null)
+            return;
+
+        if (mod.days == null)
+            mod.days = new List<ClinicDayPlan>();
+
+        int keepThrough = ProgressionConfig.ClampPhase(fromPhaseExclusive);
+        mod.days.RemoveAll(d => d != null && d.phase > keepThrough);
+
+        string last = LastDateForPhase(mod, keepThrough);
+        if (string.IsNullOrEmpty(last) || !ProgressionConfig.TryParseDay(last, out DateTime lastDay))
+            return;
+
+        DateTime cursor = lastDay.AddDays(1);
+        for (int phase = keepThrough + 1; phase <= ProgressionConfig.PhaseCount; phase++)
+        {
+            string weekStart = cursor.ToString("yyyy-MM-dd");
+            mod.days.AddRange(BuildPhaseWeek(weekStart, phase, mod.moduleId));
+            cursor = cursor.AddDays(ProgressionConfig.WeekLengthDays);
+        }
+
+        mod.days.Sort((a, b) => string.CompareOrdinal(
+            a != null ? a.date : string.Empty,
+            b != null ? b.date : string.Empty));
+    }
+
+    /// <summary>
     /// After a play on playedOn (session slot just completed), clear future days for this phase
     /// and replot Rest/Session alternating until remaining sessions are scheduled.
     /// </summary>
