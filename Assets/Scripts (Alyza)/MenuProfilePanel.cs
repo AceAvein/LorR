@@ -64,9 +64,15 @@ public class MenuProfilePanel : MonoBehaviour
         PrepareViews();
         Wire();
         EnsureManager();
+        ProfileManager.ProfilesChanged += OnProfilesChanged;
         ShowCurrentOnButton();
         ready = true;
         gameObject.SetActive(false);
+    }
+
+    void OnDestroy()
+    {
+        ProfileManager.ProfilesChanged -= OnProfilesChanged;
     }
 
     void OnEnable()
@@ -75,6 +81,28 @@ public class MenuProfilePanel : MonoBehaviour
             return;
 
         ShowList();
+    }
+
+    void OnProfilesChanged()
+    {
+        if (!ready)
+            return;
+
+        // Keep highlight if that profile still exists (by id).
+        if (highlighted != null && ProfileManager.Instance != null)
+        {
+            UserProfile stillThere = !string.IsNullOrEmpty(highlighted.id)
+                ? ProfileManager.Instance.FindProfileById(highlighted.id)
+                : ProfileManager.Instance.FindProfile(highlighted.name);
+            highlighted = stillThere;
+        }
+
+        // Always refresh the main-menu profile button text, even if this panel GO is hidden.
+        ShowCurrentOnButton();
+
+        // Refresh cards whenever the list UI exists (panel may be inactive but still in hierarchy).
+        if (listView != null && listView.activeSelf && content != null)
+            RefreshList();
     }
 
     public void Open()

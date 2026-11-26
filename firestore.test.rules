@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // TEMP: use this first if the stricter rules still block the device query.
+    // Firebase Console → Firestore → Rules → paste → Publish.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

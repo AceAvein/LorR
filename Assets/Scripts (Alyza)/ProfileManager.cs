@@ -30,6 +30,11 @@ public class ProfileManager : MonoBehaviour
     public List<UserProfile> Profiles { get; private set; } = new List<UserProfile>();
     public UserProfile CurrentProfile { get; private set; }
 
+    /// <summary>Raised after local list/current changes (including Firebase pull).</summary>
+    public static event Action ProfilesChanged;
+
+    bool applyingRemote;
+
     void Awake()
     {
         if (Instance != null && Instance != this)
@@ -50,6 +55,7 @@ public class ProfileManager : MonoBehaviour
     void OnDestroy()
     {
         FirebaseBootstrap.OnReady -= OnFirebaseReady;
+        FirebaseProfileSync.StopSync();
         if (Instance == this)
             Instance = null;
     }
@@ -57,7 +63,8 @@ public class ProfileManager : MonoBehaviour
     void OnFirebaseReady()
     {
         EnsureAllProfileIds(saveIfChanged: true);
-        FirebaseProfileSync.SyncAll(Profiles, CurrentProfile);
+        // Pull + live listen (Firebase wins). Do not blind-push SyncAll — that overwrote Console edits.
+        FirebaseProfileSync.StartSyncFromCloud();
     }
 
     public void LoadProfiles()
@@ -162,6 +169,116 @@ public class ProfileManager : MonoBehaviour
         return null;
     }
 
+    public UserProfile FindProfileById(string profileId)
+    {
+        if (string.IsNullOrEmpty(profileId))
+            return null;
+
+        for (int i = 0; i < Profiles.Count; i++)
+        {
+            UserProfile profile = Profiles[i];
+            if (profile != null &&
+                !string.IsNullOrEmpty(profile.id) &&
+                profile.id.Equals(profileId, StringComparison.Ordinal))
+            {
+                return profile;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Apply a cloud/Console upsert. Firebase wins field values. Returns true if local data changed.</summary>
+    public bool ApplyRemoteUpsert(UserProfile remote)
+    {
+        if (remote == null || string.IsNullOrEmpty(remote.id))
+            return false;
+
+        applyingRemote = true;
+        try
+        {
+            remote.name = SanitizeName(remote.name);
+            if (string.IsNullOrEmpty(remote.name))
+                return false;
+
+            ResolveNameConflict(remote);
+
+            UserProfile local = FindProfileById(remote.id);
+            bool changed;
+            if (local == null)
+            {
+                Profiles.Add(remote);
+                local = remote;
+                changed = true;
+            }
+            else
+            {
+                changed =
+                    !string.Equals(local.name, remote.name, StringComparison.Ordinal) ||
+                    !string.Equals(local.imagePath ?? string.Empty, remote.imagePath ?? string.Empty, StringComparison.Ordinal) ||
+                    local.avatarIndex != Mathf.Max(0, remote.avatarIndex) ||
+                    local.nonDominantIsLeft != remote.nonDominantIsLeft;
+
+                if (changed)
+                {
+                    local.name = remote.name;
+                    local.imagePath = remote.imagePath ?? string.Empty;
+                    local.avatarIndex = Mathf.Max(0, remote.avatarIndex);
+                    local.nonDominantIsLeft = remote.nonDominantIsLeft;
+                }
+            }
+
+            if (!changed)
+                return false;
+
+            if (CurrentProfile != null &&
+                !string.IsNullOrEmpty(CurrentProfile.id) &&
+                CurrentProfile.id.Equals(local.id, StringComparison.Ordinal))
+            {
+                CurrentProfile = local;
+            }
+
+            SaveProfiles();
+            NotifyProfilesChanged();
+            return true;
+        }
+        finally
+        {
+            applyingRemote = false;
+        }
+    }
+
+    /// <summary>Apply a cloud/Console delete.</summary>
+    public void ApplyRemoteDelete(string profileId)
+    {
+        if (string.IsNullOrEmpty(profileId))
+            return;
+
+        UserProfile stored = FindProfileById(profileId);
+        if (stored == null)
+            return;
+
+        applyingRemote = true;
+        try
+        {
+            Profiles.Remove(stored);
+            if (CurrentProfile == stored ||
+                (CurrentProfile != null &&
+                 !string.IsNullOrEmpty(CurrentProfile.id) &&
+                 CurrentProfile.id.Equals(profileId, StringComparison.Ordinal)))
+            {
+                CurrentProfile = null;
+            }
+
+            SaveProfiles();
+            NotifyProfilesChanged();
+        }
+        finally
+        {
+            applyingRemote = false;
+        }
+    }
+
     public bool AddProfile(string playerName, string imagePath)
     {
         return AddProfile(playerName, imagePath, 0, true);
@@ -193,7 +310,9 @@ public class ProfileManager : MonoBehaviour
 
         Profiles.Add(profile);
         SaveProfiles();
-        FirebaseProfileSync.UpsertProfile(profile, isNew: true);
+        if (!applyingRemote)
+            FirebaseProfileSync.UpsertProfile(profile, isNew: true);
+        NotifyProfilesChanged();
         return true;
     }
 
@@ -218,25 +337,35 @@ public class ProfileManager : MonoBehaviour
         }
 
         SaveProfiles();
-        FirebaseProfileSync.DeleteProfile(deletedId);
-        FirebaseProfileSync.SetCurrentProfile(CurrentProfile != null ? CurrentProfile.id : null);
+        if (!applyingRemote)
+        {
+            FirebaseProfileSync.DeleteProfile(deletedId);
+            FirebaseProfileSync.SetCurrentProfile(CurrentProfile != null ? CurrentProfile.id : null);
+        }
+
+        NotifyProfilesChanged();
     }
 
-    public void SelectProfile(UserProfile profile)
+    public void SelectProfile(UserProfile profile, bool syncRemote = true)
     {
         if (profile == null)
         {
             CurrentProfile = null;
             SaveProfiles();
-            FirebaseProfileSync.SetCurrentProfile(null);
+            if (syncRemote && !applyingRemote)
+                FirebaseProfileSync.SetCurrentProfile(null);
+            NotifyProfilesChanged();
             return;
         }
 
-        UserProfile stored = Profiles.Contains(profile) ? profile : FindProfile(profile.name);
+        UserProfile stored = Profiles.Contains(profile)
+            ? profile
+            : (FindProfileById(profile.id) ?? FindProfile(profile.name));
         CurrentProfile = stored;
         SaveProfiles();
-        if (stored != null)
+        if (syncRemote && !applyingRemote && stored != null)
             FirebaseProfileSync.SetCurrentProfile(stored.id);
+        NotifyProfilesChanged();
     }
 
     public void UpdateProfile(UserProfile profile)
@@ -244,13 +373,17 @@ public class ProfileManager : MonoBehaviour
         if (profile == null)
             return;
 
-        UserProfile stored = Profiles.Contains(profile) ? profile : FindProfile(profile.name);
+        UserProfile stored = Profiles.Contains(profile)
+            ? profile
+            : (FindProfileById(profile.id) ?? FindProfile(profile.name));
         if (stored == null)
             return;
 
         EnsureProfileId(stored);
         SaveProfiles();
-        FirebaseProfileSync.UpsertProfile(stored, isNew: false);
+        if (!applyingRemote)
+            FirebaseProfileSync.UpsertProfile(stored, isNew: false);
+        NotifyProfilesChanged();
     }
 
     public int GetProfileCount()
@@ -341,5 +474,29 @@ public class ProfileManager : MonoBehaviour
     static string NewProfileId()
     {
         return Guid.NewGuid().ToString("N");
+    }
+
+    void ResolveNameConflict(UserProfile remote)
+    {
+        UserProfile other = FindProfile(remote.name);
+        if (other == null || other.id == remote.id)
+            return;
+
+        // Keep Firebase name on remote; nudge the other local name so Create still works.
+        string baseName = other.name;
+        if (baseName.Length > MaxNameLength - 5)
+            baseName = baseName.Substring(0, MaxNameLength - 5);
+
+        string suffix = string.IsNullOrEmpty(other.id) ? "2" : other.id.Substring(0, Math.Min(4, other.id.Length));
+        other.name = SanitizeName(baseName + suffix);
+        if (string.IsNullOrEmpty(other.name) || FindProfile(other.name) == other)
+            return;
+
+        other.name = SanitizeName(baseName + "x" + suffix);
+    }
+
+    void NotifyProfilesChanged()
+    {
+        ProfilesChanged?.Invoke();
     }
 }

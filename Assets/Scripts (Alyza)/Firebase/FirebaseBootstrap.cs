@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using Firebase;
 using Firebase.Auth;
 using Firebase.Extensions;
@@ -6,6 +8,7 @@ using UnityEngine;
 
 /// <summary>
 /// Initializes Firebase App + Anonymous Auth (device identity for clinic headsets).
+/// Also pumps a main-thread action queue for Firestore callbacks.
 /// </summary>
 public class FirebaseBootstrap : MonoBehaviour
 {
@@ -16,6 +19,10 @@ public class FirebaseBootstrap : MonoBehaviour
     public static string DeviceId => User != null ? User.UserId : null;
 
     public static event Action OnReady;
+
+    readonly Queue<Action> mainThreadActions = new Queue<Action>();
+    readonly object mainThreadLock = new object();
+    Coroutine pollRoutine;
 
     void Awake()
     {
@@ -30,8 +37,34 @@ public class FirebaseBootstrap : MonoBehaviour
         Initialize();
     }
 
+    void Update()
+    {
+        while (true)
+        {
+            Action action = null;
+            lock (mainThreadLock)
+            {
+                if (mainThreadActions.Count == 0)
+                    break;
+                action = mainThreadActions.Dequeue();
+            }
+
+            try { action?.Invoke(); }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("[Firebase] Main-thread action failed: " + ex.Message);
+            }
+        }
+    }
+
     void OnDestroy()
     {
+        if (pollRoutine != null)
+        {
+            StopCoroutine(pollRoutine);
+            pollRoutine = null;
+        }
+
         if (Instance == this)
             Instance = null;
     }
@@ -43,6 +76,51 @@ public class FirebaseBootstrap : MonoBehaviour
 
         var go = new GameObject("FirebaseBootstrap");
         go.AddComponent<FirebaseBootstrap>();
+    }
+
+    public static void RunOnMainThread(Action action)
+    {
+        if (action == null)
+            return;
+
+        if (Instance == null)
+        {
+            action();
+            return;
+        }
+
+        lock (Instance.mainThreadLock)
+            Instance.mainThreadActions.Enqueue(action);
+    }
+
+    public static void StartProfilePoll()
+    {
+        if (Instance == null)
+            return;
+
+        if (Instance.pollRoutine != null)
+            Instance.StopCoroutine(Instance.pollRoutine);
+
+        Instance.pollRoutine = Instance.StartCoroutine(Instance.PollProfilesLoop());
+    }
+
+    public static void StopProfilePoll()
+    {
+        if (Instance == null || Instance.pollRoutine == null)
+            return;
+
+        Instance.StopCoroutine(Instance.pollRoutine);
+        Instance.pollRoutine = null;
+    }
+
+    IEnumerator PollProfilesLoop()
+    {
+        var wait = new WaitForSecondsRealtime(1.5f);
+        while (Ready)
+        {
+            yield return wait;
+            FirebaseProfileSync.PullOnceFromServer();
+        }
     }
 
     void Initialize()
