@@ -86,7 +86,29 @@ public static class ProgressionGate
             week.playDates.Count >= ProgressionConfig.MaxPlayDaysPerWeek)
         {
             reason = ProgressionBlockReason.WeeklyPlayDayLimit;
-            message = "Rest day: already used 4 Simulation days this week for this module.";
+            message = "Already used 4 Simulation days this phase week for this module.";
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Extra clinic-wide check: block 5th consecutive play day (4 in a row OK).</summary>
+    public static bool CanPlayClinicConsecutive(
+        string profileId,
+        string today,
+        out ProgressionBlockReason reason,
+        out string message)
+    {
+        reason = ProgressionBlockReason.None;
+        message = null;
+        if (string.IsNullOrEmpty(profileId))
+            return true;
+
+        if (ClinicScheduleService.WouldCreateFiveConsecutivePlayDays(profileId, today))
+        {
+            reason = ProgressionBlockReason.WeeklyPlayDayLimit;
+            message = "Hard block: cannot play 5 consecutive days. Take a rest day.";
             return false;
         }
 

@@ -111,6 +111,7 @@ public class MenuProfilePanel : MonoBehaviour
         if (mainMenu != null)
             mainMenu.SetActive(false);
         gameObject.SetActive(true);
+        MenuDesktopClickSupport.Apply();
     }
 
     public void Close()

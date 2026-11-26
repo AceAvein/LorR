@@ -99,7 +99,10 @@ public class ModeSelectUI : MonoBehaviour
         if (selectPanel == null)
             selectPanel = FindNamed("Select Guided or Simulation");
         if (selectPanel != null)
+        {
             selectPanel.SetActive(true);
+            MenuDesktopClickSupport.Apply();
+        }
         else
             ShowPhaseSelect();
     }
@@ -120,6 +123,7 @@ public class ModeSelectUI : MonoBehaviour
 
         RefreshPhaseLocks();
         phasePanel.SetActive(true);
+        MenuDesktopClickSupport.Apply();
     }
 
     void RefreshPhaseLocks()

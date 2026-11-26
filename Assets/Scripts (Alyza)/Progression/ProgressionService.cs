@@ -97,6 +97,7 @@ public static class ProgressionService
 
         ProfileProgressState state = Load(profileId) ?? SeedLocal(profileId);
         SaveLocal(state);
+        ClinicScheduleService.EnsureSchedule(profileId);
 
         if (!pushToCloud)
             return;
@@ -261,13 +262,15 @@ public static class ProgressionService
         ProfileProgressState state = Load(profileId);
         ModuleProgress module = ModuleProgressUtil.GetOrCreateModule(state, moduleId);
         SaveLocal(state);
-        return ProgressionGate.CanPlay(
-            module,
-            phase,
-            ProgressionConfig.TodayManila(),
-            mode,
-            out reason,
-            out message);
+        string today = ProgressionConfig.TodayManila();
+        if (!ProgressionGate.CanPlay(module, phase, today, mode, out reason, out message))
+            return false;
+
+        if (ProgressionConfig.IsUnguided(mode) &&
+            !ProgressionGate.CanPlayClinicConsecutive(profileId, today, out reason, out message))
+            return false;
+
+        return true;
     }
 
     public static bool IsPhaseUnlocked(string profileId, string moduleId, int phase)
@@ -323,6 +326,10 @@ public static class ProgressionService
         {
             SaveLocal(state);
             EnqueuePendingSync(profileId, moduleId, day.phase, day.playedOn);
+            ClinicScheduleService.OnSimulationRecorded(profileId, day.playedOn);
+
+            if (unlockedNextPhase)
+                ClinicScheduleService.AppendPhaseWeekIfNeeded(profileId, module.unlockedThroughPhase);
 
             if (FirebaseBootstrap.Ready && IsOnline())
                 FirebaseProfileSync.PushModuleProgress(profileId, module, day);

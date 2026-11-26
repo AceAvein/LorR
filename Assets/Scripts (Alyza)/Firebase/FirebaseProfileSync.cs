@@ -311,7 +311,64 @@ public static class FirebaseProfileSync
                 RememberKnownRemoteId(profileId);
                 // Modules rules require the parent user doc to exist — seed only after upsert succeeds.
                 ProgressionService.SeedModulesAfterUserDocExists(profileId);
+                ClinicScheduleService.EnsureSchedule(profileId);
             });
+    }
+
+    public static void PushClinicSchedule(ClinicScheduleState state)
+    {
+        if (!CanWrite() || state == null || string.IsNullOrEmpty(state.profileId) || state.days == null)
+            return;
+
+        var db = Db;
+        if (db == null)
+            return;
+
+        DocumentReference userRef = db.Collection(UsersCollection).Document(state.profileId);
+        userRef.SetAsync(new Dictionary<string, object>
+        {
+            { "trainingStartDate", state.trainingStartDate ?? string.Empty },
+            { "updatedAt", FieldValue.ServerTimestamp }
+        }, SetOptions.MergeAll);
+
+        WriteBatch batch = db.StartBatch();
+        int ops = 0;
+        for (int i = 0; i < state.days.Count; i++)
+        {
+            ClinicDayPlan day = state.days[i];
+            if (day == null || string.IsNullOrEmpty(day.date))
+                continue;
+
+            DocumentReference dayRef = userRef.Collection("clinicSchedule").Document(day.date);
+            batch.Set(dayRef, new Dictionary<string, object>
+            {
+                { "date", day.date },
+                { "type", day.type == (int)ClinicDayPlanType.Session ? "session" : "rest" },
+                { "slot", day.slot },
+                { "phase", day.phase },
+                { "updatedAt", FieldValue.ServerTimestamp }
+            }, SetOptions.MergeAll);
+            ops++;
+
+            // Firestore batch max 500; clinic weeks are small.
+            if (ops >= 400)
+            {
+                batch.CommitAsync();
+                batch = db.StartBatch();
+                ops = 0;
+            }
+        }
+
+        if (ops > 0)
+        {
+            batch.CommitAsync().ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted)
+                    Debug.LogWarning("[Firebase] Clinic schedule push failed: " + task.Exception);
+                else
+                    Debug.Log("[Firebase] Clinic schedule synced (" + state.days.Count + " days)");
+            });
+        }
     }
 
     public static void DeleteProfile(string profileId)
