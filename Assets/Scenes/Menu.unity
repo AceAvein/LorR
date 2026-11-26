@@ -29309,7 +29309,7 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 910200001}
   m_LocalRotation: {x: 0.13265905, y: 0.13093436, z: 0.017682321, w: 0.9823162}
-  m_LocalPosition: {x: 0, y: 0, z: -16}
+  m_LocalPosition: {x: 0, y: 0, z: -3.9}
   m_LocalScale: {x: 0.04, y: 0.04, z: 0.04}
   m_ConstrainProportionsScale: 1
   m_Children:
@@ -29318,7 +29318,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 14.833, y: 15.721, z: 4.122}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 52, y: -52}
+  m_AnchoredPosition: {x: 25.8, y: -34.7}
   m_SizeDelta: {x: 738, y: 282}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &910200003
@@ -29754,6 +29754,7 @@ MonoBehaviour:
   titleText: {fileID: 399112040}
   detailText: {fileID: 1528386763}
   gridRoot: {fileID: 460300330}
+  moduleRowsRoot: {fileID: 0}
   cells:
   - go: {fileID: 1531934167}
     button: {fileID: 1531934170}
@@ -29965,6 +29966,7 @@ MonoBehaviour:
     label: {fileID: 1580291459}
     mark: {fileID: 813697732}
     bg: {fileID: 1113217437}
+  moduleRows: []
 --- !u!1 &920432663
 GameObject:
   m_ObjectHideFlags: 0

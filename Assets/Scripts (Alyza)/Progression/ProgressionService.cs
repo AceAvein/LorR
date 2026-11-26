@@ -326,10 +326,10 @@ public static class ProgressionService
         {
             SaveLocal(state);
             EnqueuePendingSync(profileId, moduleId, day.phase, day.playedOn);
-            ClinicScheduleService.OnSimulationRecorded(profileId, day.playedOn);
+            ClinicScheduleService.OnSimulationRecorded(profileId, moduleId, day.playedOn, day.phase);
 
             if (unlockedNextPhase)
-                ClinicScheduleService.AppendPhaseWeekIfNeeded(profileId, module.unlockedThroughPhase);
+                ClinicScheduleService.AppendPhaseWeekIfNeeded(profileId, moduleId, module.unlockedThroughPhase);
 
             if (FirebaseBootstrap.Ready && IsOnline())
                 FirebaseProfileSync.PushModuleProgress(profileId, module, day);

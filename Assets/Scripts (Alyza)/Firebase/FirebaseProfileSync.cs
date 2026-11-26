@@ -317,7 +317,7 @@ public static class FirebaseProfileSync
 
     public static void PushClinicSchedule(ClinicScheduleState state)
     {
-        if (!CanWrite() || state == null || string.IsNullOrEmpty(state.profileId) || state.days == null)
+        if (!CanWrite() || state == null || string.IsNullOrEmpty(state.profileId))
             return;
 
         var db = Db;
@@ -328,35 +328,57 @@ public static class FirebaseProfileSync
         userRef.SetAsync(new Dictionary<string, object>
         {
             { "trainingStartDate", state.trainingStartDate ?? string.Empty },
+            { "clinicScheduleSchema", ClinicScheduleState.CurrentSchema },
             { "updatedAt", FieldValue.ServerTimestamp }
         }, SetOptions.MergeAll);
 
         WriteBatch batch = db.StartBatch();
         int ops = 0;
-        for (int i = 0; i < state.days.Count; i++)
-        {
-            ClinicDayPlan day = state.days[i];
-            if (day == null || string.IsNullOrEmpty(day.date))
-                continue;
+        int dayCount = 0;
 
-            DocumentReference dayRef = userRef.Collection("clinicSchedule").Document(day.date);
+        void WriteDay(ClinicDayPlan day)
+        {
+            if (day == null || string.IsNullOrEmpty(day.date))
+                return;
+
+            string moduleId = string.IsNullOrEmpty(day.moduleId) ? "_" : day.moduleId;
+            string docId = moduleId + "__" + day.date;
+            DocumentReference dayRef = userRef.Collection("clinicSchedule").Document(docId);
             batch.Set(dayRef, new Dictionary<string, object>
             {
                 { "date", day.date },
+                { "moduleId", moduleId },
                 { "type", day.type == (int)ClinicDayPlanType.Session ? "session" : "rest" },
                 { "slot", day.slot },
                 { "phase", day.phase },
                 { "updatedAt", FieldValue.ServerTimestamp }
             }, SetOptions.MergeAll);
             ops++;
+            dayCount++;
 
-            // Firestore batch max 500; clinic weeks are small.
             if (ops >= 400)
             {
                 batch.CommitAsync();
                 batch = db.StartBatch();
                 ops = 0;
             }
+        }
+
+        if (state.modules != null)
+        {
+            for (int m = 0; m < state.modules.Count; m++)
+            {
+                ModuleClinicSchedule mod = state.modules[m];
+                if (mod == null || mod.days == null)
+                    continue;
+                for (int i = 0; i < mod.days.Count; i++)
+                    WriteDay(mod.days[i]);
+            }
+        }
+        else if (state.days != null)
+        {
+            for (int i = 0; i < state.days.Count; i++)
+                WriteDay(state.days[i]);
         }
 
         if (ops > 0)
@@ -366,7 +388,7 @@ public static class FirebaseProfileSync
                 if (task.IsFaulted)
                     Debug.LogWarning("[Firebase] Clinic schedule push failed: " + task.Exception);
                 else
-                    Debug.Log("[Firebase] Clinic schedule synced (" + state.days.Count + " days)");
+                    Debug.Log("[Firebase] Clinic schedule synced (" + dayCount + " module-days)");
             });
         }
     }
