@@ -120,7 +120,20 @@ public class FirebaseBootstrap : MonoBehaviour
         {
             yield return wait;
             FirebaseProfileSync.PullOnceFromServer();
+            ProgressionService.FlushPendingProgressSync();
         }
+    }
+
+    void OnApplicationPause(bool pause)
+    {
+        if (!pause && Ready)
+            ProgressionService.FlushPendingProgressSync();
+    }
+
+    void OnApplicationFocus(bool focus)
+    {
+        if (focus && Ready)
+            ProgressionService.FlushPendingProgressSync();
     }
 
     void Initialize()

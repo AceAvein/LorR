@@ -47,6 +47,23 @@ public class ResultsScreen : MonoBehaviour
 
     public void Show(RoundReport report)
     {
+        float completionPct = report.patternTotal <= 0
+            ? 0f
+            : (100f * report.patternsCompleted / report.patternTotal);
+
+        ProgressionSessionRecorder.Record(
+            ProgressionConfig.PenTrace,
+            completionPct,
+            new System.Collections.Generic.Dictionary<string, object>
+            {
+                { "avgDeviationMm", report.avgDeviationMm },
+                { "maxDeviationMm", report.maxDeviationMm },
+                { "patternsCompleted", report.patternsCompleted },
+                { "patternTotal", report.patternTotal },
+                { "timeUsed", report.timeUsed },
+                { "completionPct", completionPct }
+            });
+
         if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
             return;
 

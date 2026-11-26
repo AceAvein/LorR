@@ -11,6 +11,17 @@ public class BallDropResults : MonoBehaviour
 
     public void Show(BallDropReport report)
     {
+        ProgressionSessionRecorder.Record(
+            ProgressionConfig.BallDrop,
+            report.interceptionRate,
+            new System.Collections.Generic.Dictionary<string, object>
+            {
+                { "interceptionRate", report.interceptionRate },
+                { "success", report.success },
+                { "fail", report.fail },
+                { "averageReaction", report.averageReaction }
+            });
+
         EnsureVisuals();
 
         interceptionRate.text = report.interceptionRate.ToString("0") + "%";

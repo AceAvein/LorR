@@ -14,7 +14,6 @@ public static class FirebaseProfileSync
     const string UsersCollection = "users";
     const string DevicesCollection = "devices";
     const string ModulesCollection = "modules";
-    const string SessionsCollection = "sessions";
     const string KnownRemoteIdsKey = "Firebase.KnownUserIds";
 
     static ListenerRegistration usersListener;
@@ -274,7 +273,12 @@ public static class FirebaseProfileSync
     public static void UpsertProfile(UserProfile profile, bool isNew = false)
     {
         if (!CanWrite() || profile == null || string.IsNullOrEmpty(profile.id))
+        {
+            // Queue cloud seed for when Auth is ready; user doc must exist first.
+            if (profile != null && !string.IsNullOrEmpty(profile.id))
+                ProgressionService.SeedProfile(profile.id, pushToCloud: true);
             return;
+        }
 
         var db = Db;
         if (db == null)
@@ -293,7 +297,8 @@ public static class FirebaseProfileSync
         if (isNew)
             data["createdAt"] = FieldValue.ServerTimestamp;
 
-        db.Collection(UsersCollection).Document(profile.id)
+        string profileId = profile.id;
+        db.Collection(UsersCollection).Document(profileId)
             .SetAsync(data, SetOptions.MergeAll)
             .ContinueWithOnMainThread(task =>
             {
@@ -303,7 +308,9 @@ public static class FirebaseProfileSync
                     return;
                 }
 
-                RememberKnownRemoteId(profile.id);
+                RememberKnownRemoteId(profileId);
+                // Modules rules require the parent user doc to exist — seed only after upsert succeeds.
+                ProgressionService.SeedModulesAfterUserDocExists(profileId);
             });
     }
 
@@ -351,6 +358,252 @@ public static class FirebaseProfileSync
             });
     }
 
+    /// <summary>
+    /// Create modules/phases skeleton. Commits in one batch.
+    /// onComplete(true) only after Firestore accepts the write.
+    /// </summary>
+    public static bool SeedModuleProgress(
+        string profileId,
+        ProfileProgressState state,
+        Action<bool> onComplete = null)
+    {
+        if (!CanWrite() || string.IsNullOrEmpty(profileId) || state == null)
+        {
+            onComplete?.Invoke(false);
+            return false;
+        }
+
+        var db = Db;
+        if (db == null)
+        {
+            onComplete?.Invoke(false);
+            return false;
+        }
+
+        ProgressionService.EnsureAllModules(state);
+
+        WriteBatch batch = db.StartBatch();
+        int ops = 0;
+
+        for (int i = 0; i < state.modules.Count; i++)
+        {
+            ModuleProgress module = state.modules[i];
+            if (module == null || string.IsNullOrEmpty(module.moduleId))
+                continue;
+
+            DocumentReference moduleRef = db.Collection(UsersCollection)
+                .Document(profileId)
+                .Collection(ModulesCollection)
+                .Document(module.moduleId);
+
+            batch.Set(moduleRef, new Dictionary<string, object>
+            {
+                { "moduleId", module.moduleId },
+                { "unlockedThroughPhase", module.unlockedThroughPhase },
+                { "currentPhase", module.currentPhase },
+                { "currentWeekStart", module.currentWeekStart ?? string.Empty },
+                { "playDatesThisWeek", module.playDatesThisWeek ?? new List<string>() },
+                { "updatedAt", FieldValue.ServerTimestamp }
+            }, SetOptions.MergeAll);
+            ops++;
+
+            for (int phase = 1; phase <= ProgressionConfig.PhaseCount; phase++)
+            {
+                DocumentReference phaseRef = moduleRef.Collection("phases").Document(phase.ToString());
+                batch.Set(phaseRef, BuildEmptyPhaseFields(phase), SetOptions.MergeAll);
+                ops++;
+
+                // 4 visible session slots under days/ so Console shows structure before play.
+                for (int slot = 1; slot <= ProgressionConfig.MaxPlayDaysPerWeek; slot++)
+                {
+                    DocumentReference dayRef = phaseRef.Collection("days").Document("sessionSlot" + slot);
+                    batch.Set(dayRef, BuildEmptyDayFields(phase, slot), SetOptions.MergeAll);
+                    ops++;
+                }
+            }
+        }
+
+        if (ops == 0)
+        {
+            onComplete?.Invoke(false);
+            return false;
+        }
+
+        batch.CommitAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted)
+            {
+                Debug.LogWarning("[Firebase] Module seed FAILED for " + profileId + ": " + task.Exception);
+                onComplete?.Invoke(false);
+                return;
+            }
+
+            Debug.Log("[Firebase] Seeded module progression for " + profileId + " (" + ops + " writes)");
+            onComplete?.Invoke(true);
+        });
+
+        return true;
+    }
+
+    /// <summary>Push module meta + single day overwrite under phases/{phase}/days/{date}.</summary>
+    public static void PushModuleProgress(string profileId, ModuleProgress module, DaySessionSave day)
+    {
+        if (!CanWrite() || string.IsNullOrEmpty(profileId) || module == null || day == null)
+            return;
+
+        var db = Db;
+        if (db == null)
+            return;
+
+        WriteModuleDoc(db, profileId, module);
+
+        PhaseWeekProgress active = null;
+        if (module.phaseWeeks != null)
+        {
+            for (int i = module.phaseWeeks.Count - 1; i >= 0; i--)
+            {
+                PhaseWeekProgress week = module.phaseWeeks[i];
+                if (week != null && week.phase == day.phase)
+                {
+                    active = week;
+                    break;
+                }
+            }
+        }
+
+        DocumentReference phaseRef = db.Collection(UsersCollection)
+            .Document(profileId)
+            .Collection(ModulesCollection)
+            .Document(module.moduleId)
+            .Collection("phases")
+            .Document(day.phase.ToString());
+
+        phaseRef.SetAsync(new Dictionary<string, object>
+        {
+            { "phase", day.phase },
+            { "weekStart", active != null ? (active.weekStart ?? string.Empty) : string.Empty },
+            { "playDates", active != null && active.playDates != null ? active.playDates : new List<string>() },
+            { "weekEvaluated", active != null && active.weekEvaluated },
+            { "weekPassed", active != null && active.weekPassed },
+            { "averageUnguidedScore", active != null ? active.averageUnguidedScore : 0f },
+            { "sessionSlots", ProgressionConfig.MaxPlayDaysPerWeek },
+            { "updatedAt", FieldValue.ServerTimestamp }
+        }, SetOptions.MergeAll);
+
+        // Fill pre-seeded sessionSlot1..4 (do not create parallel yyyy-MM-dd docs).
+        int slot = ResolveSessionSlot(active, day.playedOn);
+        var dayData = new Dictionary<string, object>
+        {
+            { "placeholder", false },
+            { "sessionSlot", slot },
+            { "playedOn", day.playedOn ?? string.Empty },
+            { "phase", day.phase },
+            { "mode", day.mode ?? ProgressionConfig.ModeUnguided },
+            { "primaryScore", day.primaryScore },
+            { "passed", day.passed },
+            { "accuracy", day.accuracy },
+            { "completionTimeSec", day.completionTimeSec },
+            { "averageReactionMs", day.averageReactionMs },
+            { "avgDeviationMm", day.avgDeviationMm },
+            { "maxDeviationMm", day.maxDeviationMm },
+            { "interceptionRate", day.interceptionRate },
+            { "correct", day.correct },
+            { "incorrect", day.incorrect },
+            { "missed", day.missed },
+            { "success", day.success },
+            { "fail", day.fail },
+            { "patternsCompleted", day.patternsCompleted },
+            { "patternTotal", day.patternTotal },
+            { "metricsJson", day.metricsJson ?? "{}" },
+            { "savedAt", FieldValue.ServerTimestamp }
+        };
+
+        phaseRef.Collection("days").Document("sessionSlot" + slot)
+            .SetAsync(dayData, SetOptions.MergeAll)
+            .ContinueWithOnMainThread(task =>
+            {
+                if (task.IsFaulted)
+                    Debug.LogWarning("[Firebase] Day save failed: " + task.Exception);
+                else
+                    Debug.Log("[Firebase] Session slot " + slot + " saved for phase " + day.phase + " (" + day.playedOn + ")");
+            });
+    }
+
+    static int ResolveSessionSlot(PhaseWeekProgress week, string playedOn)
+    {
+        if (week != null && week.playDates != null && !string.IsNullOrEmpty(playedOn))
+        {
+            int index = week.playDates.IndexOf(playedOn);
+            if (index >= 0)
+                return Mathf.Clamp(index + 1, 1, ProgressionConfig.MaxPlayDaysPerWeek);
+            return Mathf.Clamp(week.playDates.Count, 1, ProgressionConfig.MaxPlayDaysPerWeek);
+        }
+
+        return 1;
+    }
+
+    static void WriteModuleDoc(FirebaseFirestore db, string profileId, ModuleProgress module)
+    {
+        db.Collection(UsersCollection)
+            .Document(profileId)
+            .Collection(ModulesCollection)
+            .Document(module.moduleId)
+            .SetAsync(new Dictionary<string, object>
+            {
+                { "moduleId", module.moduleId },
+                { "unlockedThroughPhase", module.unlockedThroughPhase },
+                { "currentPhase", module.currentPhase },
+                { "currentWeekStart", module.currentWeekStart ?? string.Empty },
+                { "playDatesThisWeek", module.playDatesThisWeek ?? new List<string>() },
+                { "updatedAt", FieldValue.ServerTimestamp }
+            }, SetOptions.MergeAll);
+    }
+
+    static Dictionary<string, object> BuildEmptyPhaseFields(int phase)
+    {
+        return new Dictionary<string, object>
+        {
+            { "phase", phase },
+            { "weekStart", string.Empty },
+            { "playDates", new List<string>() },
+            { "weekEvaluated", false },
+            { "weekPassed", false },
+            { "averageUnguidedScore", 0f },
+            { "sessionSlots", ProgressionConfig.MaxPlayDaysPerWeek },
+            { "updatedAt", FieldValue.ServerTimestamp }
+        };
+    }
+
+    static Dictionary<string, object> BuildEmptyDayFields(int phase, int slot)
+    {
+        return new Dictionary<string, object>
+        {
+            { "placeholder", true },
+            { "sessionSlot", slot },
+            { "playedOn", string.Empty },
+            { "phase", phase },
+            { "mode", string.Empty },
+            { "primaryScore", 0f },
+            { "passed", false },
+            { "accuracy", 0f },
+            { "completionTimeSec", 0f },
+            { "averageReactionMs", 0f },
+            { "avgDeviationMm", 0f },
+            { "maxDeviationMm", 0f },
+            { "interceptionRate", 0f },
+            { "correct", 0 },
+            { "incorrect", 0 },
+            { "missed", 0 },
+            { "success", 0 },
+            { "fail", 0 },
+            { "patternsCompleted", 0 },
+            { "patternTotal", 0 },
+            { "metricsJson", "{}" },
+            { "savedAt", FieldValue.ServerTimestamp }
+        };
+    }
+
+    /// <summary>Legacy helper → day-overwrite progression.</summary>
     public static void PushSession(
         string profileId,
         string moduleId,
@@ -360,56 +613,28 @@ public static class FirebaseProfileSync
         string playedOnYyyyMmDd,
         Dictionary<string, object> metrics = null)
     {
-        if (!CanWrite() ||
-            string.IsNullOrEmpty(profileId) ||
-            string.IsNullOrEmpty(moduleId))
-            return;
-
-        var db = Db;
-        if (db == null)
-            return;
-
-        string playedOn = string.IsNullOrEmpty(playedOnYyyyMmDd)
-            ? DateTime.UtcNow.ToString("yyyy-MM-dd")
-            : playedOnYyyyMmDd;
-
-        string sessionId = playedOn + "_" + phase + "_" + Guid.NewGuid().ToString("N").Substring(0, 8);
-
-        var data = new Dictionary<string, object>
-        {
-            { "playedOn", playedOn },
-            { "phase", phase },
-            { "mode", mode ?? "Unguided" },
-            { "passed", passed },
-            { "savedAt", FieldValue.ServerTimestamp }
-        };
-
+        float score = 0f;
         if (metrics != null)
         {
-            foreach (var kv in metrics)
-            {
-                if (kv.Key != null && !data.ContainsKey(kv.Key))
-                    data[kv.Key] = kv.Value;
-            }
+            if (metrics.TryGetValue("primaryScore", out object primary) && primary != null)
+                float.TryParse(primary.ToString(), out score);
+            else if (metrics.TryGetValue("accuracy", out object accuracy) && accuracy != null)
+                float.TryParse(accuracy.ToString(), out score);
+        }
+        else if (passed)
+        {
+            score = ProgressionConfig.PassAverageForPhase(phase);
         }
 
-        DocumentReference moduleRef = db.Collection(UsersCollection)
-            .Document(profileId)
-            .Collection(ModulesCollection)
-            .Document(moduleId);
-
-        moduleRef.SetAsync(new Dictionary<string, object>
-        {
-            { "updatedAt", FieldValue.ServerTimestamp }
-        }, SetOptions.MergeAll);
-
-        moduleRef.Collection(SessionsCollection).Document(sessionId)
-            .SetAsync(data, SetOptions.MergeAll)
-            .ContinueWithOnMainThread(task =>
-            {
-                if (task.IsFaulted)
-                    Debug.LogWarning("[Firebase] Session push failed: " + task.Exception);
-            });
+        ProgressionService.RecordSession(
+            profileId,
+            moduleId,
+            phase,
+            mode,
+            score,
+            metrics,
+            out _,
+            out _);
     }
 
     static bool CanWrite()

@@ -13,6 +13,17 @@ public class ColorSortResults : MonoBehaviour
 {
     public void Show(ColorSortReport report)
     {
+        ProgressionSessionRecorder.Record(
+            ProgressionConfig.ObjectPlacement,
+            report.accuracy,
+            new System.Collections.Generic.Dictionary<string, object>
+            {
+                { "accuracy", report.accuracy },
+                { "completionTime", report.completionTime },
+                { "correct", report.correct },
+                { "incorrect", report.incorrect }
+            });
+
         if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
             return;
 

@@ -21,6 +21,18 @@ public class ReactionLightResults : MonoBehaviour
 {
     public void Show(ReactionLightReport report)
     {
+        ProgressionSessionRecorder.Record(
+            ProgressionConfig.ReactionLight,
+            report.accuracy,
+            new System.Collections.Generic.Dictionary<string, object>
+            {
+                { "accuracy", report.accuracy },
+                { "averageReactionMs", report.averageReactionMs },
+                { "correct", report.correct },
+                { "incorrect", report.incorrect },
+                { "missed", report.missed }
+            });
+
         if (ModuleScenes.IsGuided(SceneManager.GetActiveScene().name))
             return;
 

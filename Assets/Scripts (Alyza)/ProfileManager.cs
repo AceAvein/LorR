@@ -65,6 +65,8 @@ public class ProfileManager : MonoBehaviour
         EnsureAllProfileIds(saveIfChanged: true);
         // Pull + live listen (Firebase wins). Do not blind-push SyncAll — that overwrote Console edits.
         FirebaseProfileSync.StartSyncFromCloud();
+        // Retry / repair module skeleton seeds that ran before Auth was ready.
+        ProgressionService.EnsureCloudSeededForAllProfiles();
     }
 
     public void LoadProfiles()
@@ -310,6 +312,9 @@ public class ProfileManager : MonoBehaviour
 
         Profiles.Add(profile);
         SaveProfiles();
+        // Local progression only here. Cloud modules seed AFTER user doc upsert succeeds
+        // (Firestore rules require parent users/{id} before modules/* writes).
+        ProgressionService.SeedProfile(profile.id, pushToCloud: false);
         if (!applyingRemote)
             FirebaseProfileSync.UpsertProfile(profile, isNew: true);
         NotifyProfilesChanged();
@@ -363,6 +368,8 @@ public class ProfileManager : MonoBehaviour
             : (FindProfileById(profile.id) ?? FindProfile(profile.name));
         CurrentProfile = stored;
         SaveProfiles();
+        if (stored != null && !string.IsNullOrEmpty(stored.id))
+            ProgressionService.SeedProfile(stored.id, pushToCloud: syncRemote && !applyingRemote);
         if (syncRemote && !applyingRemote && stored != null)
             FirebaseProfileSync.SetCurrentProfile(stored.id);
         NotifyProfilesChanged();
